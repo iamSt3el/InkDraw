@@ -1,0 +1,47 @@
+// src/components/Button/Button.module.scss
+
+.outterBox {
+    display: inline-flex;
+    .button {
+        //height: 52px;
+        //width: 72px;
+        background-color: white;
+        border: 1px solid black;
+        border-radius: 20%;
+        cursor: pointer;
+        box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease-in-out;
+
+        &:hover {
+            box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
+            transform: scale(1.1);
+            background-color: #9FB3DF;
+
+        }
+
+        &.active {
+            background-color: #9FB3DF;
+            color: white;
+            border-color: #9FB3DF;
+
+            .icon {
+                color: white;
+            }
+        }
+
+        .icon {
+            color: black;
+            width: 34px;
+            height: 34px;
+            transition: color 0.3s ease-in-out;
+            transform: rotate(360deg);
+        }
+
+        .icon:hover{
+            transform: rotate(360deg);
+        }
+    }
+}

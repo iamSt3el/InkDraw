@@ -1,0 +1,13 @@
+.tb_cover{
+    display: flex;
+    justify-content: space-between;
+    padding: 20px;
+    .tb_menu{
+
+    }
+
+    .tb_tools{
+        display: flex;
+        gap: 10px;
+    }
+}

@@ -1,0 +1,242 @@
+.notebook_card {
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    
+    // Hover effect for the entire card
+    &:hover {
+      transform: translateY(-5px);
+      
+      .notebook_card_cover {
+        box-shadow: 
+          6px 5px 0px 0px rgba(127, 85, 177, 0.63),
+          12px 10px 0px -2px rgba(127, 85, 177, 0.63),
+          0 15px 35px rgba(139, 92, 246, 0.2);
+        
+        .notebook_card_holes {
+          box-shadow: 
+            inset 3px 2px 0px 0px rgba(0, 0, 0, 0.25),
+            0 1px 2px rgba(255, 255, 255, 0.3);
+        }
+      }
+    }
+      
+    .notebook_card_cover {
+      display: flex;
+      flex-direction: row;
+      background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 50%, #6D28D9 100%);
+      height: 320px;
+      width: 290px;
+      border-top-right-radius: 10px;
+      border-bottom-right-radius: 10px;
+      box-shadow: 4.5px 4px 0px 0px rgba(127, 85, 177, 0.63),
+                  9px 8px 0px -2px rgba(127, 85, 177, 0.63);
+      
+      .notebook_card_hole_div {
+        width: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-top: 8px;
+        padding-left: 5px;
+        flex-shrink: 0; // Prevents shrinking
+        
+        .notebook_card_holes {
+          background-color: white;
+          height: 10px;
+          width: 10px;
+          border-radius: 30px;
+          box-shadow: inset 3px 2px 0px 0px rgba(0, 0, 0, 0.25);
+        }
+      }
+      
+      .notebook_card_content {
+        flex: 1; // This takes all remaining space
+        display: flex;
+        flex-direction: column; // Add this if you want vertical layout
+        
+        .notebook_card_header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin: 10px;
+          margin-bottom: 0;
+          
+          .notebook_card_date {
+            font-size: 12px;
+            
+            h4 {
+              margin: 0;
+              color: white;
+            }
+          }
+          
+          .delete_button {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 6px;
+            padding: 6px;
+            cursor: pointer;
+            color: #dc2626;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0.8;
+            
+            &:hover {
+              opacity: 1;
+              background: rgba(255, 255, 255, 1);
+              transform: scale(1.05);
+              color: #b91c1c;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Move checkmark outside (it seems misplaced)
+  .checkmark {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    
+    &:after {
+      content: "";
+      position: absolute;
+      right: 25px;
+      top: -5px;
+      width: 13px;
+      height: 14px;
+      border: 3px solid black;
+      border-top: none;
+      border-radius: 0 0 20px 20px;
+      transform: rotate(40deg);
+    }
+  }
+  
+  .notebook_card_title {
+    align-self: center;
+    padding: 0 10px;
+    
+    h2 {
+      margin: 0;
+      color: white;
+      font-size: 1.2rem;
+      text-align: center;
+      line-height: 1.3;
+      max-height: 3.6rem; // Approximately 3 lines
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      word-wrap: break-word;
+      hyphens: auto;
+    }
+  }
+  
+  .notebook_card_description {
+    margin-top: 20px;
+    margin-left: 10px;
+    margin-right: 10px;
+    flex: 1;
+    
+    p {
+      margin: 0;
+      color: white;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      word-wrap: break-word;
+      hyphens: auto;
+    }
+  }
+  
+  .notebook_card_progress_content {
+    margin-left: 10px;
+    margin-right: 10px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    
+    h4 {
+      color: white;
+      margin: 0;
+    }
+  }
+  
+  // Delete Modal Styles
+  .delete_modal_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+  }
+  
+  .delete_modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.2);
+    
+    h3 {
+      margin: 0 0 12px 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    
+    p {
+      margin: 0 0 20px 0;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+  }
+  
+  .delete_modal_buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    
+    button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+  }
+  
+  .cancel_button {
+    background: #f3f4f6;
+    color: #374151;
+    
+    &:hover {
+      background: #e5e7eb;
+    }
+  }
+  
+  .confirm_delete_button {
+    background: #dc2626;
+    color: white;
+    
+    &:hover {
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+  }
