@@ -1,0 +1,188 @@
+/* src/components/PenPanel/PenPanel.module.scss */
+.penPanel {
+    position: absolute;
+    right: 20px;
+    top: 80px;
+    background-color: white;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 10px 25px, rgba(0, 0, 0, 0.1) 0px 6px 10px;
+    width: 250px;
+    z-index: 100;
+    
+    .panelHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      
+      h3 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #333;
+      }
+      
+      .closeButton {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        
+        &:hover {
+          color: #374151;
+        }
+      }
+    }
+    
+    .colorPalette {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      
+      .colorButton {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+        
+        &:hover {
+          transform: scale(1.1);
+        }
+        
+        &.selected {
+          border-color: #2563eb;
+          transform: scale(1.1);
+        }
+      }
+    }
+    
+    .controlGroup {
+      margin-bottom: 1.25rem;
+      
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        color: #4b5563;
+      }
+      
+      .controlRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        
+        .controlButton {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #6b7280;
+          padding: 0.25rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          
+          &:hover {
+            color: #374151;
+          }
+        }
+        
+        .controlValue {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          
+          .strokePreview {
+            width: 100px;
+            background-color: currentColor;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+          }
+          
+          .opacityPreview {
+            width: 100px;
+            height: 10px;
+            background-color: #000;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+          }
+          
+          span {
+            font-size: 0.85rem;
+            color: #4b5563;
+          }
+        }
+      }
+      
+      .toggleRow {
+        display: flex;
+        gap: 0.5rem;
+        
+        .toggleButton {
+          flex: 1;
+          padding: 0.5rem;
+          background-color: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.85rem;
+          transition: all 0.2s ease;
+          
+          &:hover {
+            background-color: #e5e7eb;
+          }
+          
+          &.active {
+            background-color: #9FB3DF;
+            border-color: #8B5CF6;
+            color: white;
+          }
+        }
+      }
+    }
+  }
+  
+  // Responsive styles
+  @media (max-width: 768px) {
+    .penPanel {
+      right: 10px;
+      top: 70px;
+      width: 230px;
+      padding: 0.75rem;
+      
+      .colorPalette {
+        .colorButton {
+          width: 35px;
+          height: 35px;
+        }
+      }
+      
+      .controlGroup {
+        .controlRow {
+          .controlValue {
+            .strokePreview,
+            .opacityPreview {
+              width: 80px;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  @media (max-width: 576px) {
+    .penPanel {
+      right: 50%;
+      transform: translateX(50%);
+      width: 90%;
+      max-width: 300px;
+    }
+  }
