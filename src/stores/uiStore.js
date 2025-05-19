@@ -90,6 +90,8 @@ export const useUIStore = create((set, get) => ({
         break;
     }
   },
+
+
   
   // Close all panels and modals
   closeAll: () => set({

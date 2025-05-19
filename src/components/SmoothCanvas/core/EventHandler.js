@@ -124,11 +124,6 @@ export class EventHandler {
     tempPath.setAttribute('fill', this.options.strokeColor);
     tempPath.setAttribute('stroke', 'none');
     
-    // Apply opacity to temporary stroke
-    if (this.options.opacity !== undefined) {
-      tempPath.setAttribute('opacity', this.options.opacity / 100);
-    }
-    
     try {
       const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
       const stroke = getStroke([point], strokeOptions);

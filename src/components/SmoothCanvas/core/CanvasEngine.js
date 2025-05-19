@@ -59,9 +59,9 @@ export class CanvasEngine {
     if (inputType === 'pen') {
       return {
         ...baseOptions,
-        thinning: 0.3,
+        thinning: 0.6,
         simulatePressure: false,
-        smoothing: 0.3,
+        smoothing: 0.4,
         streamline: 0.9,
       };
     } else {

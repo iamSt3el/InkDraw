@@ -1,292 +1,292 @@
 /* src/components/SmoothCanvas/SmoothCanvas.module.scss */
 .canvasContainer {
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: transparent;
-    border-radius: 8px;
-    overflow: hidden;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: transparent;
+  border-radius: 8px;
+  overflow: hidden;
+
+  // Critical optimizations for smoothness
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  // Hardware acceleration for maximum performance
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: contents;
+  contain: layout style paint;
+
+  // Isolation for better compositing
+  isolation: isolate;
+
+  // Tool-specific cursors
+  &.penMode {
+    cursor: crosshair;
+  }
+
+  &.eraserMode {
+    cursor: none;
+  }
+
+  &.pointerMode {
+    cursor: pointer;
+  }
+}
+
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background: transparent;
+
+  // Critical for smooth pen/stylus input
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  // Prevent context menu and text selection
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+
+  // Performance optimizations
+  will-change: transform;
+  contain: strict;
+
+  // Ensure crisp rendering for high DPI displays
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+
+  // Hardware acceleration
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000;
+  perspective: 1000;
+}
+
+.svg {
+  // Existing properties...
+  shape-rendering: geometricPrecision;
+  text-rendering: geometricPrecision;
+  color-rendering: optimizeQuality;
   
-    // Critical optimizations for smoothness
-    touch-action: none;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-user-drag: none;
+  // Enhanced anti-aliasing
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   
-    // Hardware acceleration for maximum performance
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: contents;
-    contain: layout style paint;
+  // Ensure crisp, smooth rendering
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
   
-    // Isolation for better compositing
-    isolation: isolate;
-  
-    // Tool-specific cursors
-    &.penMode {
-      cursor: crosshair;
+  path {
+    vector-effect: non-scaling-stroke;
+    shape-rendering: geometricPrecision;
+    fill-rule: nonzero;
+    stroke: none;
+    
+    // Add these for smoother curves
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    
+    // Better path rendering
+    &:not(#temp-path) {
+      mix-blend-mode: normal;
     }
-  
-    &.eraserMode {
-      cursor: none;
-    }
-  
-    &.pointerMode {
-      cursor: pointer;
+    
+    &#temp-path {
+      opacity: 0.98;
+      fill-rule: nonzero;
+      shape-rendering: geometricPrecision;
+      will-change: d;
+      
+      // Add subtle shadow for better visual feedback
+      filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
     }
   }
-  
-  .canvas {
+}
+
+
+// Enhanced eraser cursor with smooth animations
+.eraserCursor {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &::before {
+    content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1;
-    background: transparent;
-  
-    // Critical for smooth pen/stylus input
-    touch-action: none;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-user-drag: none;
-  
-    // Prevent context menu and text selection
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -khtml-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-  
-    // Performance optimizations
-    will-change: transform;
-    contain: strict;
-  
-    // Ensure crisp rendering for high DPI displays
+    top: 50%;
+    left: 50%;
+    width: 60%;
+    height: 60%;
+    background: rgba(239, 68, 68, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: eraserInnerPulse 1.5s infinite ease-in-out;
+  }
+}
+
+// Smooth eraser animations
+@keyframes eraserPulse {
+  0% {
+    transform: scale(1) translateZ(0);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.05) translateZ(0);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1) translateZ(0);
+    opacity: 0.8;
+  }
+}
+
+@keyframes eraserInnerPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+}
+
+// Optimize for high DPI displays
+@media (-webkit-min-device-pixel-ratio: 2),
+(min-resolution: 192dpi) {
+
+  .canvas,
+  .svg {
+    // Enhanced high DPI optimizations
     image-rendering: -webkit-optimize-contrast;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    -webkit-font-smoothing: none;
-    -moz-osx-font-smoothing: unset;
-  
-    // Hardware acceleration
+
+    // Force hardware acceleration
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    -webkit-perspective: 1000;
-    perspective: 1000;
+    will-change: transform, contents;
+
+    // Optimize font rendering
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
   }
-  
-  .svg {
-    // Existing properties...
+
+  .svg path {
+    // Enhance stroke quality on high DPI
     shape-rendering: geometricPrecision;
-    text-rendering: geometricPrecision;
-    color-rendering: optimizeQuality;
-    
-    // Enhanced anti-aliasing
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    
-    // Ensure crisp, smooth rendering
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-    
-    path {
-      vector-effect: non-scaling-stroke;
-      shape-rendering: geometricPrecision;
-      fill-rule: nonzero;
-      stroke: none;
-      
-      // Add these for smoother curves
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      
-      // Better path rendering
-      &:not(#temp-path) {
-        mix-blend-mode: normal;
-      }
-      
-      &#temp-path {
-        opacity: 0.98;
-        fill-rule: nonzero;
-        shape-rendering: geometricPrecision; // Changed from optimizeSpeed
-        will-change: d;
-        
-        // Add subtle shadow for better visual feedback
-        filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
-      }
-    }
+    vector-effect: non-scaling-stroke;
   }
-  
-  
-  // Enhanced eraser cursor with smooth animations
-  .eraserCursor {
-    transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-  
-    &::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 60%;
-      height: 60%;
-      background: rgba(239, 68, 68, 0.2);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      animation: eraserInnerPulse 1.5s infinite ease-in-out;
-    }
-  }
-  
-  // Smooth eraser animations
-  @keyframes eraserPulse {
-    0% {
-      transform: scale(1) translateZ(0);
-      opacity: 0.8;
-    }
-  
-    50% {
-      transform: scale(1.05) translateZ(0);
-      opacity: 0.6;
-    }
-  
-    100% {
-      transform: scale(1) translateZ(0);
-      opacity: 0.8;
-    }
-  }
-  
-  @keyframes eraserInnerPulse {
-    0% {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 0.3;
-    }
-  
-    50% {
-      transform: translate(-50%, -50%) scale(1.2);
-      opacity: 0.1;
-    }
-  
-    100% {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 0.3;
-    }
-  }
-  
-  // Optimize for high DPI displays
-  @media (-webkit-min-device-pixel-ratio: 2),
-  (min-resolution: 192dpi) {
-  
+}
+
+// Pen input optimizations (for devices with pressure sensitivity)
+@media (pointer: fine) {
+  .canvasContainer {
+
     .canvas,
     .svg {
-      // Enhanced high DPI optimizations
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: pixelated;
-  
-      // Force hardware acceleration
-      -webkit-transform: translateZ(0);
-      transform: translateZ(0);
-      will-change: transform, contents;
-  
-      // Optimize font rendering
-      -webkit-font-smoothing: subpixel-antialiased;
-      -moz-osx-font-smoothing: auto;
+      // Maximum precision for pen input
+      touch-action: none;
+      -webkit-touch-callout: none;
+
+      // Ensure no interference with pen events
+      -webkit-user-select: none;
+      user-select: none;
     }
-  
+  }
+}
+
+// Touch device optimizations
+@media (pointer: coarse) {
+  .canvasContainer {
+
+    .canvas,
+    .svg {
+      touch-action: none;
+      -webkit-overflow-scrolling: touch;
+
+      // Prevent zoom and other gestures
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+
+      // Optimize for finger drawing
+      -webkit-user-drag: none;
+    }
+  }
+}
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+
+  .canvasContainer,
+  .eraserCursor {
+    animation: none;
+    transition: none;
+  }
+
+  .svg path#temp-path {
+    animation: none;
+    transition: none;
+  }
+
+  @keyframes eraserPulse,
+  @keyframes eraserInnerPulse {
+
+    0%,
+    100% {
+      transform: scale(1) translateZ(0);
+      opacity: 0.8;
+    }
+  }
+}
+
+// Dark mode support (if needed)
+@media (prefers-color-scheme: dark) {
+  .canvasContainer {
+
+    // Adjust cursor colors for dark mode
+    &.eraserMode .eraserCursor {
+      border-color: #f87171;
+      background-color: rgba(248, 113, 113, 0.1);
+      box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.3);
+    }
+  }
+}
+
+// Print optimizations (for canvas export)
+@media print {
+  .canvasContainer {
+    .eraserCursor {
+      display: none;
+    }
+
     .svg path {
-      // Enhance stroke quality on high DPI
-      shape-rendering: geometricPrecision;
+      // Ensure crisp printing
+      shape-rendering: crispEdges;
       vector-effect: non-scaling-stroke;
     }
   }
-  
-  // Pen input optimizations (for devices with pressure sensitivity)
-  @media (pointer: fine) {
-    .canvasContainer {
-  
-      .canvas,
-      .svg {
-        // Maximum precision for pen input
-        touch-action: none;
-        -webkit-touch-callout: none;
-  
-        // Ensure no interference with pen events
-        -webkit-user-select: none;
-        user-select: none;
-      }
-    }
-  }
-  
-  // Touch device optimizations
-  @media (pointer: coarse) {
-    .canvasContainer {
-  
-      .canvas,
-      .svg {
-        touch-action: none;
-        -webkit-overflow-scrolling: touch;
-  
-        // Prevent zoom and other gestures
-        -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        -webkit-tap-highlight-color: transparent;
-  
-        // Optimize for finger drawing
-        -webkit-user-drag: none;
-      }
-    }
-  }
-  
-  // Reduced motion support
-  @media (prefers-reduced-motion: reduce) {
-  
-    .canvasContainer,
-    .eraserCursor {
-      animation: none;
-      transition: none;
-    }
-  
-    .svg path#temp-path {
-      animation: none;
-      transition: none;
-    }
-  
-    @keyframes eraserPulse,
-    @keyframes eraserInnerPulse {
-  
-      0%,
-      100% {
-        transform: scale(1) translateZ(0);
-        opacity: 0.8;
-      }
-    }
-  }
-  
-  // Dark mode support (if needed)
-  @media (prefers-color-scheme: dark) {
-    .canvasContainer {
-  
-      // Adjust cursor colors for dark mode
-      &.eraserMode .eraserCursor {
-        border-color: #f87171;
-        background-color: rgba(248, 113, 113, 0.1);
-        box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.3);
-      }
-    }
-  }
-  
-  // Print optimizations (for canvas export)
-  @media print {
-    .canvasContainer {
-      .eraserCursor {
-        display: none;
-      }
-  
-      .svg path {
-        // Ensure crisp printing
-        shape-rendering: crispEdges;
-        vector-effect: non-scaling-stroke;
-      }
-    }
-  }
+}
