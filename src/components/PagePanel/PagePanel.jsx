@@ -1,11 +1,10 @@
-// src/components/PagePanel/PagePanel.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react'
+import styles from './PagePanel.module.scss'
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
-import { MinusCircle, PlusCircle, XCircle, Grid, Grip, Circle } from 'lucide-react';
-import styles from './PagePanel.module.scss';
+import { X } from 'lucide-react';
 
-const PagePanel = () => {
+const PageSettingPanel = () => {
   const {
     pageSettings,
     setPattern,
@@ -16,149 +15,204 @@ const PagePanel = () => {
   
   const { isPagePanelVisible, togglePagePanel } = useUIStore();
   
+  // Use props as initial state and update when props change
+  const [currentPattern, setCurrentPattern] = useState(pageSettings.pattern);
+  const [currentPatternSize, setCurrentPatternSize] = useState(pageSettings.patternSize);
+  const [currentPatternColor, setCurrentPatternColor] = useState(pageSettings.patternColor);
+  const [currentPatternOpacity, setCurrentPatternOpacity] = useState(pageSettings.patternOpacity);
+
+  // Update state when store values change
+  useEffect(() => {
+    setCurrentPattern(pageSettings.pattern);
+  }, [pageSettings.pattern]);
+
+  useEffect(() => {
+    setCurrentPatternSize(pageSettings.patternSize);
+  }, [pageSettings.patternSize]);
+
+  useEffect(() => {
+    setCurrentPatternColor(pageSettings.patternColor);
+  }, [pageSettings.patternColor]);
+
+  useEffect(() => {
+    setCurrentPatternOpacity(pageSettings.patternOpacity);
+  }, [pageSettings.patternOpacity]);
+
+  // Don't show panel if not visible in UI state
   if (!isPagePanelVisible) return null;
-  
-  // Handle pattern size change
-  const handlePatternSizeChange = (delta) => {
-    const newSize = Math.max(5, Math.min(50, pageSettings.patternSize + delta));
+
+  const patterns = [
+    { 
+      id: 'blank', 
+      label: 'Blank',
+      icon: '□',
+      description: 'Plain white background'
+    },
+    { 
+      id: 'grid', 
+      label: 'Grid',
+      icon: '⊞',
+      description: 'Square grid pattern'
+    },
+    { 
+      id: 'dots', 
+      label: 'Dots',
+      icon: '⋯',
+      description: 'Dotted grid pattern'
+    },
+    { 
+      id: 'lines', 
+      label: 'Lines',
+      icon: '≡',
+      description: 'Horizontal lines'
+    },
+    { 
+      id: 'graph', 
+      label: 'Graph',
+      icon: '▦',
+      description: 'Graph paper style'
+    }
+  ];
+
+  const patternColors = [
+    '#e5e7eb', // Light gray
+    '#d1d5db', // Gray
+    '#9ca3af', // Dark gray
+    '#ddd6fe', // Light purple
+    '#c7d2fe', // Light blue
+    '#d1fae5', // Light green
+    '#fef3c7', // Light yellow
+    '#fed7d7', // Light red
+  ];
+
+  const handlePatternChange = (newPattern) => {
+    setCurrentPattern(newPattern);
+    setPattern(newPattern);
+  };
+
+  const handlePatternSizeChange = (newSize) => {
+    setCurrentPatternSize(newSize);
     setPatternSize(newSize);
   };
-  
-  // Handle pattern opacity change
-  const handleOpacityChange = (delta) => {
-    const newOpacity = Math.max(0, Math.min(100, pageSettings.patternOpacity + delta));
+
+  const handlePatternColorChange = (newColor) => {
+    setCurrentPatternColor(newColor);
+    setPatternColor(newColor);
+  };
+
+  const handlePatternOpacityChange = (e) => {
+    const newOpacity = parseInt(e.target.value);
+    setCurrentPatternOpacity(newOpacity);
     setPatternOpacity(newOpacity);
   };
-  
-  const patternTypes = [
-    { id: 'grid', name: 'Grid', icon: Grid },
-    { id: 'ruled', name: 'Ruled', icon: Grip },
-    { id: 'dots', name: 'Dots', icon: Circle }
-  ];
-  
-  const colorPalette = [
-    '#e5e7eb', // Default light gray
-    '#d1d5db', // Darker gray
-    '#9ca3af', // Medium gray
-    '#6b7280', // Dark gray
-    '#93c5fd', // Light blue
-    '#bfdbfe', // Very light blue
-    '#fecaca', // Light red
-    '#bbf7d0'  // Light green
-  ];
-  
+
   return (
-    <div className={styles.pagePanel}>
-      <div className={styles.panelHeader}>
-        <h3>Page Settings</h3>
-        <button 
-          className={styles.closeButton}
-          onClick={togglePagePanel}
-          aria-label="Close page panel"
-        >
-          <XCircle size={20} />
-        </button>
-      </div>
-      
-      <div className={styles.patternSelector}>
-        <label>Pattern Type</label>
-        <div className={styles.patternTypeRow}>
-          {patternTypes.map((pattern) => {
-            const Icon = pattern.icon;
-            return (
-              <button
-                key={pattern.id}
-                className={`${styles.patternButton} ${pageSettings.pattern === pattern.id ? styles.active : ''}`}
-                onClick={() => setPattern(pattern.id)}
-                aria-label={`Select ${pattern.name} pattern`}
+    <div className={styles.pagesettingpanel}>
+      <div className={styles.pagesettingpanel_cover}>
+        <div className={styles.section_header}>
+          <h3>Page Settings</h3>
+          <button 
+            className={styles.close_button}
+            onClick={togglePagePanel}
+            aria-label="Close page settings panel"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Pattern Selection */}
+        <div className={styles.section}>
+          <div className={styles.section_title}>Pattern Type</div>
+          <div className={styles.pattern_grid}>
+            {patterns.map((patternOption) => (
+              <div
+                key={patternOption.id}
+                className={`${styles.pattern_option} ${currentPattern === patternOption.id ? styles.active : ''}`}
+                onClick={() => handlePatternChange(patternOption.id)}
+                title={patternOption.description}
               >
-                <Icon size={24} />
-                <span>{pattern.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      
-      <div className={styles.controlGroup}>
-        <label>Pattern Size</label>
-        <div className={styles.controlRow}>
-          <button 
-            onClick={() => handlePatternSizeChange(-5)}
-            className={styles.controlButton}
-            aria-label="Decrease pattern size"
-          >
-            <MinusCircle size={20} />
-          </button>
-          <div className={styles.controlValue}>
-            <div 
-              className={styles.patternSizePreview} 
-              style={{ 
-                backgroundImage: `linear-gradient(to right, ${pageSettings.patternColor} 1px, transparent 1px),
-                                 linear-gradient(to bottom, ${pageSettings.patternColor} 1px, transparent 1px)`,
-                backgroundSize: `${pageSettings.patternSize}px ${pageSettings.patternSize}px`
-              }}
-            />
-            <span>{pageSettings.patternSize}px</span>
+                <div className={styles.pattern_icon}>{patternOption.icon}</div>
+                <div className={styles.pattern_label}>{patternOption.label}</div>
+              </div>
+            ))}
           </div>
-          <button 
-            onClick={() => handlePatternSizeChange(5)}
-            className={styles.controlButton}
-            aria-label="Increase pattern size"
-          >
-            <PlusCircle size={20} />
-          </button>
         </div>
-      </div>
-      
-      <div className={styles.controlGroup}>
-        <label>Pattern Color</label>
-        <div className={styles.colorPalette}>
-          {colorPalette.map((color) => (
-            <button
-              key={color}
-              className={`${styles.colorButton} ${pageSettings.patternColor === color ? styles.selected : ''}`}
-              style={{ backgroundColor: color }}
-              onClick={() => setPatternColor(color)}
-              aria-label={`Select ${color} for pattern`}
-            />
-          ))}
-        </div>
-      </div>
-      
-      <div className={styles.controlGroup}>
-        <label>Pattern Opacity</label>
-        <div className={styles.controlRow}>
-          <button 
-            onClick={() => handleOpacityChange(-5)}
-            className={styles.controlButton}
-            aria-label="Decrease pattern opacity"
-          >
-            <MinusCircle size={20} />
-          </button>
-          <div className={styles.controlValue}>
-            <div 
-              className={styles.opacityPreview} 
-              style={{ 
-                backgroundImage: `linear-gradient(to right, ${pageSettings.patternColor} 1px, transparent 1px),
-                                 linear-gradient(to bottom, ${pageSettings.patternColor} 1px, transparent 1px)`,
-                backgroundSize: `${pageSettings.patternSize}px ${pageSettings.patternSize}px`,
-                opacity: pageSettings.patternOpacity / 100
-              }}
-            />
-            <span>{pageSettings.patternOpacity}%</span>
+
+        {/* Pattern Size */}
+        {currentPattern !== 'blank' && (
+          <div className={styles.section}>
+            <div className={styles.section_title}>
+              Pattern Size
+              <span className={styles.value_display}>{currentPatternSize}px</span>
+            </div>
+            <div className={styles.size_cover}>
+              <input
+                type="range"
+                min="10"
+                max="50"
+                value={currentPatternSize}
+                onChange={(e) => handlePatternSizeChange(parseInt(e.target.value))}
+                className={styles.size_slider}
+              />
+              <div className={styles.size_presets}>
+                {[15, 20, 25, 30].map(size => (
+                  <button
+                    key={size}
+                    className={`${styles.size_preset} ${currentPatternSize === size ? styles.active : ''}`}
+                    onClick={() => handlePatternSizeChange(size)}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <button 
-            onClick={() => handleOpacityChange(5)}
-            className={styles.controlButton}
-            aria-label="Increase pattern opacity"
-          >
-            <PlusCircle size={20} />
-          </button>
-        </div>
+        )}
+
+        {/* Pattern Color */}
+        {currentPattern !== 'blank' && (
+          <div className={styles.section}>
+            <div className={styles.section_title}>Pattern Color</div>
+            <div className={styles.color_picker_cover}>
+              <div className={styles.color_picker}>
+                <div className={styles.color_grid}>
+                  {patternColors.map((color) => (
+                    <div
+                      key={color}
+                      className={`${styles.color_option} ${currentPatternColor === color ? styles.active : ''}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => handlePatternColorChange(color)}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pattern Opacity */}
+        {currentPattern !== 'blank' && (
+          <div className={styles.section}>
+            <div className={styles.section_title}>
+              Pattern Opacity
+              <span className={styles.value_display}>{currentPatternOpacity}%</span>
+            </div>
+            <div className={styles.opacity_cover}>
+              <input 
+                type="range" 
+                min="10" 
+                max="100" 
+                value={currentPatternOpacity}
+                onChange={handlePatternOpacityChange}
+                className={styles.opacity_slider} 
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default PagePanel;
+export default PageSettingPanel;
