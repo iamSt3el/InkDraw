@@ -1,37 +1,52 @@
 // src/components/SmoothCanvas/SmoothCanvas.jsx
-import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
 import { CanvasRenderer } from './core/CanvasRenderer';
+import { useDrawingStore } from '../../stores/drawingStore';
+import { usePageStore } from '../../stores/pageStore';
 import styles from './SmoothCanvas.module.scss';
 
-const SmoothCanvas = forwardRef(({
-  width = 900,
-  height = 700,
-  currentTool = 'pen',
-  strokeColor = '#000000',
-  strokeWidth = 5,
-  eraserWidth = 10,
-  sketchyMode = false,
-  temporaryShape = null, // Shape data during drawing
-  onCanvasChange,
-  backgroundImageUrl = null,
-  onMouseDown,
-  onMouseMove,
-  onMouseUp,
-  onMouseLeave
-}, ref) => {
+const SmoothCanvas = () => {
+  // Use store state
+  const {
+    currentTool,
+    strokeColor,
+    strokeWidth,
+    opacity,
+    eraserWidth,
+    canvasDimensions,
+    setCanvasData,
+    registerCanvasMethods
+  } = useDrawingStore();
+  
+  const { currentPageData, savePage } = usePageStore();
+  
+  // Local refs for DOM elements
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
+  
+  // Refs for canvas engine components
   const engineRef = useRef(null);
   const eventHandlerRef = useRef(null);
   const rendererRef = useRef(null);
   
+  // Local state
   const [paths, setPaths] = useState([]);
   const [pathsToErase, setPathsToErase] = useState(new Set());
   const [eraserPosition, setEraserPosition] = useState({ x: 0, y: 0 });
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Get dimensions from store
+  const { width, height } = canvasDimensions;
+
+  // Load canvas data when page changes
+  useEffect(() => {
+    if (isInitialized && engineRef.current && currentPageData?.canvasData) {
+      loadDrawingData(currentPageData.canvasData);
+    }
+  }, [currentPageData?.id, isInitialized]);
 
   // Initialize canvas engine
   useEffect(() => {
@@ -42,16 +57,14 @@ const SmoothCanvas = forwardRef(({
       height,
       strokeColor,
       strokeWidth,
-      eraserWidth,
-      sketchyMode
+      eraserWidth
     });
 
     const eventHandler = new EventHandler(engine, {
       currentTool,
       strokeColor,
       strokeWidth,
-      eraserWidth,
-      sketchyMode
+      eraserWidth
     });
 
     const renderer = new CanvasRenderer(engine);
@@ -60,14 +73,34 @@ const SmoothCanvas = forwardRef(({
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
         setPaths([...engine.getPaths()]);
-        if (onCanvasChange && isInitialized) {
-          onCanvasChange(engine.exportAsJSON());
+        if (isInitialized) {
+          const canvasData = engine.exportAsJSON();
+          
+          // Update drawing store with new canvas data
+          setCanvasData(canvasData);
+          
+          // Save to page if we have current page data
+          if (currentPageData) {
+            savePage({
+              ...currentPageData,
+              canvasData
+            });
+          }
         }
       },
       onPathsErased: () => {
         setPaths([...engine.getPaths()]);
-        if (onCanvasChange && isInitialized) {
-          onCanvasChange(engine.exportAsJSON());
+        if (isInitialized) {
+          const canvasData = engine.exportAsJSON();
+          
+          setCanvasData(canvasData);
+          
+          if (currentPageData) {
+            savePage({
+              ...currentPageData,
+              canvasData
+            });
+          }
         }
       },
       onPathsMarkedForErase: (pathsToErase) => {
@@ -81,27 +114,30 @@ const SmoothCanvas = forwardRef(({
       }
     });
 
-    // Only attach internal event handlers for pen and eraser tools
-    if (['pen', 'eraser'].includes(currentTool)) {
-      eventHandler.attachListeners(canvasRef.current);
-    }
+    // Attach event listeners
+    eventHandler.attachListeners(canvasRef.current);
 
     engineRef.current = engine;
     eventHandlerRef.current = eventHandler;
     rendererRef.current = renderer;
+    
+    // Register canvas methods with the store
+    registerCanvasMethods({
+      clearCanvas: clearCanvas,
+      exportImage: exportImage,
+      undo: undo
+    });
+    
     setIsInitialized(true);
 
     return () => {
       if (eventHandlerRef.current && canvasRef.current) {
         eventHandlerRef.current.detachListeners(canvasRef.current);
       }
-      if (engineRef.current) {
-        engineRef.current.destroy();
-      }
     };
-  }, [width, height, onCanvasChange]);
+  }, [width, height, setCanvasData, registerCanvasMethods]);
 
-  // Update options when props change
+  // Update options when store state changes
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
       engineRef.current.updateOptions({
@@ -109,8 +145,7 @@ const SmoothCanvas = forwardRef(({
         height,
         strokeColor,
         strokeWidth,
-        eraserWidth,
-        sketchyMode
+        eraserWidth
       });
 
       eventHandlerRef.current.options = {
@@ -118,8 +153,7 @@ const SmoothCanvas = forwardRef(({
         currentTool,
         strokeColor,
         strokeWidth,
-        eraserWidth,
-        sketchyMode
+        eraserWidth
       };
 
       engineRef.current.isErasing = currentTool === 'eraser';
@@ -128,50 +162,17 @@ const SmoothCanvas = forwardRef(({
         setPathsToErase(new Set());
         setShowEraser(false);
       }
-      
-      // Handle attaching/detaching event listeners based on tool
-      if (eventHandlerRef.current && canvasRef.current) {
-        // First detach any existing listeners
-        eventHandlerRef.current.detachListeners(canvasRef.current);
-        
-        // Reattach only for pen and eraser tools (internal handling)
-        if (['pen', 'eraser'].includes(currentTool)) {
-          eventHandlerRef.current.attachListeners(canvasRef.current);
-        }
-      }
     }
-  }, [currentTool, strokeColor, strokeWidth, eraserWidth, sketchyMode, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, eraserWidth, width, height, isInitialized]);
 
-  // Add a shape to the canvas
-  const addShape = (shapeData) => {
-    if (!engineRef.current) return null;
-    
-    // Add the shape to the engine
-    const newShape = engineRef.current.addShape(shapeData);
-    
-    if (newShape) {
-      // Update paths state
-      setPaths([...engineRef.current.getPaths()]);
-      
-      // Trigger save event
-      if (onCanvasChange && isInitialized) {
-        onCanvasChange(engineRef.current.exportAsJSON());
-      }
-      
-      return newShape;
-    }
-    
-    return null;
-  };
-
-  // Load drawing data from JSON
+  // Canvas control methods
   const loadDrawingData = (vectorData) => {
     if (!engineRef.current || !vectorData) {
       return false;
     }
     
     try {
-      // Temporarily disable callbacks to prevent save during load
+      const wasInitialized = isInitialized;
       setIsInitialized(false);
       
       const success = engineRef.current.importFromJSON(vectorData);
@@ -181,9 +182,8 @@ const SmoothCanvas = forwardRef(({
         setPaths([...currentPaths]);
       }
       
-      // Re-enable callbacks after a short delay
       setTimeout(() => {
-        setIsInitialized(true);
+        setIsInitialized(wasInitialized);
       }, 100);
       
       return success;
@@ -194,101 +194,71 @@ const SmoothCanvas = forwardRef(({
     }
   };
 
-  // Expose methods via ref
-  useImperativeHandle(ref, () => ({
-    exportImage: async (format = 'png') => {
-      if (engineRef.current) {
-        return engineRef.current.exportAsDataUrl(format, true);
-      }
-      return '';
-    },
-    exportJSON: () => {
-      if (engineRef.current) {
-        return engineRef.current.exportAsJSON();
-      }
-      return null;
-    },
-    exportSVG: () => {
-      if (engineRef.current) {
-        return engineRef.current.exportAsSVG();
-      }
-      return '';
-    },
-    clearCanvas: () => {
-      if (engineRef.current) {
-        engineRef.current.clearPaths();
-        setPaths([]);
-        setPathsToErase(new Set());
-        
-        // Remove temp path
-        const svg = svgRef.current;
-        const tempPath = svg?.querySelector('#temp-path');
-        if (tempPath) tempPath.remove();
+  const exportImage = async (format = 'png') => {
+    if (engineRef.current) {
+      return engineRef.current.exportAsDataUrl(format, true);
+    }
+    return '';
+  };
 
-        // Trigger save after clear
-        if (onCanvasChange && isInitialized) {
-          setTimeout(() => {
-            onCanvasChange(engineRef.current.exportAsJSON());
-          }, 10);
+  const clearCanvas = () => {
+    if (engineRef.current) {
+      engineRef.current.clearPaths();
+      setPaths([]);
+      setPathsToErase(new Set());
+      
+      // Remove temp path
+      const svg = svgRef.current;
+      const tempPath = svg?.querySelector('#temp-path');
+      if (tempPath) tempPath.remove();
+
+      // Save empty canvas state
+      if (isInitialized) {
+        const emptyCanvasData = engineRef.current.exportAsJSON();
+        
+        setCanvasData(emptyCanvasData);
+        
+        if (currentPageData) {
+          savePage({
+            ...currentPageData,
+            canvasData: emptyCanvasData
+          });
         }
       }
-    },
-    undo: () => {
-      if (engineRef.current) {
-        const success = engineRef.current.undo();
-        if (success) {
-          setPaths([...engineRef.current.getPaths()]);
-          // Trigger save after undo
-          if (onCanvasChange && isInitialized) {
-            setTimeout(() => {
-              onCanvasChange(engineRef.current.exportAsJSON());
-            }, 10);
+    }
+  };
+
+  const undo = () => {
+    if (engineRef.current) {
+      const success = engineRef.current.undo();
+      if (success) {
+        setPaths([...engineRef.current.getPaths()]);
+        
+        if (isInitialized) {
+          const updatedCanvasData = engineRef.current.exportAsJSON();
+          
+          setCanvasData(updatedCanvasData);
+          
+          if (currentPageData) {
+            savePage({
+              ...currentPageData,
+              canvasData: updatedCanvasData
+            });
           }
         }
-        return success;
       }
-      return false;
-    },
-    loadCanvasData: loadDrawingData,
-    loadDrawingData: loadDrawingData,
-    addShape: addShape // Expose addShape method
-  }));
+      return success;
+    }
+    return false;
+  };
 
   const dpr = window.devicePixelRatio || 1;
-  
-  // Handle external mouse events for shape drawing
-  const handleMouseDown = (e) => {
-    if (onMouseDown && !['pen', 'eraser'].includes(currentTool)) {
-      onMouseDown(e);
-    }
-  };
-  
-  const handleMouseMove = (e) => {
-    if (onMouseMove && !['pen', 'eraser'].includes(currentTool)) {
-      onMouseMove(e);
-    }
-  };
-  
-  const handleMouseUp = (e) => {
-    if (onMouseUp && !['pen', 'eraser'].includes(currentTool)) {
-      onMouseUp(e);
-    }
-  };
-  
-  const handleMouseLeave = (e) => {
-    if (onMouseLeave && !['pen', 'eraser'].includes(currentTool)) {
-      onMouseLeave(e);
-    }
-  };
 
   return (
     <div
       className={`${styles.canvasContainer} ${styles[`${currentTool}Mode`]}`}
       style={{ width, height }}
     >
-      {/* Background layers */}
-      {backgroundImageUrl && rendererRef.current?.renderBackgroundImage(backgroundImageUrl, width, height)}
-      
       {/* Canvas - handles all drawing events */}
       <canvas
         ref={canvasRef}
@@ -306,10 +276,6 @@ const SmoothCanvas = forwardRef(({
           zIndex: 2,
           pointerEvents: 'auto'
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
       />
 
       {/* SVG for vector drawing */}
@@ -329,10 +295,7 @@ const SmoothCanvas = forwardRef(({
         }}
       >
         {/* Main paths */}
-        {rendererRef.current?.renderPaths(paths)}
-        
-        {/* Temporary shape during drawing */}
-        {temporaryShape && rendererRef.current?.renderTemporaryShape(temporaryShape)}
+        {rendererRef.current?.renderPaths(paths, pathsToErase)}
       </svg>
 
       {/* Eraser cursor */}
@@ -340,8 +303,6 @@ const SmoothCanvas = forwardRef(({
         rendererRef.current?.renderEraserCursor(showEraser, eraserPosition, eraserWidth)}
     </div>
   );
-});
-
-SmoothCanvas.displayName = 'SmoothCanvas';
+};
 
 export default SmoothCanvas;
