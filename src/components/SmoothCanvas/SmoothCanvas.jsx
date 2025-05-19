@@ -57,6 +57,7 @@ const SmoothCanvas = () => {
       height,
       strokeColor,
       strokeWidth,
+      opacity,  // Pass opacity to engine
       eraserWidth
     });
 
@@ -64,6 +65,7 @@ const SmoothCanvas = () => {
       currentTool,
       strokeColor,
       strokeWidth,
+      opacity,  // Pass opacity to event handler
       eraserWidth
     });
 
@@ -145,6 +147,7 @@ const SmoothCanvas = () => {
         height,
         strokeColor,
         strokeWidth,
+        opacity,  // Update opacity in engine
         eraserWidth
       });
 
@@ -153,6 +156,7 @@ const SmoothCanvas = () => {
         currentTool,
         strokeColor,
         strokeWidth,
+        opacity,  // Update opacity in event handler
         eraserWidth
       };
 
@@ -163,7 +167,7 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
     }
-  }, [currentTool, strokeColor, strokeWidth, eraserWidth, width, height, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, width, height, isInitialized]);
 
   // Canvas control methods
   const loadDrawingData = (vectorData) => {

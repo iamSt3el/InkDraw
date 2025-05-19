@@ -17,6 +17,14 @@ export class CanvasRenderer {
         // For shapes, use direct SVG elements
         return this.renderShape(pathObj, pathsToErase.has(pathObj.id));
       } else {
+        // Get path opacity - first check if being erased
+        let pathOpacity = pathsToErase.has(pathObj.id) ? 0.3 : 1;
+        
+        // Apply the stroke opacity if defined (converting from percentage to decimal)
+        if (!pathsToErase.has(pathObj.id) && pathObj.opacity !== undefined) {
+          pathOpacity = pathObj.opacity / 100;
+        }
+        
         // For normal strokes
         return (
           <path
@@ -26,7 +34,7 @@ export class CanvasRenderer {
             stroke="none"
             fillRule="nonzero"
             style={{
-              opacity: pathsToErase.has(pathObj.id) ? 0.3 : 1,
+              opacity: pathOpacity,
               transition: 'opacity 0.1s ease'
             }}
           />
@@ -39,7 +47,14 @@ export class CanvasRenderer {
   
   // Render a shape based on its type
   renderShape(shape, isBeingErased) {
-    const opacity = isBeingErased ? 0.3 : shape.opacity / 100;
+    // First check if it's being erased
+    let shapeOpacity = isBeingErased ? 0.3 : 1;
+    
+    // Apply the shape's opacity if not being erased
+    if (!isBeingErased && shape.opacity !== undefined) {
+      shapeOpacity = shape.opacity / 100;
+    }
+    
     const key = shape.id;
     
     const shapeStyles = {
@@ -47,7 +62,7 @@ export class CanvasRenderer {
       strokeWidth: shape.strokeWidth,
       fill: shape.fill ? shape.fillColor : 'none',
       fillOpacity: shape.fill ? shape.fillOpacity / 100 : 0,
-      opacity: opacity,
+      opacity: shapeOpacity,
       transition: 'opacity 0.1s ease',
     };
     
@@ -104,7 +119,7 @@ export class CanvasRenderer {
             y2={shape.y2}
             stroke={shape.color}
             strokeWidth={shape.strokeWidth}
-            style={{ opacity: opacity, transition: 'opacity 0.1s ease' }}
+            style={{ opacity: shapeOpacity, transition: 'opacity 0.1s ease' }}
           />
         );
         

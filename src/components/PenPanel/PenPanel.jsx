@@ -17,7 +17,7 @@ const PenSettingPanel = () => {
   
   const { isPenPanelVisible, togglePenPanel } = useUIStore();
   
-  // Define state at the top level, before any conditional returns
+  // Define all state at the top level, before any conditional returns
   const [currentColor, setCurrentColor] = useState(strokeColor);
   const [currentSize, setCurrentSize] = useState(strokeWidth);
   const [currentOpacity, setCurrentOpacity] = useState(opacity);
@@ -28,8 +28,8 @@ const PenSettingPanel = () => {
   }, [strokeColor]);
 
   useEffect(() => {
-    setCurrentOpacity(opacity);
-  }, [opacity]);
+    setCurrentSize(strokeWidth);
+  }, [strokeWidth]);
 
   useEffect(() => {
     setCurrentOpacity(opacity);
@@ -52,10 +52,6 @@ const PenSettingPanel = () => {
     '#059669', // Emerald
     '#7c2d12', // Brown
   ];
-
-  useEffect(() => {
-    setCurrentOpacity(opacity);
-  }, [opacity]);
 
   const handleColorClick = (color) => {
     setCurrentColor(color);
