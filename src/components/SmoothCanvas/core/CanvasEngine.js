@@ -8,8 +8,9 @@ export class CanvasEngine {
       height: 700,
       strokeColor: '#000000',
       strokeWidth: 5,
-      opacity: 100,  // Added default opacity
+      opacity: 100,
       eraserWidth: 10,
+      viewBox: { x: 0, y: 0, width: 900, height: 700 }, // Default viewBox
       ...options
     };
     
@@ -47,13 +48,19 @@ export class CanvasEngine {
   }
 
   getStrokeOptions(inputType, strokeWidth) {
+    // Adjust stroke width based on zoom level
+    const zoomLevel = this.options.viewBox ? 
+      this.options.width / this.options.viewBox.width : 1;
+    
+    const adjustedWidth = strokeWidth / zoomLevel;
+    
     const baseOptions = {
-      size: strokeWidth,
+      size: adjustedWidth,
       smoothing: 0.5,
       streamline: 0.5,
       last: true,
       start: { taper: 0, cap: true },
-      end: { taper: strokeWidth * 0, cap: true }
+      end: { taper: adjustedWidth * 0, cap: true }
     };
 
     if (inputType === 'pen') {
@@ -96,9 +103,15 @@ export class CanvasEngine {
     if (type !== this.inputType) {
       this.inputType = type;
     }
-
-    const x = (e.clientX - rect.left) / rect.width * this.options.width;
-    const y = (e.clientY - rect.top) / rect.height * this.options.height;
+    
+    // Transform coordinates to account for viewBox (zoom and pan)
+    const canvasX = (e.clientX - rect.left) / rect.width * this.options.width;
+    const canvasY = (e.clientY - rect.top) / rect.height * this.options.height;
+    
+    // Apply viewBox transformation
+    const viewBox = this.options.viewBox || { x: 0, y: 0, width: this.options.width, height: this.options.height };
+    const x = viewBox.x + (canvasX / this.options.width) * viewBox.width;
+    const y = viewBox.y + (canvasY / this.options.height) * viewBox.height;
     
     let pressure = 0.5;
     
@@ -167,11 +180,17 @@ export class CanvasEngine {
   }
 
   eraserIntersectsBoundingBox(eraserX, eraserY, eraserRadius, bbox) {
+    // Adjust eraser radius based on zoom level
+    const zoomLevel = this.options.viewBox ? 
+      this.options.width / this.options.viewBox.width : 1;
+    
+    const adjustedRadius = eraserRadius / zoomLevel;
+    
     const expandedBbox = {
-      x: bbox.x - eraserRadius,
-      y: bbox.y - eraserRadius,
-      width: bbox.width + 2 * eraserRadius,
-      height: bbox.height + 2 * eraserRadius
+      x: bbox.x - adjustedRadius,
+      y: bbox.y - adjustedRadius,
+      width: bbox.width + 2 * adjustedRadius,
+      height: bbox.height + 2 * adjustedRadius
     };
 
     return eraserX >= expandedBbox.x && 
@@ -318,7 +337,8 @@ export class CanvasEngine {
       appState: {
         width: this.options.width,
         height: this.options.height,
-        opacity: this.options.opacity // Include opacity in app state
+        opacity: this.options.opacity, // Include opacity in app state
+        viewBox: this.options.viewBox // Include viewBox in app state
       }
     });
   }
@@ -421,7 +441,8 @@ export class CanvasEngine {
         this.updateOptions({
           width: data.appState.width || this.options.width,
           height: data.appState.height || this.options.height,
-          opacity: data.appState.opacity !== undefined ? data.appState.opacity : this.options.opacity
+          opacity: data.appState.opacity !== undefined ? data.appState.opacity : this.options.opacity,
+          viewBox: data.appState.viewBox || this.options.viewBox
         });
       }
 
@@ -438,7 +459,8 @@ export class CanvasEngine {
     if (!svg) return '';
 
     const svgClone = svg.cloneNode(true);
-    svgClone.setAttribute('viewBox', `0 0 ${this.options.width} ${this.options.height}`);
+    const viewBox = this.options.viewBox;
+    svgClone.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
     svgClone.setAttribute('width', this.options.width);
     svgClone.setAttribute('height', this.options.height);
     

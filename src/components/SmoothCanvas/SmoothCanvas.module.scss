@@ -36,6 +36,41 @@
   &.pointerMode {
     cursor: pointer;
   }
+  
+  &.panMode {
+    cursor: grab;
+    
+    &:active {
+      cursor: grabbing;
+    }
+  }
+  
+  &.panningMode {
+    cursor: grabbing !important;
+  }
+  
+  // Zoom indicator
+  .zoomIndicator {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #374151;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: opacity 0.2s ease;
+    opacity: 0.7;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
 }
 
 .canvas {
@@ -120,6 +155,17 @@
   }
 }
 
+// Pattern background for gridlines
+.pattern_background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: transform 0.1s ease;
+}
 
 // Enhanced eraser cursor with smooth animations
 .eraserCursor {
@@ -273,6 +319,12 @@
       background-color: rgba(248, 113, 113, 0.1);
       box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.3);
     }
+    
+    .zoomIndicator {
+      background-color: rgba(30, 41, 59, 0.8);
+      border-color: #334155;
+      color: #e5e7eb;
+    }
   }
 }
 
@@ -280,6 +332,10 @@
 @media print {
   .canvasContainer {
     .eraserCursor {
+      display: none;
+    }
+    
+    .zoomIndicator {
       display: none;
     }
 

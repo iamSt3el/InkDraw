@@ -18,18 +18,30 @@ export class EventHandler {
   }
 
   handlePointerDown(e) {
+    // Skip if pan tool is active or user is panning (using space key or middle mouse)
+    if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
+      return;
+    }
+
+    if (this.options.currentTool === 'rectangle') {
+      this.options.setShapeMode();
+      this.options.setShapePosition(this.engine.getPointFromEvent(e));
+
+      return;
+    }
+
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
     this.engine.isDrawing = true;
     this.engine.activePointer = e.pointerId;
     e.preventDefault();
-    
+
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
-    
+
     const point = this.engine.getPointFromEvent(e);
     this.engine.lastPoint = point;
-    
+
     if (this.engine.isErasing) {
       this.engine.setPathsToErase(new Set());
       this.handleErase(point[0], point[1]);
@@ -41,23 +53,41 @@ export class EventHandler {
 
   handlePointerMove(e) {
     if (!this.engine.canvasRef.current) return;
-    
+
+    // Skip if pan tool is active or user is panning
+    if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
+      return;
+    }
+
+    if (this.options.currentTool === 'rectangle') {
+      const currentPoint = this.engine.getPointFromEvent(e);
+      const [x1, y1] = this.options.shapePosition || [0, 0];
+      const [x2, y2] = currentPoint;
+
+
+      const width = Math.abs(x2 - x1);
+      const height = Math.abs(y2 - y1);
+
+      this.options.setShapeDetails({ width, height });
+      return;
+    }
+
+
     // Update eraser position
     if (this.options.currentTool === 'eraser') {
-      const rect = this.engine.canvasRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      this.engine.eraserPosition = { x, y };
+      // Calculate eraser position in viewBox coordinates
+      const point = this.engine.getPointFromEvent(e);
+      this.engine.eraserPosition = { x: point[0], y: point[1] };
       this.engine.showEraser = true;
-      
+
       if (this.callbacks.onEraserMove) {
-        this.callbacks.onEraserMove({ x, y });
+        this.callbacks.onEraserMove(this.engine.eraserPosition);
       }
     }
-    
+
     if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
     e.preventDefault();
-    
+
     if (this.engine.isErasing) {
       const point = this.engine.getPointFromEvent(e);
       this.handleErase(point[0], point[1]);
@@ -72,32 +102,42 @@ export class EventHandler {
       } else {
         points.push(this.engine.getPointFromEvent(e));
       }
-      
+
       // Process all points
       for (const point of points) {
         this.updateDrawing(point);
       }
     }
-    
+
     this.engine.lastPoint = this.engine.getPointFromEvent(e);
   }
 
   handlePointerUp(e) {
+    // Skip if pan tool is active or user is panning
+    if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
+      return;
+    }
+
+    if(this.options.currentTool === 'rectangle'){
+      this.options.setShapeMode();
+      return;
+    }
+
     if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
-    
+
     this.engine.isDrawing = false;
     this.engine.activePointer = null;
-    
+
     if (this.engine.canvasRef.current?.releasePointerCapture) {
       this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
     }
-    
+
     if (this.engine.isErasing) {
       this.finalizeErase();
     } else {
       this.finalizeStroke(e);
     }
-    
+
     this.engine.lastPoint = null;
   }
 
@@ -123,30 +163,34 @@ export class EventHandler {
     tempPath.id = 'temp-path';
     tempPath.setAttribute('fill', this.options.strokeColor);
     tempPath.setAttribute('stroke', 'none');
-    
+
     try {
       const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
       const stroke = getStroke([point], strokeOptions);
       const pathData = this.engine.getSvgPathFromStroke(stroke);
       tempPath.setAttribute('d', pathData);
     } catch (error) {
-      const radius = this.options.strokeWidth / 2;
+      // Get the zoom-adjusted radius
+      const zoomLevel = this.options.viewBox ?
+        this.engine.options.width / this.options.viewBox.width : 1;
+      const radius = (this.options.strokeWidth / 2) / zoomLevel;
+
       const pathData = `M ${point[0] - radius},${point[1]}
         A ${radius},${radius} 0 1,1 ${point[0] + radius},${point[1]}
         A ${radius},${radius} 0 1,1 ${point[0] - radius},${point[1]} Z`;
       tempPath.setAttribute('d', pathData);
     }
-    
+
     svg.appendChild(tempPath);
   }
 
   updateDrawing(point) {
     const newPath = [...this.engine.getCurrentPath(), point];
     this.engine.setCurrentPath(newPath);
-    
+
     const svg = this.engine.svgRef.current;
     const tempPath = svg?.querySelector('#temp-path');
-    
+
     if (tempPath && newPath.length > 1) {
       try {
         const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
@@ -160,14 +204,18 @@ export class EventHandler {
   }
 
   handleErase(x, y) {
-    const eraserRadius = this.options.eraserWidth / 2;
+    // Adjust eraser radius for zoom level
+    const zoomLevel = this.options.viewBox ?
+      this.engine.options.width / this.options.viewBox.width : 1;
+    const eraserRadius = this.options.eraserWidth / zoomLevel;
+
     const paths = this.engine.getPaths();
     const currentPathsToErase = new Set(this.engine.getPathsToErase());
-    
+
     for (let i = 0; i < paths.length; i++) {
       const pathObj = paths[i];
       if (currentPathsToErase.has(pathObj.id)) continue;
-      
+
       // Get the bounding box for this path/shape
       let bbox = this.engine.pathBBoxes.get(pathObj.id);
       if (!bbox) {
@@ -198,12 +246,12 @@ export class EventHandler {
           }
         }
       }
-      
+
       if (bbox && this.engine.eraserIntersectsBoundingBox(x, y, eraserRadius, bbox)) {
         currentPathsToErase.add(pathObj.id);
       }
     }
-    
+
     // Update paths to erase only if something changed
     if (currentPathsToErase.size !== this.engine.getPathsToErase().size) {
       this.engine.setPathsToErase(currentPathsToErase);
@@ -218,23 +266,23 @@ export class EventHandler {
     if (pathsToErase.size > 0) {
       // Filter out the erased paths from the paths array
       const newPaths = this.engine.getPaths().filter(path => !pathsToErase.has(path.id));
-      
+
       // ONLY if we actually removed something - FIX for content disappearing
       if (newPaths.length < this.engine.getPaths().length) {
         this.engine.paths = newPaths;
-        
+
         // Clean up bounding boxes
         pathsToErase.forEach(pathId => {
           this.engine.pathBBoxes.delete(pathId);
         });
-        
+
         // Notify about paths being erased
         if (this.callbacks.onPathsErased) {
           this.callbacks.onPathsErased();
         }
       }
     }
-    
+
     // Reset paths to erase
     this.engine.setPathsToErase(new Set());
   }
@@ -242,19 +290,19 @@ export class EventHandler {
   finalizeStroke(e) {
     const currentPath = this.engine.getCurrentPath();
     if (currentPath.length === 0) return;
-    
+
     try {
       const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
       const stroke = getStroke(currentPath, strokeOptions);
       const pathData = this.engine.getSvgPathFromStroke(stroke);
-      
+
       // Remove temp path
       const svg = this.engine.svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) {
         tempPath.remove();
       }
-      
+
       // Add to paths with the original input points for proper vector storage
       this.engine.addPath(
         pathData,
@@ -263,9 +311,9 @@ export class EventHandler {
         this.engine.inputType,
         currentPath // Save the original input points
       );
-      
+
       this.engine.setCurrentPath([]);
-      
+
       if (this.callbacks.onStrokeComplete) {
         this.callbacks.onStrokeComplete();
       }

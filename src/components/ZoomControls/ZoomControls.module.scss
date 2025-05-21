@@ -1,0 +1,65 @@
+/* src/components/ZoomControls/ZoomControls.module.scss */
+.zoomControls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    z-index: 10;
+    
+    .zoomButton {
+      background: none;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #4b5563;
+      
+      &:hover {
+        background-color: #f3f4f6;
+        color: #111827;
+      }
+      
+      &.active {
+        background-color: #9FB3DF;
+        color: white;
+      }
+    }
+    
+    .zoomLevel {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4b5563;
+      width: 60px;
+      text-align: center;
+      user-select: none;
+    }
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .zoomControls {
+      bottom: 10px;
+      padding: 3px;
+      
+      .zoomButton {
+        width: 32px;
+        height: 32px;
+      }
+      
+      .zoomLevel {
+        width: 50px;
+        font-size: 0.75rem;
+      }
+    }
+  }

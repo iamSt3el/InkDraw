@@ -1,9 +1,10 @@
 import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
-import { Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, Settings } from 'lucide-react';
+import { Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
+import ZoomControls from '../ZoomControls/ZoomControls';
 
 const ToolBar = () => {
   // Get currentTool and setTool from the store
@@ -11,7 +12,11 @@ const ToolBar = () => {
     currentTool,
     setTool,
     clearCanvas,
-    undoCanvas
+    undoCanvas,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    zoomLevel,
   } = useDrawingStore();
 
   const {
@@ -33,6 +38,12 @@ const ToolBar = () => {
     setTool('eraser');
   };
 
+  const handleShapeClick = () => {
+    setTool('rectangle');
+
+    console.log(currentTool);
+  }
+
   const handleClearClick = () => {
     if (clearCanvas) {
       clearCanvas();
@@ -43,6 +54,10 @@ const ToolBar = () => {
     if (undoCanvas) {
       undoCanvas();
     }
+  };
+
+  const handlePanClick = () => {
+    setTool('pan');
   };
 
   return (
@@ -91,8 +106,6 @@ const ToolBar = () => {
             </div>
           )}
         </div>
-
-
       </div>
 
       <div className={styles.tb_tools}>
@@ -106,6 +119,14 @@ const ToolBar = () => {
           isActive={currentTool === 'eraser'}
           onClick={handleEraserClick}
         />
+
+        <Button
+          Icon={Square}
+          isActive={currentTool === 'rectangle'}
+          onClick={handleShapeClick}
+
+        />
+
         <Button
           Icon={Trash}
           onClick={handleClearClick}
@@ -117,6 +138,25 @@ const ToolBar = () => {
       </div>
 
       <div className={styles.tb_details}>
+        {/* <div className={styles.tb_zoom}>
+        <Button
+          Icon={ZoomIn}
+          onClick={zoomIn}
+        />
+        <div className={styles.zoom_level}>
+          {Math.round(zoomLevel * 100)}%
+        </div>
+        <Button
+          Icon={ZoomOut}
+          onClick={zoomOut}
+        />
+        <Button
+          Icon={RotateCcw}
+          onClick={resetZoom}
+        />
+      </div> */}
+
+        <ZoomControls />
         <Button Icon={MoveLeft} />
       </div>
     </div>

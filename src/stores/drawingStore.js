@@ -12,12 +12,17 @@ export const useDrawingStore = create((set, get) => ({
   opacity: 100,
   eraserWidth: 10,
   sketchyMode: false,
+  shapeMode: false,
   
   // Canvas dimensions
   canvasDimensions: {
     width: 870,
     height: 870
   },
+  
+  // Zoom and Pan state
+  zoomLevel: 1,
+  viewBox: { x: 0, y: 0, width: 870, height: 870 },
   
   // Page settings
   pageSettings: {
@@ -31,9 +36,11 @@ export const useDrawingStore = create((set, get) => ({
   canvasData: null,
   hasUnsavedChanges: false,
   
+  setShapeMode: () => set(state => ({shapeMode: !state.shapeMode})),
+
   // Actions
   setTool: (tool) => {
-    const validTools = ['pen', 'eraser', 'pointer'];
+    const validTools = ['pen', 'eraser', 'pointer', 'pan', 'rectangle'];
     if (validTools.includes(tool)) {
       set({ currentTool: tool });
     } else {
@@ -72,6 +79,128 @@ export const useDrawingStore = create((set, get) => ({
   
   setCanvasDimensions: (dimensions) => set({
     canvasDimensions: dimensions
+  }),
+  
+  // Zoom and Pan actions
+  setZoomLevel: (level) => set(state => {
+    const newZoom = Math.max(0.1, Math.min(5, level)); // Limit zoom range between 10% and 500%
+    
+    // Adjust viewBox when zoom changes to maintain center
+    const { width, height } = state.canvasDimensions;
+    const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
+    
+    // Calculate center point of current view
+    const centerX = x + vbWidth / 2;
+    const centerY = y + vbHeight / 2;
+    
+    // Calculate new dimensions based on new zoom
+    const newWidth = width / newZoom;
+    const newHeight = height / newZoom;
+    
+    // Calculate new viewBox position to keep center point
+    const newX = centerX - newWidth / 2;
+    const newY = centerY - newHeight / 2;
+    
+    return { 
+      zoomLevel: newZoom,
+      viewBox: {
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight
+      }
+    };
+  }),
+  
+  zoomIn: () => set(state => {
+    const newZoom = Math.min(5, state.zoomLevel * 1.25);
+    
+    // Adjust viewBox when zoom changes to maintain center
+    const { width, height } = state.canvasDimensions;
+    const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
+    
+    // Calculate center point of current view
+    const centerX = x + vbWidth / 2;
+    const centerY = y + vbHeight / 2;
+    
+    // Calculate new dimensions based on new zoom
+    const newWidth = width / newZoom;
+    const newHeight = height / newZoom;
+    
+    // Calculate new viewBox position to keep center point
+    const newX = centerX - newWidth / 2;
+    const newY = centerY - newHeight / 2;
+    
+    return { 
+      zoomLevel: newZoom,
+      viewBox: {
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight
+      }
+    };
+  }),
+  
+  zoomOut: () => set(state => {
+    const newZoom = Math.max(0.1, state.zoomLevel / 1.25);
+    
+    // Adjust viewBox when zoom changes to maintain center
+    const { width, height } = state.canvasDimensions;
+    const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
+    
+    // Calculate center point of current view
+    const centerX = x + vbWidth / 2;
+    const centerY = y + vbHeight / 2;
+    
+    // Calculate new dimensions based on new zoom
+    const newWidth = width / newZoom;
+    const newHeight = height / newZoom;
+    
+    // Calculate new viewBox position to keep center point
+    const newX = centerX - newWidth / 2;
+    const newY = centerY - newHeight / 2;
+    
+    return { 
+      zoomLevel: newZoom,
+      viewBox: {
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight
+      }
+    };
+  }),
+  
+  resetZoom: () => set(state => {
+    const { width, height } = state.canvasDimensions;
+    return { 
+      zoomLevel: 1,
+      viewBox: {
+        x: 0,
+        y: 0,
+        width,
+        height
+      }
+    };
+  }),
+  
+  setViewBox: (viewBox) => set({ viewBox }),
+  
+  panCanvas: (deltaX, deltaY) => set(state => {
+    const { x, y, width, height } = state.viewBox;
+    // Scale delta by zoom level to make panning feel natural
+    const scaledDeltaX = deltaX / state.zoomLevel;
+    const scaledDeltaY = deltaY / state.zoomLevel;
+    
+    return {
+      viewBox: {
+        x: x - scaledDeltaX,
+        y: y - scaledDeltaY,
+        width,
+        height
+      }
+    };
   }),
   
   // Page settings actions
