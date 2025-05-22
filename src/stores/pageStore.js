@@ -1,6 +1,7 @@
-// src/stores/pageStore.js
+// src/stores/pageStore.js - Updated with Electron integration
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import electronService from '../services/ElectronService';
 
 export const usePageStore = create(
   persist(
@@ -17,8 +18,12 @@ export const usePageStore = create(
       setSaving: (isSaving) => set({ isSaving }),
       setError: (error) => set({ error }),
       
-      setCurrentPageData: (pageData) => set({ currentPageData: pageData }),
+      setCurrentPageData: (pageData) => {
+        console.log('Setting current page data:', pageData?.id);
+        set({ currentPageData: pageData });
+      },
       
+      // Save page with Electron integration
       savePage: async (pageData) => {
         try {
           set({ isSaving: true, error: null });
@@ -26,37 +31,44 @@ export const usePageStore = create(
           const { notebookId, pageNumber, canvasData, settings } = pageData;
           const pageId = `${notebookId}_page_${pageNumber}`;
           
+          console.log('Saving page:', pageId, 'with settings:', settings);
+          
           const page = {
             id: pageId,
             notebookId,
             pageNumber,
             canvasData,
-            settings,
+            settings: settings || {
+              pattern: 'grid',
+              patternSize: 20,
+              patternColor: '#e5e7eb',
+              patternOpacity: 50
+            },
             lastModified: new Date().toISOString()
           };
           
-          // Save to storage
-          if (window.electron && window.electron.ipcRenderer) {
-            // Electron version
-            const result = await window.electron.ipcRenderer.invoke('data-save-page', page);
+          // Save to Electron if available
+          if (electronService.isElectron) {
+            const result = await electronService.savePage(page);
             
             if (!result.success) {
-              throw new Error(result.error);
+              throw new Error(result.error || 'Failed to save page');
             }
-          } else {
-            // Web version - just update the state
-            // No extra storage operation needed due to persist middleware
+            
+            console.log('Page saved successfully to file system');
           }
           
-          // Update pages state
+          // Update state
           set(state => ({
             pages: {
               ...state.pages,
               [pageId]: page
             },
+            currentPageData: page,
             isSaving: false
           }));
           
+          console.log('Page state updated successfully');
           return { success: true, page };
         } catch (error) {
           console.error('Error saving page:', error);
@@ -65,19 +77,24 @@ export const usePageStore = create(
         }
       },
       
+      // Load page with Electron integration
       loadPage: async (notebookId, pageNumber) => {
         try {
           set({ isLoading: true, error: null });
           
           const pageId = `${notebookId}_page_${pageNumber}`;
+          console.log('Loading page:', pageId);
+          
           let page = get().pages[pageId];
           
-          // If not in store, try to load from storage
-          if (!page && window.electron && window.electron.ipcRenderer) {
-            const result = await window.electron.ipcRenderer.invoke('data-load-page', pageId);
+          // If not in store, try to load from Electron
+          if (!page && electronService.isElectron) {
+            console.log('Page not found in store, loading from file system...');
+            const result = await electronService.loadPage(pageId);
             
             if (result.success) {
               page = result.page;
+              console.log('Page loaded from file system:', page.id);
               
               // Update store with loaded page
               set(state => ({
@@ -86,34 +103,14 @@ export const usePageStore = create(
                   [pageId]: page
                 }
               }));
-            } else if (result.error === 'Page not found') {
-              // Create default empty page
-              page = {
-                id: pageId,
-                notebookId,
-                pageNumber,
-                canvasData: JSON.stringify({
-                  type: 'drawing',
-                  version: 1,
-                  elements: [],
-                  appState: {
-                    width: 870,
-                    height: 870
-                  }
-                }),
-                settings: {
-                  pattern: 'grid',
-                  patternSize: 20,
-                  patternColor: '#e5e7eb',
-                  patternOpacity: 50
-                },
-                lastModified: new Date().toISOString()
-              };
-            } else {
+            } else if (result.error !== 'Page not found') {
               throw new Error(result.error);
             }
-          } else if (!page) {
-            // Web version - create default page if not found
+          }
+          
+          // Create default page if not found
+          if (!page) {
+            console.log('Creating default page:', pageId);
             page = {
               id: pageId,
               notebookId,
@@ -124,7 +121,8 @@ export const usePageStore = create(
                 elements: [],
                 appState: {
                   width: 870,
-                  height: 870
+                  height: 870,
+                  opacity: 100
                 }
               }),
               settings: {
@@ -135,6 +133,11 @@ export const usePageStore = create(
               },
               lastModified: new Date().toISOString()
             };
+            
+            // Save the default page immediately
+            if (electronService.isElectron) {
+              await electronService.savePage(page);
+            }
           }
           
           set({ 
@@ -146,6 +149,7 @@ export const usePageStore = create(
             } 
           });
           
+          console.log('Page loaded successfully:', page.id);
           return { success: true, page };
         } catch (error) {
           console.error('Error loading page:', error);
@@ -154,14 +158,15 @@ export const usePageStore = create(
         }
       },
       
+      // Delete page with Electron integration
       deletePage: async (pageId) => {
         try {
-          // Delete from storage
-          if (window.electron && window.electron.ipcRenderer) {
-            const result = await window.electron.ipcRenderer.invoke('data-delete-page', pageId);
+          // Delete from Electron if available
+          if (electronService.isElectron) {
+            const result = await electronService.deletePage(pageId);
             
             if (!result.success) {
-              throw new Error(result.error);
+              throw new Error(result.error || 'Failed to delete page');
             }
           }
           
@@ -169,7 +174,14 @@ export const usePageStore = create(
           set(state => {
             const newPages = { ...state.pages };
             delete newPages[pageId];
-            return { pages: newPages };
+            
+            // Clear current page data if it was the deleted page
+            const newCurrentPageData = state.currentPageData?.id === pageId ? null : state.currentPageData;
+            
+            return { 
+              pages: newPages, 
+              currentPageData: newCurrentPageData 
+            };
           });
           
           return { success: true };
@@ -180,21 +192,13 @@ export const usePageStore = create(
         }
       },
       
-      // Get all pages for a notebook
-      getPagesByNotebook: (notebookId) => {
-        const allPages = get().pages;
-        return Object.values(allPages)
-          .filter(page => page.notebookId === notebookId)
-          .sort((a, b) => a.pageNumber - b.pageNumber);
-      },
-      
-      // Load all pages for a notebook from storage
+      // Load all pages for a notebook from Electron
       loadPagesByNotebook: async (notebookId) => {
         try {
           set({ isLoading: true, error: null });
           
-          if (window.electron && window.electron.ipcRenderer) {
-            const result = await window.electron.ipcRenderer.invoke('data-load-pages-by-notebook', notebookId);
+          if (electronService.isElectron) {
+            const result = await electronService.loadPagesByNotebook(notebookId);
             
             if (result.success) {
               // Update pages state with loaded pages
@@ -213,10 +217,10 @@ export const usePageStore = create(
               
               return result.pages;
             } else {
-              throw new Error(result.error);
+              throw new Error(result.error || 'Failed to load pages');
             }
           } else {
-            // Web version - already have all pages in state
+            // Web version - get from state
             const pages = get().getPagesByNotebook(notebookId);
             set({ isLoading: false });
             return pages;
@@ -228,18 +232,33 @@ export const usePageStore = create(
         }
       },
       
+      // Get all pages for a notebook (from state)
+      getPagesByNotebook: (notebookId) => {
+        const allPages = get().pages;
+        return Object.values(allPages)
+          .filter(page => page.notebookId === notebookId)
+          .sort((a, b) => a.pageNumber - b.pageNumber);
+      },
+      
       // Clear current page data
       clearCurrentPageData: () => set({ currentPageData: null }),
       
-      // For non-React code to get pages
+      // Utility methods
       getPages: () => get().pages,
+      setPages: (pages) => set({ pages }),
       
-      // Bulk update pages (for sync operations)
-      setPages: (pages) => set({ pages })
+      // Initialize store
+      initialize: async () => {
+        console.log('Initializing page store...');
+        // Page store doesn't need initialization like notebooks
+        // Pages are loaded on demand
+      }
     }),
     {
-      name: 'drawo-pages', // localStorage key
-      getStorage: () => localStorage, // storage function
+      name: 'drawo-pages',
+      getStorage: () => localStorage,
+      // Only persist in web mode
+      skipHydration: electronService.isElectron,
     }
   )
 );

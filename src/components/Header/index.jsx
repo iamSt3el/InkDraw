@@ -1,14 +1,14 @@
-// components/organisms/Header/Header.jsx - Updated with data directory settings
+// src/components/Header/index.jsx - Updated with data directory functionality
 import React, { useState, useEffect } from 'react'
 import styles from './Header.module.scss'
 import { BadgePlus, FolderOpen } from 'lucide-react'
 import Button from '../atoms/Button/Button'
 import NotebookForm from '../NoteBookForm/NoteBookForm'
+import DataDirectorySettings from '../DataDirectorySettings/DataDirecotorySettings'
 
 const Header = () => {
-
   const [showForm, setShowForm] = useState(false);
-
+  const [showDataDirectory, setShowDataDirectory] = useState(false);
 
   const handleCreateNotebook = () => {
     // Clear any potential event listeners by forcing a reflow
@@ -30,6 +30,14 @@ const Header = () => {
     }, 100);
   };
 
+  const handleDataDirectoryClick = () => {
+    setShowDataDirectory(true);
+  };
+
+  const handleCloseDataDirectory = () => {
+    setShowDataDirectory(false);
+  };
+
   return (
     <>
       <div className={styles.header_cover}>
@@ -45,6 +53,7 @@ const Header = () => {
           <Button
             Icon={FolderOpen}
             label={"Data Directory"}
+            onClick={handleDataDirectoryClick}
           />
           <Button
             Icon={BadgePlus}
@@ -57,6 +66,12 @@ const Header = () => {
           <NotebookForm
             key={`form-${Date.now()}`}
             onClose={handleCloseForm}
+          />
+        )}
+
+        {showDataDirectory && (
+          <DataDirectorySettings
+            onClose={handleCloseDataDirectory}
           />
         )}
       </div>

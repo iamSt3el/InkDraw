@@ -1,11 +1,12 @@
+// src/components/NoteBookForm/NoteBookForm.jsx - Updated with store integration
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './NoteBookForm.module.scss';
 import { X } from 'lucide-react';
-import { useDrawingStore } from '../../stores/drawingStore';
+import { useNotebookStore } from '../../stores/noteBookStore';
 
 const NotebookForm = ({ onClose }) => {
-  const { addNotebook } = useDrawingStore();
+  const { addNotebook, isLoading, error } = useNotebookStore();
 
   const TITLE_MAX_LENGTH = 30;
   const DESCRIPTION_MAX_LENGTH = 120;
@@ -17,6 +18,7 @@ const NotebookForm = ({ onClose }) => {
     pages: 100
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const presetColors = [
     { color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)' },
@@ -43,6 +45,11 @@ const NotebookForm = ({ onClose }) => {
       ...prev,
       [name]: finalValue
     }));
+
+    // Clear form error when user starts typing
+    if (formError) {
+      setFormError('');
+    }
   };
 
   const handleColorSelect = (color) => {
@@ -54,11 +61,27 @@ const NotebookForm = ({ onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!formData.title.trim()) {
+      setFormError('Please enter a notebook title');
+      return;
+    }
+
+    if (!formData.description.trim()) {
+      setFormError('Please enter a notebook description');
+      return;
+    }
+
     setIsSubmitting(true);
+    setFormError('');
 
     try {
       const notebookData = {
-        ...formData,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        color: formData.color,
+        totalPages: parseInt(formData.pages),
         date: new Date().toLocaleDateString('en-GB', {
           day: '2-digit',
           month: '2-digit',
@@ -66,15 +89,29 @@ const NotebookForm = ({ onClose }) => {
         })
       };
 
-      addNotebook(notebookData);
+      console.log('Creating notebook with data:', notebookData);
+
+      // Use the store's addNotebook method
+      const newNotebook = await addNotebook(notebookData);
+      
+      console.log('Notebook created successfully:', newNotebook);
+      
+      // Close the form on success
       onClose();
     } catch (error) {
       console.error('Error creating notebook:', error);
-      alert('Error creating notebook. Please try again.');
+      setFormError(error.message || 'Failed to create notebook. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Display any store-level errors
+  useEffect(() => {
+    if (error) {
+      setFormError(error);
+    }
+  }, [error]);
 
   // The modal content
   const modalContent = (
@@ -93,6 +130,14 @@ const NotebookForm = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.notebookForm}>
+          {/* Show form or store errors */}
+          {formError && (
+            <div className={styles.errorMessage}>
+              <span>⚠️</span>
+              {formError}
+            </div>
+          )}
+
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label className={styles.formLabel} htmlFor="title">
@@ -174,7 +219,7 @@ const NotebookForm = ({ onClose }) => {
                   className={`${styles.colorOption} ${formData.color === colorItem.color ? styles.selected : ''
                     } ${isSubmitting ? styles.disabled : ''}`}
                   style={{ background: colorItem.gradient }}
-                  onClick={() => handleColorSelect(colorItem.color)}
+                  onClick={() => !isSubmitting && handleColorSelect(colorItem.color)}
                 />
               ))}
             </div>
@@ -192,9 +237,9 @@ const NotebookForm = ({ onClose }) => {
             <button
               type="submit"
               className={styles.submitBtn}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoading}
             >
-              {isSubmitting ? 'Creating...' : 'Create Notebook'}
+              {isSubmitting || isLoading ? 'Creating...' : 'Create Notebook'}
             </button>
           </div>
         </form>

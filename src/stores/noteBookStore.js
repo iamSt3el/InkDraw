@@ -1,6 +1,7 @@
-// src/stores/notebookStore.js
+// src/stores/notebookStore.js - Updated with Electron integration
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import electronService from '../services/ElectronService';
 
 export const useNotebookStore = create(
   persist(
@@ -29,146 +30,205 @@ export const useNotebookStore = create(
       
       // Actions
       setSearchQuery: (query) => set({ searchQuery: query }),
-      
       setCurrentNotebook: (id) => set({ currentNotebookId: id }),
-      
       setLoading: (isLoading) => set({ isLoading }),
-      
       setError: (error) => set({ error }),
       
-      addNotebook: (notebookData) => {
-        const newNotebook = {
-          id: Date.now(), // Simple ID generation
-          ...notebookData,
-          pages: [],
-          currentPage: 1,
-          progress: 0,
-          createdAt: new Date().toISOString(),
-          gradient: getGradientForColor(notebookData.color)
-        };
-        
-        set(state => ({
-          notebooks: [newNotebook, ...state.notebooks]
-        }));
-        
-        return newNotebook;
-      },
-      
-      updateNotebook: (id, updates) => {
-        set(state => ({
-          notebooks: state.notebooks.map(notebook => 
-            notebook.id === id ? { ...notebook, ...updates } : notebook
-          )
-        }));
-      },
-      
-      deleteNotebook: (id) => {
-        set(state => ({
-          notebooks: state.notebooks.filter(notebook => notebook.id !== id),
-          // Reset current notebook if it was deleted
-          currentNotebookId: state.currentNotebookId === id ? null : state.currentNotebookId
-        }));
-      },
-      
-      // Page Operations
-      updateCurrentPage: (pageNumber) => {
-        set(state => {
-          const { currentNotebookId, notebooks } = state;
-          if (!currentNotebookId) return state;
+      // Add notebook with Electron integration
+      addNotebook: async (notebookData) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const newNotebook = {
+            id: Date.now().toString(), // Convert to string for consistency
+            ...notebookData,
+            pages: [],
+            currentPage: 1,
+            progress: 0,
+            createdAt: new Date().toISOString(),
+            gradient: getGradientForColor(notebookData.color)
+          };
           
-          return {
-            notebooks: notebooks.map(notebook => 
-              notebook.id === currentNotebookId 
-                ? { ...notebook, currentPage: pageNumber } 
-                : notebook
+          // Save to Electron if available
+          if (electronService.isElectron) {
+            const result = await electronService.saveNotebook(newNotebook);
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to save notebook');
+            }
+          }
+          
+          // Update state
+          set(state => ({
+            notebooks: [newNotebook, ...state.notebooks],
+            isLoading: false
+          }));
+          
+          return newNotebook;
+        } catch (error) {
+          console.error('Error adding notebook:', error);
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
+      },
+      
+      // Update notebook with Electron integration
+      updateNotebook: async (id, updates) => {
+        try {
+          const state = get();
+          const notebook = state.notebooks.find(nb => nb.id === id);
+          
+          if (!notebook) {
+            throw new Error('Notebook not found');
+          }
+          
+          const updatedNotebook = { ...notebook, ...updates };
+          
+          // Save to Electron if available
+          if (electronService.isElectron) {
+            const result = await electronService.saveNotebook(updatedNotebook);
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to update notebook');
+            }
+          }
+          
+          // Update state
+          set(state => ({
+            notebooks: state.notebooks.map(notebook => 
+              notebook.id === id ? updatedNotebook : notebook
             )
-          };
-        });
-      },
-      
-      addPageToNotebook: (notebookId, pageId) => {
-        set(state => {
-          const { notebooks } = state;
+          }));
           
-          return {
-            notebooks: notebooks.map(notebook => {
-              if (notebook.id !== notebookId) return notebook;
-              
-              const pageExists = notebook.pages.includes(pageId);
-              if (pageExists) return notebook;
-              
-              return {
-                ...notebook,
-                pages: [...notebook.pages, pageId]
-              };
-            })
-          };
-        });
+          return updatedNotebook;
+        } catch (error) {
+          console.error('Error updating notebook:', error);
+          set({ error: error.message });
+          throw error;
+        }
       },
       
-      updateNotebookProgress: (notebookId, currentPage) => {
-        set(state => {
-          const { notebooks } = state;
+      // Delete notebook with Electron integration
+      deleteNotebook: async (id) => {
+        try {
+          set({ isLoading: true, error: null });
           
-          return {
-            notebooks: notebooks.map(notebook => {
-              if (notebook.id !== notebookId) return notebook;
-              
-              const totalPages = notebook.totalPages || 100;
-              const progress = Math.round((currentPage / totalPages) * 100);
-              
-              return {
-                ...notebook,
-                currentPage,
-                progress
-              };
-            })
-          };
-        });
+          // Delete from Electron if available
+          if (electronService.isElectron) {
+            const result = await electronService.deleteNotebook(id);
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to delete notebook');
+            }
+          }
+          
+          // Update state
+          set(state => ({
+            notebooks: state.notebooks.filter(notebook => notebook.id !== id),
+            currentNotebookId: state.currentNotebookId === id ? null : state.currentNotebookId,
+            isLoading: false
+          }));
+          
+        } catch (error) {
+          console.error('Error deleting notebook:', error);
+          set({ error: error.message, isLoading: false });
+          throw error;
+        }
       },
       
-      // Load all notebooks (for Electron integration)
+      // Load all notebooks from Electron
       loadNotebooks: async () => {
         try {
           set({ isLoading: true, error: null });
           
-          // For Electron integration
-          if (window.electron && window.electron.ipcRenderer) {
-            const result = await window.electron.ipcRenderer.invoke('data-load-all-notebooks');
+          if (electronService.isElectron) {
+            const result = await electronService.loadAllNotebooks();
+            
             if (result.success) {
-              set({ notebooks: result.notebooks });
+              // Add gradients to loaded notebooks if missing
+              const notebooksWithGradients = result.notebooks.map(notebook => ({
+                ...notebook,
+                gradient: notebook.gradient || getGradientForColor(notebook.color)
+              }));
+              
+              set({ notebooks: notebooksWithGradients, isLoading: false });
             } else {
-              throw new Error(result.error);
+              throw new Error(result.error || 'Failed to load notebooks');
             }
           } else {
-            // For web version, notebooks are already in store thanks to persist
-            // Just load from localStorage if needed
-            const savedNotebooks = localStorage.getItem('drawo-notebooks-backup');
-            if (savedNotebooks) {
-              try {
-                set({ notebooks: JSON.parse(savedNotebooks) });
-              } catch (e) {
-                console.error('Failed to parse saved notebooks', e);
-              }
-            }
+            // Web version - data is already persisted via Zustand
+            console.log('Running in web mode, using persisted data');
+            set({ isLoading: false });
           }
           
-          set({ isLoading: false });
         } catch (error) {
           console.error('Error loading notebooks:', error);
           set({ error: error.message, isLoading: false });
         }
       },
       
-      // For non-React code to get notebooks
-      getNotebooks: () => get().notebooks,
+      // Page Operations
+      updateCurrentPage: async (pageNumber) => {
+        const { currentNotebookId } = get();
+        if (!currentNotebookId) return;
+        
+        try {
+          await get().updateNotebook(currentNotebookId, { currentPage: pageNumber });
+        } catch (error) {
+          console.error('Error updating current page:', error);
+        }
+      },
       
-      // Bulk update notebooks (for sync operations)
-      setNotebooks: (notebooks) => set({ notebooks })
+      addPageToNotebook: async (notebookId, pageId) => {
+        try {
+          const state = get();
+          const notebook = state.notebooks.find(nb => nb.id === notebookId);
+          
+          if (!notebook) return;
+          
+          const pageExists = notebook.pages.includes(pageId);
+          if (pageExists) return;
+          
+          const updatedPages = [...notebook.pages, pageId];
+          await get().updateNotebook(notebookId, { pages: updatedPages });
+          
+        } catch (error) {
+          console.error('Error adding page to notebook:', error);
+        }
+      },
+      
+      updateNotebookProgress: async (notebookId, currentPage) => {
+        try {
+          const state = get();
+          const notebook = state.notebooks.find(nb => nb.id === notebookId);
+          
+          if (!notebook) return;
+          
+          const totalPages = notebook.totalPages || notebook.pages || 100;
+          const progress = Math.round((currentPage / totalPages) * 100);
+          
+          await get().updateNotebook(notebookId, { currentPage, progress });
+          
+        } catch (error) {
+          console.error('Error updating notebook progress:', error);
+        }
+      },
+      
+      // Utility methods
+      getNotebooks: () => get().notebooks,
+      setNotebooks: (notebooks) => set({ notebooks }),
+      
+      // Initialize store (call this on app startup)
+      initialize: async () => {
+        console.log('Initializing notebook store...');
+        await get().loadNotebooks();
+      }
     }),
     {
-      name: 'drawo-notebooks', // localStorage key
-      getStorage: () => localStorage, // storage function
+      name: 'drawo-notebooks',
+      getStorage: () => localStorage,
+      // Only persist in web mode
+      skipHydration: electronService.isElectron,
     }
   )
 );
@@ -186,5 +246,5 @@ function getGradientForColor(color) {
     '#f97316': 'linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%)'
   };
   
-  return colorGradients[color] || colorGradients['#8b5cf6']; // Default gradient
+  return colorGradients[color] || colorGradients['#8b5cf6'];
 }

@@ -1,8 +1,9 @@
-// components/organisms/DataDirectorySettings/DataDirectorySettings.jsx
+// src/components/DataDirectorySettings/DataDirectorySettings.jsx - Fixed import
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './DataDirectorySettings.module.scss';
 import { FolderOpen, Home, Download, Upload, Info, AlertCircle, X } from 'lucide-react';
+import { useNotebooks } from '../../hooks/useNotebooks'; // Fixed import
 
 const DataDirectorySettings = ({ onClose }) => {
   const {
