@@ -1,8 +1,9 @@
-// src/pages/NoteBookManagerPage/index.jsx - Updated with better debugging
+// src/components/NotebookCard/index.jsx - Updated with navigation
 import React, { useEffect, useState } from 'react'
 import styles from './NoteBookManager.module.scss'
 import Header from '../../components/Header';
 import NoteBookCard from '../../components/NotebookCard';
+import NotebookInside from '../NotebookInside/Index';
 import { useNotebookStore } from '../../stores/noteBookStore';
 
 const NoteBookManager = () => {
@@ -10,11 +11,11 @@ const NoteBookManager = () => {
     notebooks, 
     isLoading, 
     error, 
-    loadNotebooks,
-    filteredNotebooks 
+    loadNotebooks
   } = useNotebookStore();
 
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [currentOpenNotebook, setCurrentOpenNotebook] = useState(null);
 
   // Initialize notebooks on component mount
   useEffect(() => {
@@ -34,13 +35,43 @@ const NoteBookManager = () => {
     console.log('=== NotebookManager Debug ===');
     console.log('Raw notebooks from store:', notebooks);
     console.log('Notebooks count:', notebooks?.length || 0);
-    console.log('Filtered notebooks:', filteredNotebooks);
-    console.log('Filtered notebooks count:', filteredNotebooks?.length || 0);
     console.log('Loading state:', isLoading);
     console.log('Error state:', error);
     console.log('Has initialized:', hasInitialized);
+    
+    // Log each notebook
+    if (notebooks && notebooks.length > 0) {
+      notebooks.forEach((notebook, index) => {
+        console.log(`Notebook ${index}:`, {
+          id: notebook.id,
+          title: notebook.title,
+          description: notebook.description,
+          color: notebook.color
+        });
+      });
+    }
     console.log('=== End Debug ===');
-  }, [notebooks, filteredNotebooks, isLoading, error, hasInitialized]);
+  }, [notebooks, isLoading, error, hasInitialized]);
+
+  const handleOpenNotebook = (notebook) => {
+    console.log('Opening notebook for editing:', notebook.title);
+    setCurrentOpenNotebook(notebook);
+  };
+
+  const handleCloseNotebook = () => {
+    console.log('Closing notebook');
+    setCurrentOpenNotebook(null);
+  };
+
+  // If a notebook is open, show the NotebookInside component
+  if (currentOpenNotebook) {
+    return (
+      <NotebookInside 
+        notebookId={currentOpenNotebook.id} 
+        onClose={handleCloseNotebook}
+      />
+    );
+  }
 
   const renderContent = () => {
     console.log('NotebookManager renderContent called');
@@ -103,6 +134,7 @@ const NoteBookManager = () => {
             <NoteBookCard 
               key={notebook.id || index} 
               notebook={notebook}
+              onOpenNotebook={handleOpenNotebook}
             />
           );
         })}

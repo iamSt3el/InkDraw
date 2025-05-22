@@ -1,11 +1,11 @@
-// src/components/molecules/NoteBookCard/NoteBookCard.jsx - Fixed delete button and progress display
+// src/components/NotebookCard/index.jsx - Updated with navigation to notebook inside
 import React, { useState } from 'react'
 import styles from './NotebookCard.module.scss'
 import { Trash2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useNotebookStore } from '../../stores/noteBookStore'
 
-const NoteBookCard = ({ notebook }) => {
+const NoteBookCard = ({ notebook, onOpenNotebook }) => {
   const { deleteNotebook } = useNotebookStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const numberOfHoles = 19;
@@ -30,6 +30,22 @@ const NoteBookCard = ({ notebook }) => {
   const createdPages = Array.isArray(pages) ? pages.length : 0;
   const totalAllowedPages = totalPages || 100;
 
+  const handleCardClick = (e) => {
+    // Don't open notebook if clicking on delete button
+    if (e.target.closest(`.${styles.delete_button}`)) {
+      return;
+    }
+    
+    console.log('Opening notebook:', id, title);
+    
+    // Call the onOpenNotebook prop if provided
+    if (onOpenNotebook) {
+      onOpenNotebook(notebook);
+    } else {
+      // Default behavior - could be routing or modal
+      console.log('No onOpenNotebook handler provided');
+    }
+  };
 
   const handleDeleteClick = (e) => {
     e.stopPropagation(); // Prevent card click
@@ -77,7 +93,7 @@ const NoteBookCard = ({ notebook }) => {
 
   return (
     <>
-      <div className={styles.notebook_card}>
+      <div className={styles.notebook_card} onClick={handleCardClick}>
         <div className={styles.notebook_card_cover} style={{ background: gradient }}>
           <div className={styles.notebook_card_hole_div}>
             {Array.from({ length: numberOfHoles }).map((_, index) => (
@@ -121,6 +137,11 @@ const NoteBookCard = ({ notebook }) => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Click indicator */}
+        <div className={styles.click_indicator}>
+          <span>Click to open</span>
         </div>
       </div>
 

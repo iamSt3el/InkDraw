@@ -1,0 +1,363 @@
+// src/components/PageNavigator/PageNavigator.module.scss
+.pageNavigator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+    .navButton {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background-color: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #6b7280;
+  
+      &:hover:not(.disabled) {
+        background-color: #f3f4f6;
+        color: #374151;
+      }
+  
+      &.disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+    }
+  
+    .pageNumbers {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+  
+      .pageNumber {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background-color: transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #6b7280;
+        font-size: 0.875rem;
+        font-weight: 500;
+  
+        &:hover {
+          background-color: #f3f4f6;
+          color: #374151;
+        }
+  
+        &.active {
+          background-color: #8b5cf6;
+          color: white;
+          font-weight: 600;
+  
+          &:hover {
+            background-color: #7c3aed;
+          }
+        }
+      }
+  
+      .ellipsis {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        color: #9ca3af;
+      }
+    }
+  
+    .pageInfo {
+      display: flex;
+      align-items: center;
+      margin-left: 0.5rem;
+      padding-left: 0.5rem;
+      border-left: 1px solid #e5e7eb;
+  
+      .pageDisplay {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        transition: background-color 0.2s ease;
+  
+        &:hover {
+          background-color: #f3f4f6;
+        }
+  
+        .currentPage {
+          font-weight: 600;
+          color: #374151;
+          font-size: 0.875rem;
+        }
+  
+        .totalPages {
+          color: #6b7280;
+          font-size: 0.875rem;
+        }
+      }
+  
+      .pageInputForm {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+  
+        .pageInput {
+          width: 60px;
+          height: 28px;
+          border: 1px solid #d1d5db;
+          border-radius: 4px;
+          padding: 0 0.5rem;
+          font-size: 0.875rem;
+          text-align: center;
+          font-weight: 600;
+  
+          &:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+          }
+        }
+  
+        .totalPages {
+          color: #6b7280;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+  
+  // Responsive design
+  @media (max-width: 768px) {
+    .pageNavigator {
+      .pageNumbers {
+        .pageNumber {
+          width: 28px;
+          height: 28px;
+          font-size: 0.75rem;
+        }
+  
+        .ellipsis {
+          width: 28px;
+          height: 28px;
+        }
+      }
+  
+      .navButton {
+        width: 28px;
+        height: 28px;
+      }
+  
+      .pageInfo {
+        .pageInputForm {
+          .pageInput {
+            width: 50px;
+            height: 24px;
+            font-size: 0.75rem;
+          }
+        }
+  
+        .pageDisplay {
+          .currentPage,
+          .totalPages {
+            font-size: 0.75rem;
+          }
+        }
+      }
+    }
+  }// src/components/PageNavigator/PageNavigator.module.scss
+.pageNavigator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  .navButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #6b7280;
+
+    &:hover:not(.disabled) {
+      background-color: #f3f4f6;
+      color: #374151;
+    }
+
+    &.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  .pageNumbers {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    .pageNumber {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background-color: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #6b7280;
+      font-size: 0.875rem;
+      font-weight: 500;
+
+      &:hover {
+        background-color: #f3f4f6;
+        color: #374151;
+      }
+
+      &.active {
+        background-color: #8b5cf6;
+        color: white;
+        font-weight: 600;
+
+        &:hover {
+          background-color: #7c3aed;
+        }
+      }
+    }
+
+    .ellipsis {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      color: #9ca3af;
+    }
+  }
+
+  .pageInfo {
+    display: flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 1px solid #e5e7eb;
+
+    .pageDisplay {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+
+      &:hover {
+        background-color: #f3f4f6;
+      }
+
+      .currentPage {
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.875rem;
+      }
+
+      .totalPages {
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+    }
+
+    .pageInputForm {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+
+      .pageInput {
+        width: 60px;
+        height: 28px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 0 0.5rem;
+        font-size: 0.875rem;
+        text-align: center;
+        font-weight: 600;
+
+        &:focus {
+          outline: none;
+          border-color: #8b5cf6;
+          box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+        }
+      }
+
+      .totalPages {
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .pageNavigator {
+    .pageNumbers {
+      .pageNumber {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+      }
+
+      .ellipsis {
+        width: 28px;
+        height: 28px;
+      }
+    }
+
+    .navButton {
+      width: 28px;
+      height: 28px;
+    }
+
+    .pageInfo {
+      .pageInputForm {
+        .pageInput {
+          width: 50px;
+          height: 24px;
+          font-size: 0.75rem;
+        }
+      }
+
+      .pageDisplay {
+        .currentPage,
+        .totalPages {
+          font-size: 0.75rem;
+        }
+      }
+    }
+  }
+}
