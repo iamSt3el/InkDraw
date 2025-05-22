@@ -22,8 +22,6 @@ const SmoothCanvas = () => {
     panCanvas,
     setCanvasData,
     registerCanvasMethods,
-    shapeMode,
-    setShapeMode
   } = useDrawingStore();
 
   const { currentPageData, savePage } = usePageStore();
@@ -46,36 +44,37 @@ const SmoothCanvas = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState(null);
-  const [shapePosition, setShapePosition] = useState(null);
-  const [shapeDetail, setShapeDetails] = useState(null);
 
   // Get dimensions from store
   const { width, height } = canvasDimensions;
 
+  // Debug paths
+  useEffect(() => {
+    if (isInitialized && engineRef.current) {
+      const pathCount = engineRef.current.getPaths().length;
+      console.log(`Current path count: ${pathCount}, State paths: ${paths.length}`);
+      
+      // Check if there's a mismatch between engine paths and state paths
+      if (pathCount !== paths.length) {
+        console.log('Path count mismatch, syncing state with engine');
+        setPaths([...engineRef.current.getPaths()]);
+      }
+    }
+  }, [isInitialized, paths.length]);
+
   // Load canvas data when page changes
   useEffect(() => {
     if (isInitialized && engineRef.current && currentPageData?.canvasData) {
+      console.log('Loading drawing data from page:', currentPageData.id);
       loadDrawingData(currentPageData.canvasData);
     }
   }, [currentPageData?.id, isInitialized]);
-
-  useEffect(() => {
-    if (shapePosition || shapeDetail) {
-      console.log('Updated shape position:', shapePosition);
-      console.log('Updated shape dimensions: ', shapeDetail)
-    }
-  }, [shapePosition, shapeDetail]);
-
-  useEffect(() => {
-    if (shapeMode) {
-      console.log('updated shapeMode:', shapeMode)    }
-  }, [shapeMode]);
-  
 
   // Initialize canvas engine
   useEffect(() => {
     if (!canvasRef.current || !svgRef.current) return;
 
+    console.log('Initializing canvas engine');
     const engine = new CanvasEngine(canvasRef, svgRef, {
       width,
       height,
@@ -93,12 +92,7 @@ const SmoothCanvas = () => {
       opacity,  // Pass opacity to event handler
       eraserWidth,
       viewBox,
-      shapePosition,
-      setShapePosition,
-      shapeDetail,
-      setShapeDetails,
-      shapeMode,
-      setShapeMode    // Pass viewBox to event handler for coordinate transformations
+     // Pass viewBox to event handler for coordinate transformations
     });
 
     const renderer = new CanvasRenderer(engine);
@@ -106,23 +100,43 @@ const SmoothCanvas = () => {
     // Set callbacks
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
-        setPaths([...engine.getPaths()]);
+        console.log('Stroke completed, paths before update:', engine.getPaths().length);
+        
+        // Use a function reference to ensure we're getting the latest state
+        setPaths((prevPaths) => {
+          const currentPaths = engine.getPaths();
+          console.log('Setting new paths, count:', currentPaths.length);
+          return [...currentPaths];
+        });
+        
         if (isInitialized) {
           const canvasData = engine.exportAsJSON();
-
+          
+          // Add debugging to see what's happening with the JSON data
+          try {
+            const parsedData = JSON.parse(canvasData);
+            console.log('Canvas data updated, elements count:', parsedData.elements.length);
+          } catch (e) {
+            console.error('Error parsing canvas data:', e);
+          }
+    
           // Update drawing store with new canvas data
           setCanvasData(canvasData);
-
-          // Save to page if we have current page data
+    
+          // Save to page only if we have current page data
           if (currentPageData) {
+            console.log('Saving page with updated canvas data');
             savePage({
               ...currentPageData,
               canvasData
             });
           }
+        } else {
+          console.log('Not saving - canvas not initialized');
         }
       },
       onPathsErased: () => {
+        console.log('Paths erased, updating state');
         setPaths([...engine.getPaths()]);
         if (isInitialized) {
           const canvasData = engine.exportAsJSON();
@@ -163,6 +177,7 @@ const SmoothCanvas = () => {
     });
 
     setIsInitialized(true);
+    console.log('Canvas initialized');
 
     return () => {
       if (eventHandlerRef.current && canvasRef.current) {
@@ -174,6 +189,8 @@ const SmoothCanvas = () => {
   // Update options when store state changes
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
+      console.log(`Tool changed to: ${currentTool}`);
+      
       engineRef.current.updateOptions({
         width,
         height,
@@ -194,11 +211,22 @@ const SmoothCanvas = () => {
         viewBox
       };
 
+      // Explicitly set erasing state
       engineRef.current.isErasing = currentTool === 'eraser';
+      console.log(`Engine erasing state: ${engineRef.current.isErasing}`);
 
       if (currentTool !== 'eraser') {
+        // Clear eraser state
         setPathsToErase(new Set());
         setShowEraser(false);
+      }
+      
+      // Make sure any temp paths are cleaned up on tool change
+      const svg = svgRef.current;
+      const tempPath = svg?.querySelector('#temp-path');
+      if (tempPath) {
+        console.log('Cleaning up temp path on tool change');
+        tempPath.remove();
       }
     }
   }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, width, height, viewBox, isInitialized]);
@@ -239,13 +267,6 @@ const SmoothCanvas = () => {
         width: newWidth,
         height: newHeight
       });
-
-      console.log({
-        x: newX,
-        y: newY,
-        width: newWidth,
-        height: newHeight
-      })
     }
   };
 
@@ -338,28 +359,36 @@ const SmoothCanvas = () => {
   // Canvas control methods
   const loadDrawingData = (vectorData) => {
     if (!engineRef.current || !vectorData) {
+      console.warn('No engine or vector data to load');
       return false;
     }
-
+  
     try {
-      const wasInitialized = isInitialized;
-      setIsInitialized(false);
-
+      console.log('Loading drawing data, paths count before:', engineRef.current.getPaths().length);
+      
+      // Instead of toggling isInitialized, use a local flag to prevent callbacks
+      const loadingFlag = { loading: true };
+      
+      // Import the JSON data
       const success = engineRef.current.importFromJSON(vectorData);
-
+      
       if (success) {
+        console.log('Import successful, paths count after:', engineRef.current.getPaths().length);
         const currentPaths = engineRef.current.getPaths();
+        
+        // Update state directly without callback side effects
         setPaths([...currentPaths]);
+        
+        // Clear loading flag after state is updated
+        loadingFlag.loading = false;
+      } else {
+        console.warn('Import failed');
+        loadingFlag.loading = false;
       }
-
-      setTimeout(() => {
-        setIsInitialized(wasInitialized);
-      }, 100);
-
+  
       return success;
     } catch (error) {
       console.error('Error loading drawing data:', error);
-      setIsInitialized(true);
       return false;
     }
   };
@@ -373,6 +402,7 @@ const SmoothCanvas = () => {
 
   const clearCanvas = () => {
     if (engineRef.current) {
+      console.log('Clearing canvas');
       engineRef.current.clearPaths();
       setPaths([]);
       setPathsToErase(new Set());
@@ -400,6 +430,7 @@ const SmoothCanvas = () => {
 
   const undo = () => {
     if (engineRef.current) {
+      console.log('Undoing last action');
       const success = engineRef.current.undo();
       if (success) {
         setPaths([...engineRef.current.getPaths()]);

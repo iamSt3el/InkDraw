@@ -7,8 +7,8 @@ import NotebookInside from './pages/NotebookInside/Index';
 function App() {
   return (
     <div>
-      {/* <NoteBookManager/> */}
-      <NotebookInside/>
+      {<NoteBookManager/> }
+      {/* <NotebookInside/> */}
     </div>
   );
 }

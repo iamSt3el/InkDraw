@@ -1,0 +1,397 @@
+// components/organisms/DataDirectorySettings/DataDirectorySettings.module.scss
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+    backdrop-filter: blur(2px);
+    pointer-events: auto;
+    
+    * {
+      pointer-events: auto;
+    }
+  }
+  
+  .modalContent {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.2);
+    width: 600px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    pointer-events: auto;
+    position: relative;
+  }
+  
+  .modalHeader {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  
+    h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  
+    .closeButton {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #64748b;
+      flex-shrink: 0;
+      pointer-events: auto;
+      
+      &:hover {
+        background: #f1f5f9;
+        color: #475569;
+        transform: scale(1.05);
+      }
+      
+      &:active {
+        transform: scale(0.95);
+      }
+      
+      // Force pointer events
+      svg {
+        pointer-events: none;
+      }
+    }
+  }
+  
+  .modalBody {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+  
+  .webVersionNotice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    color: #92400e;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .section {
+    margin-bottom: 2rem;
+  
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0 1rem 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #374151;
+    }
+  
+    .sectionIcon {
+      color: #8b5cf6;
+    }
+  }
+  
+  .directoryInfo {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+  
+    .directoryPath {
+      display: block;
+      background-color: #e2e8f0;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 0.875rem;
+      color: #374151;
+      word-break: break-all;
+      margin-bottom: 1rem;
+    }
+  
+    .directoryActions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+  }
+  
+  .actionButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+  
+    &:hover:not(:disabled) {
+      background-color: #e5e7eb;
+      border-color: #9ca3af;
+      transform: translateY(-1px);
+    }
+  
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    
+    // Ensure icon doesn't block clicks
+    svg {
+      pointer-events: none;
+    }
+  }
+  
+  .statsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  
+  .statItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  
+    .statLabel {
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+  
+    .statValue {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+  }
+  
+  .importExportActions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .sectionDescription {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+  }
+  
+  .message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-top: 1rem;
+  
+    &.success {
+      background-color: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #15803d;
+    }
+  
+    &.error {
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+    }
+  }
+  
+  .infoSection {
+    background-color: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-top: 1rem;
+  
+    h4 {
+      margin: 0 0 0.75rem 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0369a1;
+    }
+  
+    .infoList {
+      margin: 0;
+      padding-left: 1.5rem;
+      color: #0369a1;
+  
+      li {
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+      }
+    }
+  }
+  
+  .modalFooter {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  // Responsive design
+  @media (max-width: 768px) {
+    .modalContent {
+      width: 95vw;
+      margin: 1rem;
+    }
+  
+    .directoryActions,
+    .importExportActions {
+      flex-direction: column;
+  
+      .actionButton {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  
+    .statsGrid {
+      grid-template-columns: 1fr;
+    }
+  
+    .modalBody {
+      padding: 1rem;
+    }
+  
+    .modalHeader {
+      padding: 1rem;
+    }
+  
+    .modalFooter {
+      padding: 1rem;
+    }
+  }
+  
+  // Confirmation Dialog Styles
+  .confirmOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000000;
+    pointer-events: auto;
+  }
+  
+  .confirmDialog {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+    width: 90%;
+    pointer-events: auto;
+  
+    h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  
+    p {
+      margin: 0 0 1.5rem 0;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+  }
+  
+  .confirmActions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  
+    button {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      pointer-events: auto;
+    }
+  }
+  
+  .cancelButton {
+    background-color: #f3f4f6;
+    color: #374151;
+  
+    &:hover {
+      background-color: #e5e7eb;
+    }
+  }
+  
+  .confirmButton {
+    background-color: #dc2626;
+    color: white;
+  
+    &:hover {
+      background-color: #b91c1c;
+      transform: translateY(-1px);
+    }
+  }
+  
+  .primaryButton {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+  
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+  }

@@ -23,13 +23,6 @@ export class EventHandler {
       return;
     }
 
-    if (this.options.currentTool === 'rectangle') {
-      this.options.setShapeMode();
-      this.options.setShapePosition(this.engine.getPointFromEvent(e));
-
-      return;
-    }
-
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
     this.engine.isDrawing = true;
     this.engine.activePointer = e.pointerId;
@@ -58,20 +51,6 @@ export class EventHandler {
     if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
       return;
     }
-
-    if (this.options.currentTool === 'rectangle') {
-      const currentPoint = this.engine.getPointFromEvent(e);
-      const [x1, y1] = this.options.shapePosition || [0, 0];
-      const [x2, y2] = currentPoint;
-
-
-      const width = Math.abs(x2 - x1);
-      const height = Math.abs(y2 - y1);
-
-      this.options.setShapeDetails({ width, height });
-      return;
-    }
-
 
     // Update eraser position
     if (this.options.currentTool === 'eraser') {
@@ -118,11 +97,6 @@ export class EventHandler {
       return;
     }
 
-    if(this.options.currentTool === 'rectangle'){
-      this.options.setShapeMode();
-      return;
-    }
-
     if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
 
     this.engine.isDrawing = false;
@@ -159,6 +133,8 @@ export class EventHandler {
 
   createTempPath(point) {
     const svg = this.engine.svgRef.current;
+    if (!svg) return;
+    
     const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     tempPath.id = 'temp-path';
     tempPath.setAttribute('fill', this.options.strokeColor);
@@ -170,6 +146,7 @@ export class EventHandler {
       const pathData = this.engine.getSvgPathFromStroke(stroke);
       tempPath.setAttribute('d', pathData);
     } catch (error) {
+      console.warn('Error creating temp path:', error);
       // Get the zoom-adjusted radius
       const zoomLevel = this.options.viewBox ?
         this.engine.options.width / this.options.viewBox.width : 1;
@@ -214,32 +191,13 @@ export class EventHandler {
 
     for (let i = 0; i < paths.length; i++) {
       const pathObj = paths[i];
-      if (currentPathsToErase.has(pathObj.id)) continue;
+      if (!pathObj || !pathObj.id || currentPathsToErase.has(pathObj.id)) continue;
 
       // Get the bounding box for this path/shape
       let bbox = this.engine.pathBBoxes.get(pathObj.id);
       if (!bbox) {
-        // If this is a shape, we can create a bbox from its properties
-        if (pathObj.type === 'shape') {
-          if (pathObj.shapeType === 'line') {
-            bbox = {
-              x: Math.min(pathObj.x1, pathObj.x2),
-              y: Math.min(pathObj.y1, pathObj.y2),
-              width: Math.abs(pathObj.x2 - pathObj.x1),
-              height: Math.abs(pathObj.y2 - pathObj.y1)
-            };
-          } else {
-            bbox = {
-              x: pathObj.x,
-              y: pathObj.y,
-              width: pathObj.width,
-              height: pathObj.height
-            };
-          }
-          this.engine.pathBBoxes.set(pathObj.id, bbox);
-        }
         // For stroke paths, calculate from path data
-        else if (pathObj.type === 'stroke' && pathObj.pathData) {
+        if (pathObj.type === 'stroke' && pathObj.pathData) {
           bbox = this.engine.calculateBoundingBox(pathObj.pathData);
           if (bbox) {
             this.engine.pathBBoxes.set(pathObj.id, bbox);
@@ -289,12 +247,40 @@ export class EventHandler {
 
   finalizeStroke(e) {
     const currentPath = this.engine.getCurrentPath();
-    if (currentPath.length === 0) return;
+    
+    // Better validation for path length
+    if (currentPath.length <= 1) {
+      console.log('Path too short to finalize, points:', currentPath.length);
+      
+      // Clean up temp path
+      const svg = this.engine.svgRef.current;
+      const tempPath = svg?.querySelector('#temp-path');
+      if (tempPath) {
+        tempPath.remove();
+      }
+      
+      this.engine.setCurrentPath([]);
+      return;
+    }
 
     try {
       const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
       const stroke = getStroke(currentPath, strokeOptions);
       const pathData = this.engine.getSvgPathFromStroke(stroke);
+      
+      // Validate pathData
+      if (!pathData || pathData === '') {
+        console.error('Invalid path data generated:', pathData);
+        // Clean up anyway
+        const svg = this.engine.svgRef.current;
+        const tempPath = svg?.querySelector('#temp-path');
+        if (tempPath) {
+          tempPath.remove();
+        }
+        
+        this.engine.setCurrentPath([]);
+        return;
+      }
 
       // Remove temp path
       const svg = this.engine.svgRef.current;
@@ -319,6 +305,15 @@ export class EventHandler {
       }
     } catch (error) {
       console.error('Error finalizing stroke:', error);
+      
+      // Clean up on error
+      const svg = this.engine.svgRef.current;
+      const tempPath = svg?.querySelector('#temp-path');
+      if (tempPath) {
+        tempPath.remove();
+      }
+      
+      this.engine.setCurrentPath([]);
     }
   }
 
