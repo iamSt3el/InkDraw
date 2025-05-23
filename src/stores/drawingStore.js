@@ -1,7 +1,8 @@
-// src/stores/drawingStore.js - FIXED VERSION
+// ===============================
+// src/stores/drawingStore.js - ENHANCED VERSION
+// ===============================
 import { create } from 'zustand';
 
-// Valid pattern types
 const VALID_PATTERNS = ['blank', 'grid', 'dots', 'lines', 'graph'];
 
 export const useDrawingStore = create((set, get) => ({
@@ -49,7 +50,6 @@ export const useDrawingStore = create((set, get) => ({
   },
   
   setStrokeColor: (color) => {
-    // Basic validation that it's a string and looks like a color
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
       set({ strokeColor: color });
     } else {
@@ -58,19 +58,16 @@ export const useDrawingStore = create((set, get) => ({
   },
   
   setStrokeWidth: (width) => {
-    // Validate width is within reasonable range (1-50px)
     const validWidth = Math.max(1, Math.min(50, width));
     set({ strokeWidth: validWidth });
   },
   
   setOpacity: (opacity) => {
-    // Validate opacity is between 0-100%
     const validOpacity = Math.max(0, Math.min(100, opacity));
     set({ opacity: validOpacity });
   },
   
   setEraserWidth: (width) => {
-    // Validate width is within reasonable range
     const validWidth = Math.max(5, Math.min(100, width));
     set({ eraserWidth: validWidth });
   },
@@ -83,21 +80,17 @@ export const useDrawingStore = create((set, get) => ({
   
   // Zoom and Pan actions
   setZoomLevel: (level) => set(state => {
-    const newZoom = Math.max(0.1, Math.min(5, level)); // Limit zoom range between 10% and 500%
+    const newZoom = Math.max(0.1, Math.min(5, level));
     
-    // Adjust viewBox when zoom changes to maintain center
     const { width, height } = state.canvasDimensions;
     const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
     
-    // Calculate center point of current view
     const centerX = x + vbWidth / 2;
     const centerY = y + vbHeight / 2;
     
-    // Calculate new dimensions based on new zoom
     const newWidth = width / newZoom;
     const newHeight = height / newZoom;
     
-    // Calculate new viewBox position to keep center point
     const newX = centerX - newWidth / 2;
     const newY = centerY - newHeight / 2;
     
@@ -115,19 +108,15 @@ export const useDrawingStore = create((set, get) => ({
   zoomIn: () => set(state => {
     const newZoom = Math.min(5, state.zoomLevel * 1.25);
     
-    // Adjust viewBox when zoom changes to maintain center
     const { width, height } = state.canvasDimensions;
     const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
     
-    // Calculate center point of current view
     const centerX = x + vbWidth / 2;
     const centerY = y + vbHeight / 2;
     
-    // Calculate new dimensions based on new zoom
     const newWidth = width / newZoom;
     const newHeight = height / newZoom;
     
-    // Calculate new viewBox position to keep center point
     const newX = centerX - newWidth / 2;
     const newY = centerY - newHeight / 2;
     
@@ -145,19 +134,15 @@ export const useDrawingStore = create((set, get) => ({
   zoomOut: () => set(state => {
     const newZoom = Math.max(0.1, state.zoomLevel / 1.25);
     
-    // Adjust viewBox when zoom changes to maintain center
     const { width, height } = state.canvasDimensions;
     const { x, y, width: vbWidth, height: vbHeight } = state.viewBox;
     
-    // Calculate center point of current view
     const centerX = x + vbWidth / 2;
     const centerY = y + vbHeight / 2;
     
-    // Calculate new dimensions based on new zoom
     const newWidth = width / newZoom;
     const newHeight = height / newZoom;
     
-    // Calculate new viewBox position to keep center point
     const newX = centerX - newWidth / 2;
     const newY = centerY - newHeight / 2;
     
@@ -189,7 +174,6 @@ export const useDrawingStore = create((set, get) => ({
   
   panCanvas: (deltaX, deltaY) => set(state => {
     const { x, y, width, height } = state.viewBox;
-    // Scale delta by zoom level to make panning feel natural
     const scaledDeltaX = deltaX / state.zoomLevel;
     const scaledDeltaY = deltaY / state.zoomLevel;
     
@@ -205,7 +189,6 @@ export const useDrawingStore = create((set, get) => ({
   
   // Page settings actions
   setPattern: (pattern) => {
-    // Validate pattern type
     if (VALID_PATTERNS.includes(pattern)) {
       set(state => ({
         pageSettings: { ...state.pageSettings, pattern }
@@ -216,7 +199,6 @@ export const useDrawingStore = create((set, get) => ({
   },
   
   setPatternSize: (size) => {
-    // Validate size is within reasonable range
     const validSize = Math.max(5, Math.min(100, size));
     set(state => ({
       pageSettings: { ...state.pageSettings, patternSize: validSize }
@@ -224,7 +206,6 @@ export const useDrawingStore = create((set, get) => ({
   },
   
   setPatternColor: (color) => {
-    // Basic validation that it's a string
     if (typeof color === 'string') {
       set(state => ({
         pageSettings: { ...state.pageSettings, patternColor: color }
@@ -233,16 +214,15 @@ export const useDrawingStore = create((set, get) => ({
   },
   
   setPatternOpacity: (opacity) => {
-    // Validate opacity is between 0-100
     const validOpacity = Math.max(0, Math.min(100, opacity));
     set(state => ({
       pageSettings: { ...state.pageSettings, patternOpacity: validOpacity }
     }));
   },
   
-  // Canvas data actions - FIXED VERSION
+  // ENHANCED Canvas data actions with better isolation
   setCanvasData: (data) => {
-    console.log('DrawingStore: Setting canvas data', data ? data.substring(0, 100) + '...' : 'null');
+    console.log('DrawingStore: Setting canvas data', data ? `${data.substring(0, 100)}... (${data.length} chars)` : 'null');
     set({ 
       canvasData: data,
       hasUnsavedChanges: true 
@@ -254,35 +234,63 @@ export const useDrawingStore = create((set, get) => ({
     set({ hasUnsavedChanges: false });
   },
   
-  // Method to request canvas actions (for components that don't have direct ref access)
-  clearCanvas: null, // Will be set by SmoothCanvas
-  exportCanvasImage: null, // Will be set by SmoothCanvas
-  undoCanvas: null, // Will be set by SmoothCanvas
-  getCurrentCanvasData: null, // ADDED: Will be set by SmoothCanvas
+  // ENHANCED: Clear canvas data
+  clearCanvasData: () => {
+    console.log('DrawingStore: Clearing canvas data');
+    set({ 
+      canvasData: null,
+      hasUnsavedChanges: false 
+    });
+  },
   
-  // Register canvas methods (called by SmoothCanvas during initialization) - UPDATED
+  // Canvas method references
+  clearCanvas: null,
+  exportCanvasImage: null,
+  undoCanvas: null,
+  getCurrentCanvasData: null,
+  
+  // ENHANCED: Register canvas methods with validation
   registerCanvasMethods: (methods) => {
-    console.log('DrawingStore: Registering canvas methods');
+    console.log('DrawingStore: Registering canvas methods', Object.keys(methods));
+    
+    // Validate methods
+    const requiredMethods = ['clearCanvas', 'exportImage', 'undo', 'getCurrentCanvasData'];
+    const missingMethods = requiredMethods.filter(method => !methods[method]);
+    
+    if (missingMethods.length > 0) {
+      console.warn('DrawingStore: Missing canvas methods:', missingMethods);
+    }
+    
     set({
       clearCanvas: methods.clearCanvas,
       exportCanvasImage: methods.exportImage,
       undoCanvas: methods.undo,
-      getCurrentCanvasData: methods.getCurrentCanvasData // ADDED
+      getCurrentCanvasData: methods.getCurrentCanvasData
     });
   },
   
-  // ADDED: Force update canvas data from engine
+  // ENHANCED: Force update with validation
   forceUpdateCanvasData: () => {
     const { getCurrentCanvasData } = get();
     if (getCurrentCanvasData) {
-      const freshData = getCurrentCanvasData();
-      if (freshData) {
-        console.log('DrawingStore: Force updating canvas data');
-        set({ 
-          canvasData: freshData,
-          hasUnsavedChanges: true 
-        });
+      try {
+        const freshData = getCurrentCanvasData();
+        if (freshData && typeof freshData === 'string') {
+          console.log('DrawingStore: Force updating canvas data');
+          set({ 
+            canvasData: freshData,
+            hasUnsavedChanges: true 
+          });
+          return freshData;
+        } else {
+          console.warn('DrawingStore: Invalid canvas data from getCurrentCanvasData');
+        }
+      } catch (error) {
+        console.error('DrawingStore: Error getting fresh canvas data:', error);
       }
+    } else {
+      console.warn('DrawingStore: getCurrentCanvasData method not available');
     }
+    return null;
   }
 }));

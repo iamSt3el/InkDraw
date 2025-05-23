@@ -1,311 +1,390 @@
-// src/pages/NotebookInside/NotebookInside.module.scss
 .ni_cover {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f8fafc;
+  overflow: hidden;
+
+  .loadingContainer {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     height: 100vh;
-    background-color: #f8fafc;
-    overflow: hidden;
-  
-    .loadingContainer {
+    gap: 1rem;
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #8b5cf6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    p {
+      color: #6b7280;
+      font-size: 1.1rem;
+    }
+  }
+
+  .ni_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    transition: all 0.3s ease;
+
+    .notebookInfo {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
       gap: 1rem;
-  
-      .spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid #f3f4f6;
-        border-top: 3px solid #8b5cf6;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
+
+      .backButton {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background-color: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        color: #374151;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+        font-weight: 500;
+
+        &:hover {
+          background-color: #e5e7eb;
+          transform: translateY(-1px);
+        }
       }
-  
-      p {
-        color: #6b7280;
-        font-size: 1.1rem;
+
+      .notebookTitle {
+        display: flex;
+        flex-direction: column;
+
+        h2 {
+          margin: 0;
+          color: #1f2937;
+          font-size: 1.5rem;
+          font-weight: 700;
+          transition: color 0.3s ease;
+        }
+
+        .notebookDescription {
+          color: #6b7280;
+          font-size: 0.875rem;
+          margin-top: 0.25rem;
+          transition: color 0.3s ease;
+        }
       }
     }
-  
-    .ni_header {
+
+    .headerActions {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 1rem 2rem;
+      gap: 1rem;
+
+      .saveStatus {
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        min-width: 120px; // Prevent layout shift
+        text-align: center;
+
+        .saving {
+          color: #f59e0b;
+          animation: pulse 1.5s infinite;
+        }
+
+        .switching {
+          color: #3b82f6;
+          animation: pulse 1.5s infinite;
+        }
+
+        .unsaved {
+          color: #ef4444;
+        }
+
+        .saved {
+          color: #10b981;
+        }
+      }
+
+      .saveButton {
+        padding: 0.5rem 1rem;
+        background-color: #8b5cf6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+        min-width: 80px; // Prevent layout shift
+
+        &:hover:not(:disabled) {
+          background-color: #7c3aed;
+          transform: translateY(-1px);
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+
+  .ni_content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    transition: opacity 0.3s ease;
+
+    .toolBar {
       background-color: white;
       border-bottom: 1px solid #e5e7eb;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      z-index: 10;
-  
-      .notebookInfo {
+      z-index: 5;
+      transition: all 0.3s ease;
+    }
+
+    .ni_canvas_area {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+
+      .ni_page_setting {
+        position: relative;
+        z-index: 4;
+        transition: transform 0.3s ease;
+      }
+
+      .ni_canvas {
+        flex: 1;
         display: flex;
         align-items: center;
-        gap: 1rem;
-  
-        .backButton {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background-color: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          color: #374151;
-          text-decoration: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 0.875rem;
-          font-weight: 500;
-  
-          &:hover {
-            background-color: #e5e7eb;
-            transform: translateY(-1px);
-          }
-        }
-  
-        .notebookTitle {
+        justify-content: center;
+        position: relative;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        transition: all 0.3s ease;
+
+        // ENHANCED page loading overlay with smooth transitions
+        .pageLoadingOverlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(255, 255, 255, 0.95);
           display: flex;
           flex-direction: column;
-  
-          h2 {
-            margin: 0;
-            color: #1f2937;
-            font-size: 1.5rem;
-            font-weight: 700;
-          }
-  
-          .notebookDescription {
-            color: #6b7280;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-          }
-        }
-      }
-  
-      .headerActions {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-  
-        .saveStatus {
-          font-size: 0.875rem;
-          font-weight: 500;
-  
-          .saving {
-            color: #f59e0b;
-          }
-  
-          .unsaved {
-            color: #ef4444;
-          }
-  
-          .saved {
-            color: #10b981;
-          }
-        }
-  
-        .saveButton {
-          padding: 0.5rem 1rem;
-          background-color: #8b5cf6;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 0.875rem;
-  
-          &:hover:not(:disabled) {
-            background-color: #7c3aed;
-            transform: translateY(-1px);
-          }
-  
-          &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-        }
-      }
-    }
-  
-    .ni_content {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-  
-      .toolBar {
-        background-color: white;
-        border-bottom: 1px solid #e5e7eb;
-        z-index: 5;
-      }
-  
-      .ni_canvas_area {
-        display: flex;
-        flex: 1;
-        position: relative;
-        overflow: hidden;
-  
-        .ni_page_setting {
-          position: relative;
-          z-index: 4;
-        }
-  
-        .ni_canvas {
-          flex: 1;
-          display: flex;
           align-items: center;
           justify-content: center;
-          position: relative;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          padding: 2rem;
-  
-          .pageLoadingOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(255, 255, 255, 0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            gap: 1rem;
-  
-            .pageSpinner {
-              width: 32px;
-              height: 32px;
-              border: 2px solid #f3f4f6;
-              border-top: 2px solid #8b5cf6;
-              border-radius: 50%;
-              animation: spin 1s linear infinite;
-            }
-  
-            p {
-              color: #6b7280;
-              font-size: 0.875rem;
-              margin: 0;
+          z-index: 1000;
+          gap: 1rem;
+          backdrop-filter: blur(4px);
+          
+          // Smooth transition animation
+          &.smoothTransition {
+            animation: fadeInOverlay 0.3s ease-out;
+          }
+
+          .pageSpinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #f3f4f6;
+            border-top: 2px solid #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+
+          p {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin: 0;
+            font-weight: 500;
+          }
+          
+          // ADDED: Progress bar for better UX
+          .progressBar {
+            width: 200px;
+            height: 4px;
+            background-color: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            
+            .progressFill {
+              height: 100%;
+              background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+              border-radius: 2px;
+              animation: progressSlide 1.5s ease-in-out infinite;
             }
           }
         }
-  
-        .ni_pen_setting {
-          position: relative;
-          z-index: 4;
-        }
+      }
+
+      .ni_pen_setting {
+        position: relative;
+        z-index: 4;
+        transition: transform 0.3s ease;
       }
     }
-  
-    .shortcutsHelp {
-      position: fixed;
-      bottom: 1rem;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
+  }
+
+  .shortcutsHelp {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1rem;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    z-index: 1000;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    span {
+      white-space: nowrap;
+    }
+  }
+}
+
+// ENHANCED Animations
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes fadeInOverlay {
+  0% { 
+    opacity: 0; 
+    backdrop-filter: blur(0px);
+  }
+  100% { 
+    opacity: 1; 
+    backdrop-filter: blur(4px);
+  }
+}
+
+@keyframes progressSlide {
+  0% { 
+    transform: translateX(-100%); 
+    opacity: 0;
+  }
+  50% { 
+    opacity: 1; 
+  }
+  100% { 
+    transform: translateX(200px); 
+    opacity: 0;
+  }
+}
+
+// Responsive design with smoother transitions
+@media (max-width: 1200px) {
+  .ni_cover {
+    .ni_header {
+      padding: 1rem;
+      flex-wrap: wrap;
       gap: 1rem;
-      background-color: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      z-index: 1000;
-      opacity: 0.7;
-      transition: opacity 0.2s ease;
-  
-      &:hover {
-        opacity: 1;
+      transition: all 0.3s ease;
+
+      .notebookInfo {
+        .notebookTitle {
+          h2 {
+            font-size: 1.25rem;
+          }
+        }
       }
-  
-      span {
-        white-space: nowrap;
+
+      .headerActions {
+        gap: 0.75rem;
       }
     }
-  }
-  
-  // Animations
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  // Responsive design
-  @media (max-width: 1200px) {
-    .ni_cover {
-      .ni_header {
-        padding: 1rem;
-        flex-wrap: wrap;
-        gap: 1rem;
-  
-        .notebookInfo {
-          .notebookTitle {
-            h2 {
-              font-size: 1.25rem;
-            }
-          }
-        }
-  
-        .headerActions {
-          gap: 0.75rem;
-        }
-      }
-  
-      .ni_content {
-        .ni_canvas_area {
-          .ni_canvas {
-            padding: 1rem;
-          }
+
+    .ni_content {
+      .ni_canvas_area {
+        .ni_canvas {
+          padding: 1rem;
         }
       }
     }
   }
-  
-  @media (max-width: 768px) {
-    .ni_cover {
-      .ni_header {
-        padding: 0.75rem;
-        flex-direction: column;
-        align-items: flex-start;
-  
-        .notebookInfo {
-          width: 100%;
-  
-          .backButton {
-            padding: 0.375rem 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .ni_cover {
+    .ni_header {
+      padding: 0.75rem;
+      flex-direction: column;
+      align-items: flex-start;
+      transition: all 0.3s ease;
+
+      .notebookInfo {
+        width: 100%;
+
+        .backButton {
+          padding: 0.375rem 0.75rem;
+          font-size: 0.75rem;
+        }
+
+        .notebookTitle {
+          h2 {
+            font-size: 1.125rem;
+          }
+
+          .notebookDescription {
             font-size: 0.75rem;
           }
-  
-          .notebookTitle {
-            h2 {
-              font-size: 1.125rem;
-            }
-  
-            .notebookDescription {
-              font-size: 0.75rem;
-            }
-          }
-        }
-  
-        .headerActions {
-          width: 100%;
-          justify-content: space-between;
-          margin-top: 0.5rem;
         }
       }
-  
-      .ni_content {
-        .ni_canvas_area {
-          .ni_canvas {
-            padding: 0.5rem;
-          }
-        }
-      }
-  
-      .shortcutsHelp {
-        display: none; // Hide on mobile to save space
+
+      .headerActions {
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 0.5rem;
       }
     }
+
+    .ni_content {
+      .ni_canvas_area {
+        .ni_canvas {
+          padding: 0.5rem;
+          
+          .pageLoadingOverlay {
+            .progressBar {
+              width: 150px; // Smaller on mobile
+            }
+          }
+        }
+      }
+    }
+
+    .shortcutsHelp {
+      display: none; // Hide on mobile to save space
+    }
   }
+}
