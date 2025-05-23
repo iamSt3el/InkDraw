@@ -1,4 +1,4 @@
-// src/stores/drawingStore.js
+// src/stores/drawingStore.js - FIXED VERSION
 import { create } from 'zustand';
 
 // Valid pattern types
@@ -240,23 +240,49 @@ export const useDrawingStore = create((set, get) => ({
     }));
   },
   
-  // Canvas data actions
-  setCanvasData: (data) => set({ 
-    canvasData: data,
-    hasUnsavedChanges: true 
-  }),
+  // Canvas data actions - FIXED VERSION
+  setCanvasData: (data) => {
+    console.log('DrawingStore: Setting canvas data', data ? data.substring(0, 100) + '...' : 'null');
+    set({ 
+      canvasData: data,
+      hasUnsavedChanges: true 
+    });
+  },
   
-  markChangesSaved: () => set({ hasUnsavedChanges: false }),
+  markChangesSaved: () => {
+    console.log('DrawingStore: Marking changes as saved');
+    set({ hasUnsavedChanges: false });
+  },
   
   // Method to request canvas actions (for components that don't have direct ref access)
   clearCanvas: null, // Will be set by SmoothCanvas
   exportCanvasImage: null, // Will be set by SmoothCanvas
   undoCanvas: null, // Will be set by SmoothCanvas
+  getCurrentCanvasData: null, // ADDED: Will be set by SmoothCanvas
   
-  // Register canvas methods (called by SmoothCanvas during initialization)
-  registerCanvasMethods: (methods) => set({
-    clearCanvas: methods.clearCanvas,
-    exportCanvasImage: methods.exportImage,
-    undoCanvas: methods.undo
-  })
+  // Register canvas methods (called by SmoothCanvas during initialization) - UPDATED
+  registerCanvasMethods: (methods) => {
+    console.log('DrawingStore: Registering canvas methods');
+    set({
+      clearCanvas: methods.clearCanvas,
+      exportCanvasImage: methods.exportImage,
+      undoCanvas: methods.undo,
+      getCurrentCanvasData: methods.getCurrentCanvasData // ADDED
+    });
+  },
+  
+  // ADDED: Force update canvas data from engine
+  forceUpdateCanvasData: () => {
+    const { getCurrentCanvasData } = get();
+    if (getCurrentCanvasData) {
+      const freshData = getCurrentCanvasData();
+      if (freshData) {
+        console.log('DrawingStore: Force updating canvas data');
+        set({ 
+          canvasData: freshData,
+          hasUnsavedChanges: true 
+        });
+      }
+    }
+  }
 }));

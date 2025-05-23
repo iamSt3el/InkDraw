@@ -1,5 +1,5 @@
-// src/components/SmoothCanvas/SmoothCanvas.jsx
-import React, { useRef, useEffect, useState } from 'react';
+// src/components/SmoothCanvas/SmoothCanvas.jsx - FIXED VERSION
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
 import { CanvasRenderer } from './core/CanvasRenderer';
@@ -47,6 +47,17 @@ const SmoothCanvas = () => {
 
   // Get dimensions from store
   const { width, height } = canvasDimensions;
+
+  // ADDED: Method to get current canvas data directly from engine
+  const getCurrentCanvasData = useCallback(() => {
+    if (engineRef.current) {
+      const data = engineRef.current.exportAsJSON();
+      console.log('SmoothCanvas: Getting current canvas data, length:', data?.length || 0);
+      return data;
+    }
+    console.warn('SmoothCanvas: Engine not available for getCurrentCanvasData');
+    return null;
+  }, []);
 
   // Debug paths
   useEffect(() => {
@@ -97,7 +108,7 @@ const SmoothCanvas = () => {
 
     const renderer = new CanvasRenderer(engine);
 
-    // Set callbacks
+    // Set callbacks - UPDATED VERSION
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
         console.log('Stroke completed, paths before update:', engine.getPaths().length);
@@ -120,19 +131,14 @@ const SmoothCanvas = () => {
             console.error('Error parsing canvas data:', e);
           }
     
-          // Update drawing store with new canvas data
+          // Update drawing store with new canvas data - IMMEDIATE UPDATE
+          console.log('SmoothCanvas: Updating store with fresh canvas data');
           setCanvasData(canvasData);
     
-          // Save to page only if we have current page data
-          if (currentPageData) {
-            console.log('Saving page with updated canvas data');
-            savePage({
-              ...currentPageData,
-              canvasData
-            });
-          }
+          // Note: We don't save to page here anymore - let the parent component handle saving
+          // This prevents double-saving and timing issues
         } else {
-          console.log('Not saving - canvas not initialized');
+          console.log('Not updating store - canvas not initialized');
         }
       },
       onPathsErased: () => {
@@ -140,15 +146,8 @@ const SmoothCanvas = () => {
         setPaths([...engine.getPaths()]);
         if (isInitialized) {
           const canvasData = engine.exportAsJSON();
-
+          console.log('SmoothCanvas: Updating store after erase');
           setCanvasData(canvasData);
-
-          if (currentPageData) {
-            savePage({
-              ...currentPageData,
-              canvasData
-            });
-          }
         }
       },
       onPathsMarkedForErase: (pathsToErase) => {
@@ -169,11 +168,12 @@ const SmoothCanvas = () => {
     eventHandlerRef.current = eventHandler;
     rendererRef.current = renderer;
 
-    // Register canvas methods with the store
+    // Register canvas methods with the store - UPDATED
     registerCanvasMethods({
       clearCanvas: clearCanvas,
       exportImage: exportImage,
-      undo: undo
+      undo: undo,
+      getCurrentCanvasData: getCurrentCanvasData // ADDED
     });
 
     setIsInitialized(true);
@@ -184,7 +184,7 @@ const SmoothCanvas = () => {
         eventHandlerRef.current.detachListeners(canvasRef.current);
       }
     };
-  }, [width, height, setCanvasData, registerCanvasMethods]);
+  }, [width, height, setCanvasData, registerCanvasMethods, getCurrentCanvasData]);
 
   // Update options when store state changes
   useEffect(() => {
@@ -366,9 +366,6 @@ const SmoothCanvas = () => {
     try {
       console.log('Loading drawing data, paths count before:', engineRef.current.getPaths().length);
       
-      // Instead of toggling isInitialized, use a local flag to prevent callbacks
-      const loadingFlag = { loading: true };
-      
       // Import the JSON data
       const success = engineRef.current.importFromJSON(vectorData);
       
@@ -379,11 +376,12 @@ const SmoothCanvas = () => {
         // Update state directly without callback side effects
         setPaths([...currentPaths]);
         
-        // Clear loading flag after state is updated
-        loadingFlag.loading = false;
+        // Update store with loaded data - IMMEDIATE UPDATE
+        const freshData = engineRef.current.exportAsJSON();
+        console.log('SmoothCanvas: Updating store with loaded data');
+        setCanvasData(freshData);
       } else {
         console.warn('Import failed');
-        loadingFlag.loading = false;
       }
   
       return success;
@@ -412,18 +410,11 @@ const SmoothCanvas = () => {
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) tempPath.remove();
 
-      // Save empty canvas state
+      // Update store immediately
       if (isInitialized) {
         const emptyCanvasData = engineRef.current.exportAsJSON();
-
+        console.log('SmoothCanvas: Updating store after clear');
         setCanvasData(emptyCanvasData);
-
-        if (currentPageData) {
-          savePage({
-            ...currentPageData,
-            canvasData: emptyCanvasData
-          });
-        }
       }
     }
   };
@@ -437,15 +428,8 @@ const SmoothCanvas = () => {
 
         if (isInitialized) {
           const updatedCanvasData = engineRef.current.exportAsJSON();
-
+          console.log('SmoothCanvas: Updating store after undo');
           setCanvasData(updatedCanvasData);
-
-          if (currentPageData) {
-            savePage({
-              ...currentPageData,
-              canvasData: updatedCanvasData
-            });
-          }
         }
       }
       return success;
