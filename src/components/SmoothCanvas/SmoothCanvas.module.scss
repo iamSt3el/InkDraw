@@ -1,4 +1,4 @@
-/* src/components/SmoothCanvas/SmoothCanvas.module.scss */
+/* src/components/SmoothCanvas/SmoothCanvas.module.scss - ENHANCED VERSION */
 .canvasContainer {
   position: relative;
   display: flex;
@@ -71,6 +71,36 @@
       opacity: 1;
     }
   }
+
+  // ADDED: Data loading indicator for smooth transitions
+  .dataLoadingIndicator {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(139, 92, 246, 0.9);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 150;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+    backdrop-filter: blur(4px);
+    animation: slideDownFade 0.3s ease-out;
+
+    .miniSpinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
 }
 
 .canvas {
@@ -141,6 +171,8 @@
     // Better path rendering
     &:not(#temp-path) {
       mix-blend-mode: normal;
+      // ADDED: Smooth transition for path updates
+      transition: opacity 0.15s ease, fill 0.15s ease;
     }
     
     &#temp-path {
@@ -185,6 +217,18 @@
   }
 }
 
+// ENHANCED: Smooth transition animations
+@keyframes slideDownFade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 // Smooth eraser animations
 @keyframes eraserPulse {
   0% {
@@ -217,6 +261,41 @@
   100% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0.3;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// ADDED: Data transition animations
+@keyframes fadeInData {
+  0% { 
+    opacity: 0; 
+    transform: scale(0.98);
+  }
+  100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeOutData {
+  0% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  100% { 
+    opacity: 0; 
+    transform: scale(1.02);
+  }
+}
+
+// ADDED: Smooth data transitions
+.canvasContainer.dataTransitioning {
+  .svg path:not(#temp-path) {
+    animation: fadeInData 0.3s ease-out;
   }
 }
 
@@ -288,7 +367,8 @@
 @media (prefers-reduced-motion: reduce) {
 
   .canvasContainer,
-  .eraserCursor {
+  .eraserCursor,
+  .dataLoadingIndicator {
     animation: none;
     transition: none;
   }
@@ -298,8 +378,15 @@
     transition: none;
   }
 
+  .svg path:not(#temp-path) {
+    transition: none;
+  }
+
   @keyframes eraserPulse,
-  @keyframes eraserInnerPulse {
+  @keyframes eraserInnerPulse,
+  @keyframes fadeInData,
+  @keyframes fadeOutData,
+  @keyframes slideDownFade {
 
     0%,
     100% {
@@ -325,6 +412,11 @@
       border-color: #334155;
       color: #e5e7eb;
     }
+
+    .dataLoadingIndicator {
+      background-color: rgba(139, 92, 246, 0.95);
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.6);
+    }
   }
 }
 
@@ -335,7 +427,8 @@
       display: none;
     }
     
-    .zoomIndicator {
+    .zoomIndicator,
+    .dataLoadingIndicator {
       display: none;
     }
 
@@ -343,6 +436,30 @@
       // Ensure crisp printing
       shape-rendering: crispEdges;
       vector-effect: non-scaling-stroke;
+    }
+  }
+}
+
+// ADDED: Mobile optimizations for smooth page transitions
+@media (max-width: 768px) {
+  .canvasContainer {
+    .dataLoadingIndicator {
+      top: 5px;
+      padding: 4px 8px;
+      font-size: 11px;
+
+      .miniSpinner {
+        width: 12px;
+        height: 12px;
+        border-width: 1.5px;
+      }
+    }
+
+    .zoomIndicator {
+      bottom: 5px;
+      right: 5px;
+      padding: 3px 6px;
+      font-size: 11px;
     }
   }
 }

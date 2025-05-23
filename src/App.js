@@ -1,18 +1,17 @@
-// src/App.js - Updated with Notification component
+// src/App.js - Updated with simplified routes
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import NoteBookManager from './pages/NoteBookManagerPage';
 import NotebookInside from './pages/NotebookInside/Index';
-import Notification from './components/Notification/Notification'; // NEW IMPORT
+import Notification from './components/Notification/Notification';
 import { useNotebookStore } from './stores/noteBookStore';
 import { usePageStore } from './stores/pageStore';
 
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState(null);
-  const [showDebug, setShowDebug] = useState(false); // Changed to false by default
+  const [showDebug, setShowDebug] = useState(false);
   
-  // Get initialization methods from stores
   const initializeNotebooks = useNotebookStore(state => state.initialize);
   const initializePages = usePageStore(state => state.initialize);
 
@@ -21,7 +20,6 @@ function App() {
       try {
         console.log('Initializing Drawo application...');
         
-        // Initialize stores
         await Promise.all([
           initializeNotebooks(),
           initializePages()
@@ -32,7 +30,6 @@ function App() {
       } catch (error) {
         console.error('Failed to initialize application:', error);
         setInitError(error.message);
-        // Still allow app to load even if initialization fails
         setIsInitialized(true);
       }
     };
@@ -53,7 +50,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Show loading screen while initializing
   if (!isInitialized) {
     return (
       <div style={{
@@ -99,43 +95,16 @@ function App() {
           {/* Notebook Manager route */}
           <Route path="/notebooks" element={<NoteBookManager />} />
           
-          {/* Notebook Inside route with notebook ID parameter */}
+          {/* Simplified Notebook Inside route - NO page parameter */}
           <Route path="/notebook/:notebookId" element={<NotebookInside />} />
-          
-          {/* Notebook Inside route with notebook ID and page number */}
-          <Route path="/notebook/:notebookId/page/:pageNumber" element={<NotebookInside />} />
           
           {/* Fallback route - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         
-        {/* Global Notification Component - NEW */}
+        {/* Global Notification Component */}
         <Notification />
-        
-        {/* Debug Panel - Only show if enabled */}
-        {showDebug && (
-          <div style={{
-            position: 'fixed',
-            top: '10px',
-            left: '10px',
-            background: 'white',
-            border: '2px solid #8b5cf6',
-            borderRadius: '8px',
-            padding: '1rem',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            zIndex: 9999,
-            fontSize: '12px',
-            maxWidth: '300px'
-          }}>
-            <h4 style={{ margin: '0 0 1rem 0', color: '#8b5cf6' }}>Debug Panel (Ctrl+D to toggle)</h4>
-            <div>Press Ctrl+D to hide this panel</div>
-            {initError && (
-              <div style={{ color: 'red', marginTop: '0.5rem' }}>
-                Init Error: {initError}
-              </div>
-            )}
-          </div>
-        )}
+        )
       </div>
     </Router>
   );

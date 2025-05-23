@@ -1,5 +1,5 @@
 // ===============================
-// src/stores/drawingStore.js - ENHANCED VERSION
+// src/stores/drawingStore.js - COMPLETE FIXED VERSION
 // ===============================
 import { create } from 'zustand';
 
@@ -33,9 +33,10 @@ export const useDrawingStore = create((set, get) => ({
     patternOpacity: 50
   },
   
-  // Canvas state
+  // FIXED: Enhanced canvas state management
   canvasData: null,
   hasUnsavedChanges: false,
+  isDataLoading: false, // NEW: Track data loading state
   
   setShapeMode: () => set(state => ({shapeMode: !state.shapeMode})),
 
@@ -220,13 +221,28 @@ export const useDrawingStore = create((set, get) => ({
     }));
   },
   
-  // ENHANCED Canvas data actions with better isolation
+  // FIXED: Enhanced Canvas data actions with better state management
   setCanvasData: (data) => {
+    const currentData = get().canvasData;
+    
+    // ADDED: Skip if same data to prevent unnecessary updates
+    if (currentData === data) {
+      console.log('DrawingStore: Skipping duplicate canvas data update');
+      return;
+    }
+    
     console.log('DrawingStore: Setting canvas data', data ? `${data.substring(0, 100)}... (${data.length} chars)` : 'null');
     set({ 
       canvasData: data,
-      hasUnsavedChanges: true 
+      hasUnsavedChanges: !!data && data !== '{"type":"drawing","version":1,"elements":[]}',
+      isDataLoading: false
     });
+  },
+  
+  // ADDED: Set data loading state
+  setDataLoading: (loading) => {
+    console.log('DrawingStore: Setting data loading state:', loading);
+    set({ isDataLoading: loading });
   },
   
   markChangesSaved: () => {
@@ -234,13 +250,35 @@ export const useDrawingStore = create((set, get) => ({
     set({ hasUnsavedChanges: false });
   },
   
-  // ENHANCED: Clear canvas data
+  // FIXED: Clear canvas data cleanly
   clearCanvasData: () => {
     console.log('DrawingStore: Clearing canvas data');
     set({ 
       canvasData: null,
-      hasUnsavedChanges: false 
+      hasUnsavedChanges: false,
+      isDataLoading: false
     });
+  },
+  
+  // ADDED: Force refresh canvas data
+  refreshCanvasData: () => {
+    const { getCurrentCanvasData } = get();
+    if (getCurrentCanvasData) {
+      try {
+        const freshData = getCurrentCanvasData();
+        if (freshData && typeof freshData === 'string') {
+          console.log('DrawingStore: Refreshing canvas data');
+          set({ 
+            canvasData: freshData,
+            hasUnsavedChanges: true 
+          });
+          return freshData;
+        }
+      } catch (error) {
+        console.error('DrawingStore: Error refreshing canvas data:', error);
+      }
+    }
+    return null;
   },
   
   // Canvas method references
@@ -248,8 +286,9 @@ export const useDrawingStore = create((set, get) => ({
   exportCanvasImage: null,
   undoCanvas: null,
   getCurrentCanvasData: null,
+  loadCanvasData: null, // NEW: Direct canvas data loading
   
-  // ENHANCED: Register canvas methods with validation
+  // FIXED: Register canvas methods with validation and enhanced functionality
   registerCanvasMethods: (methods) => {
     console.log('DrawingStore: Registering canvas methods', Object.keys(methods));
     
@@ -265,32 +304,29 @@ export const useDrawingStore = create((set, get) => ({
       clearCanvas: methods.clearCanvas,
       exportCanvasImage: methods.exportImage,
       undoCanvas: methods.undo,
-      getCurrentCanvasData: methods.getCurrentCanvasData
+      getCurrentCanvasData: methods.getCurrentCanvasData,
+      loadCanvasData: methods.loadCanvasData // NEW: Register load method
     });
   },
   
-  // ENHANCED: Force update with validation
-  forceUpdateCanvasData: () => {
-    const { getCurrentCanvasData } = get();
-    if (getCurrentCanvasData) {
-      try {
-        const freshData = getCurrentCanvasData();
-        if (freshData && typeof freshData === 'string') {
-          console.log('DrawingStore: Force updating canvas data');
-          set({ 
-            canvasData: freshData,
-            hasUnsavedChanges: true 
-          });
-          return freshData;
-        } else {
-          console.warn('DrawingStore: Invalid canvas data from getCurrentCanvasData');
-        }
-      } catch (error) {
-        console.error('DrawingStore: Error getting fresh canvas data:', error);
-      }
-    } else {
-      console.warn('DrawingStore: getCurrentCanvasData method not available');
-    }
-    return null;
+  // ADDED: Batch updates to prevent multiple re-renders
+  batchUpdateCanvasState: (updates) => {
+    console.log('DrawingStore: Batch updating canvas state');
+    set(state => ({
+      ...state,
+      ...updates
+    }));
+  },
+  
+  // ADDED: Get current state snapshot
+  getStateSnapshot: () => {
+    const state = get();
+    return {
+      canvasData: state.canvasData,
+      hasUnsavedChanges: state.hasUnsavedChanges,
+      isDataLoading: state.isDataLoading,
+      currentTool: state.currentTool,
+      pageSettings: state.pageSettings
+    };
   }
 }));

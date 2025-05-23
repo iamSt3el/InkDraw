@@ -1,13 +1,185 @@
-.tb_cover{
-    display: flex;
-    justify-content: space-between;
-    padding: 20px;
+// ===============================
+// src/components/ToolBar/ToolBar.module.scss - FIXED LAYOUT
+// ===============================
 
-    .quick_menu {
-        position: absolute;
-        left: 1rem;
-        top: 1rem;
-        z-index: 10000;
+// TOP TOOLBAR
+.tb_cover {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-height: 60px;
+  position: relative;
+  z-index: 10;
+  gap: 1rem;
+
+  // LEFT SECTION: Navigation & Notebook Info
+  .tb_left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+
+    .backButton {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background-color: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      color: #374151;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.875rem;
+      font-weight: 500;
+      white-space: nowrap;
+
+      &:hover {
+        background-color: #e5e7eb;
+        transform: translateY(-1px);
+      }
+
+      svg {
+        flex-shrink: 0;
+      }
+    }
+
+    .notebookInfo {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+
+      .notebookTitle {
+        margin: 0;
+        color: #1f2937;
+        font-size: 1.1rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+      }
+
+      .notebookDescription {
+        color: #6b7280;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+      }
+    }
+
+    .pageNavigatorWrapper {
+      flex-shrink: 0;
+    }
+  }
+
+  // CENTER SECTION: Drawing Tools
+  .tb_center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    .drawing_tools {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      background-color: #f8fafc;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e5e7eb;
+    }
+  }
+
+  // RIGHT SECTION: Save, Status & Menu
+  .tb_right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+
+    .saveStatus {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      min-width: 100px;
+      justify-content: center;
+
+      .miniSpinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid transparent;
+        border-top: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      .switching {
+        color: #3b82f6;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .saving {
+        color: #f59e0b;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .ready {
+        color: #10b981;
+      }
+    }
+
+    .saveButton {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background-color: #8b5cf6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.875rem;
+      white-space: nowrap;
+
+      &:hover:not(:disabled) {
+        background-color: #7c3aed;
+        transform: translateY(-1px);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      svg {
+        flex-shrink: 0;
+      }
+    }
+
+    .tb_menu {
+      position: relative;
+      
+      .quick_menu {
+        position: relative;
         
         .menu_toggle {
           width: 40px;
@@ -35,7 +207,7 @@
         .menu_content {
           position: absolute;
           top: calc(100% + 8px);
-          left: 0;
+          right: 0;
           background-color: white;
           border-radius: 8px;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
@@ -74,23 +246,255 @@
           }
         }
       }
-
-    .tb_tools{
-        display: flex;
-        gap: 10px;
     }
+  }
 }
 
-.tb_details{
+// BOTTOM ZOOM TOOLBAR
+.zoom_toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  
+  .zoom_controls {
     display: flex;
-    gap: 10px;
-}
-
-.tb_zoom{
-    display: flex;
-    gap: 10px;
     align-items: center;
-    .zoom_level{
-        
+    gap: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+
+    .zoom_label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #6b7280;
+      margin-right: 0.5rem;
     }
+
+    .zoom_buttons {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      .zoom_button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        background: none;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #4b5563;
+
+        &:hover {
+          background-color: #f3f4f6;
+          color: #111827;
+        }
+
+        &[data-active="true"] {
+          background-color: #8b5cf6;
+          color: white;
+        }
+      }
+
+      .zoom_level {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #4b5563;
+        width: 60px;
+        text-align: center;
+        user-select: none;
+        padding: 0 8px;
+      }
+    }
+  }
+}
+
+// Animations
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// Responsive Design
+@media (max-width: 1200px) {
+  .tb_cover {
+    padding: 10px 16px;
+    gap: 0.75rem;
+
+    .tb_left {
+      gap: 0.75rem;
+
+      .notebookInfo {
+        .notebookTitle {
+          font-size: 1rem;
+        }
+      }
+    }
+
+    .tb_center {
+      .drawing_tools {
+        gap: 6px;
+        padding: 6px;
+      }
+    }
+
+    .tb_right {
+      gap: 0.75rem;
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .tb_cover {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    min-height: auto;
+
+    .tb_left {
+      order: 1;
+      width: 100%;
+      margin-bottom: 0.5rem;
+
+      .notebookInfo {
+        .notebookDescription {
+          display: none;
+        }
+      }
+    }
+
+    .tb_center {
+      order: 2;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .tb_right {
+      order: 3;
+      flex-shrink: 0;
+    }
+  }
+
+  .zoom_toolbar {
+    bottom: 10px;
+    
+    .zoom_controls {
+      padding: 6px 10px;
+      
+      .zoom_buttons {
+        .zoom_button {
+          width: 28px;
+          height: 28px;
+        }
+        
+        .zoom_level {
+          width: 50px;
+          font-size: 0.75rem;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .tb_cover {
+    padding: 6px 8px;
+
+    .tb_left {
+      gap: 0.5rem;
+
+      .backButton {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.75rem;
+
+        span {
+          display: none;
+        }
+      }
+
+      .notebookInfo {
+        .notebookTitle {
+          font-size: 0.9rem;
+        }
+      }
+    }
+
+    .tb_center {
+      .drawing_tools {
+        gap: 4px;
+        padding: 4px;
+      }
+    }
+
+    .tb_right {
+      gap: 0.5rem;
+
+      .saveStatus {
+        min-width: 60px;
+        font-size: 0.75rem;
+
+        .switching,
+        .saving {
+          span {
+            display: none;
+          }
+        }
+      }
+
+      .saveButton {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+
+        span {
+          display: none;
+        }
+      }
+
+      .tb_menu {
+        .menu_toggle {
+          width: 36px;
+          height: 36px;
+        }
+      }
+    }
+  }
+
+  .zoom_toolbar {
+    .zoom_controls {
+      .zoom_label {
+        display: none;
+      }
+
+      .zoom_buttons {
+        .zoom_button {
+          width: 26px;
+          height: 26px;
+        }
+
+        .zoom_level {
+          width: 45px;
+          font-size: 0.7rem;
+        }
+      }
+    }
+  }
 }

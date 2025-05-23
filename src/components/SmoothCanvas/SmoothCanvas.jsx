@@ -1,5 +1,5 @@
 // ===============================
-// src/components/SmoothCanvas/SmoothCanvas.jsx - SIMPLE VERSION
+// src/components/SmoothCanvas/SmoothCanvas.jsx - FIXED VERSION
 // ===============================
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
@@ -19,8 +19,10 @@ const SmoothCanvas = () => {
     canvasDimensions,
     zoomLevel,
     viewBox,
+    canvasData, // FIXED: Watch for canvas data changes
     setCanvasData,
     registerCanvasMethods,
+    clearCanvasData
   } = useDrawingStore();
 
   const { currentPageData } = usePageStore();
@@ -40,22 +42,63 @@ const SmoothCanvas = () => {
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // ADDED: Track last loaded data to prevent unnecessary reloads
+  const lastLoadedDataRef = useRef(null);
+  const isLoadingDataRef = useRef(false);
+
   const { width, height } = canvasDimensions;
+
+  // FIXED: Separated canvas data loading to prevent re-initialization
+  const loadCanvasData = useCallback((vectorData) => {
+    if (!engineRef.current || !vectorData || isLoadingDataRef.current) return false;
+    
+    // ADDED: Skip if same data
+    if (lastLoadedDataRef.current === vectorData) {
+      console.log('SmoothCanvas: Skipping reload of same data');
+      return true;
+    }
+
+    try {
+      console.log('SmoothCanvas: Loading new canvas data...');
+      isLoadingDataRef.current = true;
+      
+      // FIXED: Clear paths without destroying canvas
+      engineRef.current.clearPaths();
+      setPaths([]);
+      
+      // Import new data
+      const success = engineRef.current.importFromJSON(vectorData);
+      
+      if (success) {
+        const currentPaths = engineRef.current.getPaths();
+        setPaths([...currentPaths]);
+        lastLoadedDataRef.current = vectorData;
+        console.log('SmoothCanvas: Loaded', currentPaths.length, 'paths');
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('SmoothCanvas: Error loading canvas data:', error);
+      return false;
+    } finally {
+      isLoadingDataRef.current = false;
+    }
+  }, []);
 
   // Get current canvas data
   const getCurrentCanvasData = useCallback(() => {
     if (engineRef.current) {
       const data = engineRef.current.exportAsJSON();
-      console.log('Getting canvas data, length:', data?.length || 0);
+      console.log('SmoothCanvas: Getting canvas data, length:', data?.length || 0);
       return data;
     }
     return null;
   }, []);
 
-  // Clear canvas
+  // FIXED: Clear canvas without destroying engine
   const clearCanvas = useCallback(() => {
     if (engineRef.current) {
-      console.log('Clearing canvas');
+      console.log('SmoothCanvas: Clearing canvas paths');
       engineRef.current.clearPaths();
       setPaths([]);
       setPathsToErase(new Set());
@@ -65,51 +108,35 @@ const SmoothCanvas = () => {
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) tempPath.remove();
       
+      // ADDED: Clear the last loaded data reference
+      lastLoadedDataRef.current = null;
+      
       return true;
     }
     return false;
   }, []);
 
-  // Load drawing data
-  const loadDrawingData = useCallback((vectorData) => {
-    if (!engineRef.current || !vectorData) return false;
-
-    try {
-      console.log('Loading drawing data...');
-      
-      // Clear first
-      engineRef.current.clearPaths();
-      setPaths([]);
-      
-      // Import data
-      const success = engineRef.current.importFromJSON(vectorData);
-      
-      if (success) {
-        const currentPaths = engineRef.current.getPaths();
-        setPaths([...currentPaths]);
-        console.log('Loaded', currentPaths.length, 'paths');
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('Error loading drawing data:', error);
-      return false;
-    }
-  }, []);
-
-  // Load canvas data when page data changes
+  // FIXED: Watch canvas data from store for updates
   useEffect(() => {
-    if (isInitialized && currentPageData?.canvasData) {
-      console.log('Loading page data into canvas');
-      loadDrawingData(currentPageData.canvasData);
+    if (isInitialized && canvasData && canvasData !== lastLoadedDataRef.current) {
+      console.log('SmoothCanvas: Canvas data changed in store, loading...');
+      loadCanvasData(canvasData);
     }
-  }, [currentPageData?.canvasData, isInitialized, loadDrawingData]);
+  }, [canvasData, isInitialized, loadCanvasData]);
 
-  // Initialize canvas
+  // FIXED: Watch current page data but don't auto-load (let store handle it)
   useEffect(() => {
-    if (!canvasRef.current || !svgRef.current) return;
+    if (isInitialized && currentPageData?.canvasData && !canvasData) {
+      console.log('SmoothCanvas: Page data available but no store data, loading from page...');
+      loadCanvasData(currentPageData.canvasData);
+    }
+  }, [currentPageData?.canvasData, isInitialized, canvasData, loadCanvasData]);
 
-    console.log('Initializing canvas engine');
+  // FIXED: Initialize canvas ONLY ONCE
+  useEffect(() => {
+    if (!canvasRef.current || !svgRef.current || isInitialized) return;
+
+    console.log('SmoothCanvas: Initializing canvas engine (ONE TIME ONLY)');
     const engine = new CanvasEngine(canvasRef, svgRef, {
       width,
       height,
@@ -134,14 +161,16 @@ const SmoothCanvas = () => {
     // Set callbacks
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
-        setPaths([...engine.getPaths()]);
+        const newPaths = [...engine.getPaths()];
+        setPaths(newPaths);
         if (isInitialized) {
           const canvasData = engine.exportAsJSON();
           setCanvasData(canvasData);
         }
       },
       onPathsErased: () => {
-        setPaths([...engine.getPaths()]);
+        const newPaths = [...engine.getPaths()];
+        setPaths(newPaths);
         if (isInitialized) {
           const canvasData = engine.exportAsJSON();
           setCanvasData(canvasData);
@@ -177,7 +206,8 @@ const SmoothCanvas = () => {
         if (engineRef.current) {
           const success = engineRef.current.undo();
           if (success) {
-            setPaths([...engineRef.current.getPaths()]);
+            const newPaths = [...engineRef.current.getPaths()];
+            setPaths(newPaths);
             if (isInitialized) {
               const canvasData = engineRef.current.exportAsJSON();
               setCanvasData(canvasData);
@@ -187,7 +217,8 @@ const SmoothCanvas = () => {
         }
         return false;
       },
-      getCurrentCanvasData: getCurrentCanvasData
+      getCurrentCanvasData: getCurrentCanvasData,
+      loadCanvasData: loadCanvasData // ADDED: Register load function
     });
 
     setIsInitialized(true);
@@ -200,14 +231,21 @@ const SmoothCanvas = () => {
         engineRef.current.destroy?.();
       }
     };
-  }, [width, height, registerCanvasMethods, getCurrentCanvasData, clearCanvas, setCanvasData]);
+  }, []); // FIXED: Empty dependency array - initialize only once
 
-  // Update options when store state changes
+  // FIXED: Update canvas dimensions without re-initialization
+  useEffect(() => {
+    if (engineRef.current && isInitialized && (width !== engineRef.current.options.width || height !== engineRef.current.options.height)) {
+      console.log('SmoothCanvas: Updating canvas dimensions');
+      engineRef.current.updateOptions({ width, height });
+    }
+  }, [width, height, isInitialized]);
+
+  // FIXED: Update tool options without re-initialization
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
+      // Update engine options
       engineRef.current.updateOptions({
-        width,
-        height,
         strokeColor,
         strokeWidth,
         opacity,
@@ -215,6 +253,7 @@ const SmoothCanvas = () => {
         viewBox
       });
 
+      // Update event handler options
       eventHandlerRef.current.options = {
         ...eventHandlerRef.current.options,
         currentTool,
@@ -232,7 +271,7 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
     }
-  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, width, height, viewBox, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, isInitialized]);
 
   const dpr = window.devicePixelRatio || 1;
 
@@ -286,6 +325,13 @@ const SmoothCanvas = () => {
       <div className={styles.zoomIndicator}>
         {Math.round(zoomLevel * 100)}%
       </div>
+      
+      {/* ADDED: Loading indicator for data transitions */}
+      {isLoadingDataRef.current && (
+        <div className={styles.dataLoadingIndicator}>
+          <div className={styles.miniSpinner}></div>
+        </div>
+      )}
     </div>
   );
 };

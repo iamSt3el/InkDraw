@@ -1,14 +1,13 @@
 // ===============================
-// src/pages/NotebookInside/Index.jsx - SIMPLE VERSION
+// src/pages/NotebookInside/Index.jsx - UPDATED FOR NEW TOOLBAR LAYOUT
 // ===============================
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
 import ToolBar from '../../components/ToolBar/Index';
 import NoteBookUi from '../../components/NotebookUi/Index';
 import PageSettingPanel from '../../components/PagePanel/PagePanel';
 import PenSettingPanel from '../../components/PenPanel/PenPanel';
-import PageNavigator from '../../components/PageNavigator/PageNavigator';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
@@ -22,7 +21,8 @@ const NotebookInside = () => {
     currentTool, 
     pageSettings, 
     getCurrentCanvasData,
-    clearCanvas: clearCanvasMethod
+    clearCanvasData,
+    setCanvasData
   } = useDrawingStore();
   
   const { 
@@ -34,21 +34,119 @@ const NotebookInside = () => {
   const { 
     savePage, 
     loadPage,
-    isSaving
+    isSaving,
+    clearCurrentPageData
   } = usePageStore();
 
   const { showNotification } = useUIStore();
 
+  // State management
   const [currentPageNumber, setCurrentPageNumber] = useState(parseInt(pageNumber) || 1);
   const [notebook, setNotebook] = useState(null);
-  const [isSwitching, setIsSwitching] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [pendingPageData, setPendingPageData] = useState(null);
+  
+  // Refs
+  const saveTimeoutRef = useRef(null);
+  const isInitializedRef = useRef(false);
+  const lastSavedPageRef = useRef(null);
+
+  // Memoized page data loader
+  const loadPageData = useCallback(async (pageNum) => {
+    if (!notebookId || isTransitioning) return null;
+    
+    try {
+      console.log(`Loading page ${pageNum} data...`);
+      const result = await loadPage(notebookId, pageNum);
+      
+      if (result.success) {
+        setPendingPageData(result.page);
+        console.log(`Page ${pageNum} data prepared for loading`);
+        return result.page;
+      }
+    } catch (error) {
+      console.error('Error loading page:', error);
+      showNotification?.('error', 'Failed to load page');
+    }
+    return null;
+  }, [notebookId, loadPage, isTransitioning, showNotification]);
+
+  // Optimized save function
+  const saveCurrentPage = useCallback(async (pageNum = currentPageNumber) => {
+    if (!getCurrentCanvasData || !notebookId || !pageNum) return false;
+
+    try {
+      const canvasData = getCurrentCanvasData();
+      
+      if (lastSavedPageRef.current === pageNum && !canvasData) {
+        return true;
+      }
+      
+      const pageData = {
+        notebookId,
+        pageNumber: pageNum,
+        canvasData: canvasData || '{"type":"drawing","version":1,"elements":[]}',
+        settings: pageSettings || {
+          pattern: 'grid',
+          patternSize: 20,
+          patternColor: '#e5e7eb',
+          patternOpacity: 50
+        }
+      };
+
+      const result = await savePage(pageData);
+      if (result.success) {
+        lastSavedPageRef.current = pageNum;
+        console.log(`Saved page ${pageNum}`);
+        return true;
+      } else {
+        console.error('Failed to save page:', result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error saving page:', error);
+      return false;
+    }
+  }, [getCurrentCanvasData, notebookId, currentPageNumber, pageSettings, savePage]);
+
+  // Fast page transition
+  const transitionToPage = useCallback(async (newPageNumber) => {
+    if (newPageNumber === currentPageNumber || isTransitioning) return;
+
+    console.log(`Quick transition from page ${currentPageNumber} to ${newPageNumber}`);
+    setIsTransitioning(true);
+
+    try {
+      // Parallel operations for speed
+      const savePromise = saveCurrentPage(currentPageNumber);
+      const loadPromise = loadPageData(newPageNumber);
+      const [, newPageData] = await Promise.all([savePromise, loadPromise]);
+
+      // Quick data update
+      clearCanvasData();
+      setCurrentPageNumber(newPageNumber);
+      window.history.replaceState(null, '', `/notebook/${notebookId}/page/${newPageNumber}`);
+
+      // Set new data immediately
+      if (newPageData?.canvasData) {
+        setCanvasData(newPageData.canvasData);
+      } else {
+        setCanvasData('{"type":"drawing","version":1,"elements":[]}');
+      }
+
+      setPendingPageData(null);
+      
+    } catch (error) {
+      console.error('Error transitioning pages:', error);
+      showNotification?.('error', 'Failed to switch pages');
+    } finally {
+      setTimeout(() => setIsTransitioning(false), 100);
+    }
+  }, [currentPageNumber, isTransitioning, saveCurrentPage, loadPageData, clearCanvasData, setCanvasData, notebookId, showNotification]);
 
   // Initialize notebook
   useEffect(() => {
-    if (!notebookId) {
-      navigate('/');
-      return;
-    }
+    if (!notebookId || isInitializedRef.current) return;
 
     let foundNotebook = notebooks.find(nb => nb.id === notebookId);
     if (!foundNotebook && currentNotebook?.id === notebookId) {
@@ -62,126 +160,73 @@ const NotebookInside = () => {
 
     setNotebook(foundNotebook);
     setCurrentNotebook(notebookId);
+    isInitializedRef.current = true;
   }, [notebookId, notebooks, currentNotebook, setCurrentNotebook, navigate]);
 
-  // Load page data when component mounts or page changes
+  // Load initial page data
   useEffect(() => {
-    if (notebookId && currentPageNumber && !isSwitching) {
+    if (isInitializedRef.current && notebookId && currentPageNumber && !isTransitioning) {
       loadPageData(currentPageNumber);
     }
-  }, [notebookId, currentPageNumber, isSwitching]);
+  }, [isInitializedRef.current, notebookId, currentPageNumber, loadPageData, isTransitioning]);
 
-  // Simple function to load page data
-  const loadPageData = async (pageNum) => {
-    try {
-      const result = await loadPage(notebookId, pageNum);
-      if (result.success && result.page.canvasData) {
-        // Load canvas data if exists
-        const canvasData = result.page.canvasData;
-        // The SmoothCanvas component will handle loading this data
-        console.log(`Loaded page ${pageNum} with ${canvasData.length} characters of data`);
-      }
-    } catch (error) {
-      console.error('Error loading page:', error);
-      showNotification?.('error', 'Failed to load page');
+  // Handle pending page data updates
+  useEffect(() => {
+    if (pendingPageData && !isTransitioning) {
+      setCanvasData(pendingPageData.canvasData);
+      setPendingPageData(null);
     }
-  };
+  }, [pendingPageData, isTransitioning, setCanvasData]);
 
-  // Simple function to save current page
-  const saveCurrentPage = async () => {
-    if (!getCurrentCanvasData || !notebookId || !currentPageNumber) return;
+  // Navigation handlers
+  const handlePageChange = useCallback((newPageNumber) => {
+    transitionToPage(newPageNumber);
+  }, [transitionToPage]);
 
-    try {
-      const canvasData = getCurrentCanvasData();
-      
-      const pageData = {
-        notebookId,
-        pageNumber: currentPageNumber,
-        canvasData: canvasData || '{"type":"drawing","version":1,"elements":[]}',
-        settings: pageSettings || {
-          pattern: 'grid',
-          patternSize: 20,
-          patternColor: '#e5e7eb',
-          patternOpacity: 50
-        }
-      };
-
-      const result = await savePage(pageData);
-      if (result.success) {
-        console.log(`Saved page ${currentPageNumber}`);
-        return true;
-      } else {
-        console.error('Failed to save page:', result.error);
-        return false;
-      }
-    } catch (error) {
-      console.error('Error saving page:', error);
-      return false;
-    }
-  };
-
-  // Simple page switching function
-  const switchToPage = async (newPageNumber) => {
-    if (newPageNumber === currentPageNumber || isSwitching) return;
-
-    console.log(`Switching from page ${currentPageNumber} to ${newPageNumber}`);
-    setIsSwitching(true);
-
-    try {
-      // Step 1: Save current page
-      await saveCurrentPage();
-
-      // Step 2: Clear canvas
-      if (clearCanvasMethod) {
-        clearCanvasMethod();
-      }
-
-      // Step 3: Update page number and URL
-      setCurrentPageNumber(newPageNumber);
-      window.history.replaceState(null, '', `/notebook/${notebookId}/page/${newPageNumber}`);
-
-      // Step 4: Load new page (useEffect will handle this)
-      
-    } catch (error) {
-      console.error('Error switching pages:', error);
-      showNotification?.('error', 'Failed to switch pages');
-    } finally {
-      setIsSwitching(false);
-    }
-  };
-
-  // Handle page navigation
-  const handlePageChange = (newPageNumber) => {
-    switchToPage(newPageNumber);
-  };
-
-  const handlePreviousPage = () => {
+  const handlePreviousPage = useCallback(() => {
     if (currentPageNumber > 1) {
-      switchToPage(currentPageNumber - 1);
+      transitionToPage(currentPageNumber - 1);
     }
-  };
+  }, [currentPageNumber, transitionToPage]);
 
-  const handleNextPage = () => {
+  const handleNextPage = useCallback(() => {
     if (!notebook) return;
     const maxPages = notebook.totalPages || 100;
     if (currentPageNumber < maxPages) {
-      switchToPage(currentPageNumber + 1);
+      transitionToPage(currentPageNumber + 1);
     }
-  };
+  }, [notebook, currentPageNumber, transitionToPage]);
 
   // Manual save
-  const handleManualSave = async () => {
+  const handleManualSave = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
     const success = await saveCurrentPage();
     if (success) {
       showNotification?.('success', 'Page saved successfully');
     } else {
       showNotification?.('error', 'Failed to save page');
     }
-  };
+  }, [saveCurrentPage, showNotification]);
+
+  // Back to notebooks
+  const handleBackToNotebooks = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    await saveCurrentPage();
+    clearCurrentPageData();
+    navigate('/notebooks');
+  }, [saveCurrentPage, clearCurrentPageData, navigate]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (isTransitioning) return;
+      
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
         handleManualSave();
@@ -195,32 +240,38 @@ const NotebookInside = () => {
         handleNextPage();
       }
       if (e.key === 'Escape') {
-        navigate('/notebooks');
+        handleBackToNotebooks();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleManualSave, handlePreviousPage, handleNextPage, navigate]);
+  }, [handleManualSave, handlePreviousPage, handleNextPage, handleBackToNotebooks, isTransitioning]);
 
-  // Auto-save every 30 seconds
+  // Auto-save
   useEffect(() => {
+    if (isTransitioning) return;
+    
     const interval = setInterval(() => {
-      if (!isSwitching) {
+      if (!isTransitioning) {
         saveCurrentPage();
       }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [isSwitching]);
+  }, [saveCurrentPage, isTransitioning]);
 
-  // Save before closing
-  const handleClose = async () => {
-    await saveCurrentPage();
-    navigate('/notebooks');
-  };
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      clearCurrentPageData();
+    };
+  }, [clearCurrentPageData]);
 
-  if (!notebook) {
+  if (!notebook || !isInitializedRef.current) {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
@@ -231,48 +282,25 @@ const NotebookInside = () => {
 
   return (
     <div className={styles.ni_cover}>
-      {/* Header */}
-      <div className={styles.ni_header}>
-        <div className={styles.notebookInfo}>
-          <button className={styles.backButton} onClick={handleClose}>
-            ← Back to Notebooks
-          </button>
-          <div className={styles.notebookTitle}>
-            <h2>{notebook.title}</h2>
-            <span className={styles.notebookDescription}>{notebook.description}</span>
-          </div>
-        </div>
-        
-        <div className={styles.headerActions}>
-          <PageNavigator
-            currentPage={currentPageNumber}
-            totalPages={notebook.totalPages || 100}
-            onPageChange={handlePageChange}
-            onPreviousPage={handlePreviousPage}
-            onNextPage={handleNextPage}
-          />
-          
-          <div className={styles.saveStatus}>
-            {isSwitching && <span className={styles.switching}>Switching pages...</span>}
-            {isSaving && !isSwitching && <span className={styles.saving}>Saving...</span>}
-          </div>
-          
-          <button 
-            className={styles.saveButton} 
-            onClick={handleManualSave}
-            disabled={isSaving || isSwitching}
-          >
-            Save
-          </button>
-        </div>
-      </div>
+      {/* FIXED TOOLBAR: Now with proper layout - Page Nav (Left), Tools (Center), Menu (Right) */}
+      <ToolBar 
+        notebookInfo={{
+          title: notebook.title,
+          description: notebook.description
+        }}
+        currentPage={currentPageNumber}
+        totalPages={notebook.totalPages || 100}
+        onPageChange={handlePageChange}
+        onPreviousPage={handlePreviousPage}
+        onNextPage={handleNextPage}
+        onBackToNotebooks={handleBackToNotebooks}
+        onSave={handleManualSave}
+        isSaving={isSaving}
+        isTransitioning={isTransitioning}
+      />
 
-      {/* Main content */}
+      {/* MAIN CONTENT: Clean layout without zoom controls (now at bottom) */}
       <div className={styles.ni_content}>
-        <div className={styles.toolBar}>
-          <ToolBar />
-        </div>
-
         <div className={styles.ni_canvas_area}>
           <div className={styles.ni_page_setting}>
             <PageSettingPanel />
@@ -280,20 +308,19 @@ const NotebookInside = () => {
           
           <div className={styles.ni_canvas}>
             <NoteBookUi />
-            
-            {/* Simple switching overlay */}
-            {isSwitching && (
-              <div className={styles.pageLoadingOverlay}>
-                <div className={styles.pageSpinner}></div>
-                <p>Switching to page {currentPageNumber}...</p>
-              </div>
-            )}
           </div>
           
           <div className={styles.ni_pen_setting}>
             {currentTool === 'pen' && <PenSettingPanel />}
           </div>
         </div>
+      </div>
+
+      {/* Keyboard shortcuts help */}
+      <div className={styles.shortcutsHelp}>
+        <span>Ctrl+S: Save</span>
+        <span>Ctrl+←/→: Switch Pages</span>
+        <span>Esc: Back to Notebooks</span>
       </div>
     </div>
   );
