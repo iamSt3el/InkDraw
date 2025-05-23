@@ -1,11 +1,13 @@
-// src/components/NotebookCard/index.jsx - Updated with navigation to notebook inside
+// src/components/NotebookCard/index.jsx - Updated with router navigation
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styles from './NotebookCard.module.scss'
 import { Trash2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useNotebookStore } from '../../stores/noteBookStore'
 
-const NoteBookCard = ({ notebook, onOpenNotebook }) => {
+const NoteBookCard = ({ notebook }) => {
+  const navigate = useNavigate();
   const { deleteNotebook } = useNotebookStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const numberOfHoles = 19;
@@ -38,13 +40,8 @@ const NoteBookCard = ({ notebook, onOpenNotebook }) => {
     
     console.log('Opening notebook:', id, title);
     
-    // Call the onOpenNotebook prop if provided
-    if (onOpenNotebook) {
-      onOpenNotebook(notebook);
-    } else {
-      // Default behavior - could be routing or modal
-      console.log('No onOpenNotebook handler provided');
-    }
+    // Navigate to the notebook inside page
+    navigate(`/notebook/${id}`);
   };
 
   const handleDeleteClick = (e) => {
@@ -137,11 +134,6 @@ const NoteBookCard = ({ notebook, onOpenNotebook }) => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Click indicator */}
-        <div className={styles.click_indicator}>
-          <span>Click to open</span>
         </div>
       </div>
 

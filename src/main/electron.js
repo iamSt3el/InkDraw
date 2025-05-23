@@ -19,7 +19,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    frame: true,
+    frame: false,
     titleBarStyle: 'default',
     webPreferences: {
       nodeIntegration: false, // Security: disable node integration

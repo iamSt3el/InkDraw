@@ -1,9 +1,8 @@
-// src/components/NotebookCard/index.jsx - Updated with navigation
+// src/pages/NoteBookManagerPage/index.jsx - Updated with router navigation
 import React, { useEffect, useState } from 'react'
 import styles from './NoteBookManager.module.scss'
 import Header from '../../components/Header';
 import NoteBookCard from '../../components/NotebookCard';
-import NotebookInside from '../NotebookInside/Index';
 import { useNotebookStore } from '../../stores/noteBookStore';
 
 const NoteBookManager = () => {
@@ -15,7 +14,6 @@ const NoteBookManager = () => {
   } = useNotebookStore();
 
   const [hasInitialized, setHasInitialized] = useState(false);
-  const [currentOpenNotebook, setCurrentOpenNotebook] = useState(null);
 
   // Initialize notebooks on component mount
   useEffect(() => {
@@ -52,26 +50,6 @@ const NoteBookManager = () => {
     }
     console.log('=== End Debug ===');
   }, [notebooks, isLoading, error, hasInitialized]);
-
-  const handleOpenNotebook = (notebook) => {
-    console.log('Opening notebook for editing:', notebook.title);
-    setCurrentOpenNotebook(notebook);
-  };
-
-  const handleCloseNotebook = () => {
-    console.log('Closing notebook');
-    setCurrentOpenNotebook(null);
-  };
-
-  // If a notebook is open, show the NotebookInside component
-  if (currentOpenNotebook) {
-    return (
-      <NotebookInside 
-        notebookId={currentOpenNotebook.id} 
-        onClose={handleCloseNotebook}
-      />
-    );
-  }
 
   const renderContent = () => {
     console.log('NotebookManager renderContent called');
@@ -115,12 +93,6 @@ const NoteBookManager = () => {
           <div className={styles.emptyIcon}>📓</div>
           <h3>No Notebooks Yet</h3>
           <p>Create your first notebook to get started with drawing and note-taking.</p>
-          <button 
-            className={styles.createButton}
-            onClick={() => console.log('Create notebook clicked')}
-          >
-            Create Your First Notebook
-          </button>
         </div>
       );
     }
@@ -134,7 +106,6 @@ const NoteBookManager = () => {
             <NoteBookCard 
               key={notebook.id || index} 
               notebook={notebook}
-              onOpenNotebook={handleOpenNotebook}
             />
           );
         })}

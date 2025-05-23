@@ -1,4 +1,4 @@
-// src/pages/NotebookInside/Index.jsx - Updated with FS operations
+// src/pages/NotebookInside/Index.jsx - Updated with URL parameters and navigation
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
@@ -11,12 +11,9 @@ import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
 
-const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
+const NotebookInside = () => {
   const navigate = useNavigate();
-  const { notebookId: paramNotebookId } = useParams();
-  
-  // Use prop or URL parameter
-  const notebookId = propNotebookId || paramNotebookId;
+  const { notebookId, pageNumber } = useParams();
   
   const { currentTool, canvasData, pageSettings, markChangesSaved } = useDrawingStore();
   const { 
@@ -33,7 +30,7 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
     isLoading 
   } = usePageStore();
 
-  const [currentPageNumber, setCurrentPageNumber] = useState(1);
+  const [currentPageNumber, setCurrentPageNumber] = useState(parseInt(pageNumber) || 1);
   const [notebook, setNotebook] = useState(null);
   const [autoSaveInterval, setAutoSaveInterval] = useState(null);
   const [lastSavedData, setLastSavedData] = useState(null);
@@ -46,6 +43,7 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       
       if (!notebookId) {
         console.error('No notebook ID provided');
+        navigate('/');
         return;
       }
 
@@ -58,22 +56,27 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       
       if (!foundNotebook) {
         console.error('Notebook not found:', notebookId);
-        // Could redirect to notebook manager here
+        // Redirect to notebook manager
+        navigate('/');
         return;
       }
 
       setNotebook(foundNotebook);
       setCurrentNotebook(notebookId);
       
-      // Set initial page number from notebook or default to 1
-      const initialPage = foundNotebook.currentPage || 1;
-      setCurrentPageNumber(initialPage);
-      
       console.log('NotebookInside: Initialized notebook:', foundNotebook.title);
     };
 
     initializeNotebook();
-  }, [notebookId, notebooks, currentNotebook, setCurrentNotebook]);
+  }, [notebookId, notebooks, currentNotebook, setCurrentNotebook, navigate]);
+
+  // Handle URL page parameter changes
+  useEffect(() => {
+    const urlPageNumber = parseInt(pageNumber) || 1;
+    if (urlPageNumber !== currentPageNumber) {
+      setCurrentPageNumber(urlPageNumber);
+    }
+  }, [pageNumber, currentPageNumber]);
 
   // Load page data when page number changes
   useEffect(() => {
@@ -166,7 +169,7 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
     await performAutoSave();
   }, [performAutoSave]);
 
-  // Page navigation functions
+  // Page navigation functions with URL updates
   const handlePageChange = useCallback(async (newPageNumber) => {
     if (newPageNumber === currentPageNumber) return;
     
@@ -175,8 +178,10 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       await performAutoSave();
     }
     
+    // Update URL and state
     setCurrentPageNumber(newPageNumber);
-  }, [currentPageNumber, hasUnsavedChanges, performAutoSave]);
+    navigate(`/notebook/${notebookId}/page/${newPageNumber}`, { replace: true });
+  }, [currentPageNumber, hasUnsavedChanges, performAutoSave, navigate, notebookId]);
 
   const handlePreviousPage = useCallback(() => {
     if (currentPageNumber > 1) {
@@ -214,14 +219,14 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       }
       
       // Escape to go back
-      if (e.key === 'Escape' && onClose) {
-        onClose();
+      if (e.key === 'Escape') {
+        handleClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleManualSave, handlePreviousPage, handleNextPage, onClose]);
+  }, [handleManualSave, handlePreviousPage, handleNextPage]);
 
   // Save before unmounting
   useEffect(() => {
@@ -232,19 +237,16 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
     };
   }, [hasUnsavedChanges, performAutoSave]);
 
-  // Handle close
+  // Handle close - navigate back to notebooks
   const handleClose = useCallback(async () => {
     // Save before closing
     if (hasUnsavedChanges) {
       await performAutoSave();
     }
     
-    if (onClose) {
-      onClose();
-    } else {
-      navigate('/');
-    }
-  }, [hasUnsavedChanges, performAutoSave, onClose, navigate]);
+    // Navigate back to notebooks page
+    navigate('/notebooks');
+  }, [hasUnsavedChanges, performAutoSave, navigate]);
 
   if (!notebook) {
     return (
@@ -261,7 +263,7 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       <div className={styles.ni_header}>
         <div className={styles.notebookInfo}>
           <button className={styles.backButton} onClick={handleClose}>
-            ← Back
+            ← Back to Notebooks
           </button>
           <div className={styles.notebookTitle}>
             <h2>{notebook.title}</h2>
@@ -333,7 +335,7 @@ const NotebookInside = ({ notebookId: propNotebookId, onClose }) => {
       <div className={styles.shortcutsHelp}>
         <span>Ctrl+S: Save</span>
         <span>Ctrl+←/→: Navigate pages</span>
-        <span>Esc: Back</span>
+        <span>Esc: Back to notebooks</span>
       </div>
     </div>
   );

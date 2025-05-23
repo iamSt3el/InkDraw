@@ -1,8 +1,8 @@
-// src/App.js - Updated with store initialization and debug panel
+// src/App.js - Updated with router functionality
 import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import NoteBookManager from './pages/NoteBookManagerPage';
 import NotebookInside from './pages/NotebookInside/Index';
-import DebugPanel from './components/Debug/DebugPanel';
 import { useNotebookStore } from './stores/noteBookStore';
 import { usePageStore } from './stores/pageStore';
 
@@ -89,26 +89,27 @@ function App() {
   }
 
   return (
-    <div>
-      <NoteBookManager />
-      {/* <NotebookInside/> */}
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Default route - Notebook Manager */}
+          <Route path="/" element={<NoteBookManager />} />
+          
+          {/* Notebook Manager route */}
+          <Route path="/notebooks" element={<NoteBookManager />} />
+          
+          {/* Notebook Inside route with notebook ID parameter */}
+          <Route path="/notebook/:notebookId" element={<NotebookInside />} />
+          
+          {/* Notebook Inside route with notebook ID and page number */}
+          <Route path="/notebook/:notebookId/page/:pageNumber" element={<NotebookInside />} />
+          
+          {/* Fallback route - redirect to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       
-      {/* Debug panel - remove this in production */}
-      {showDebug && <DebugPanel />}
-      
-      <div style={{
-        position: 'fixed',
-        bottom: '10px',
-        right: '10px',
-        fontSize: '12px',
-        color: '#6b7280',
-        background: 'rgba(255,255,255,0.8)',
-        padding: '0.25rem 0.5rem',
-        borderRadius: '4px'
-      }}>
-        Press Ctrl+D to toggle debug panel
       </div>
-    </div>
+    </Router>
   );
 }
 

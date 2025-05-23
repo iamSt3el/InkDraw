@@ -157,7 +157,6 @@ const ToolBar = () => {
       </div> */}
 
         <ZoomControls />
-        <Button Icon={MoveLeft} />
       </div>
     </div>
   );
