@@ -1,11 +1,15 @@
-/* src/pages/NotebookInside/NotebookInside.module.scss - UPDATED CLEAN VERSION */
+/* src/pages/NotebookInside/NotebookInside.module.scss - FIXED NO SCROLL VERSION */
 
 .ni_cover {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   background-color: #f8fafc;
-  overflow: hidden;
+  overflow: hidden; /* CRITICAL: Prevent any overflow */
+  position: fixed; /* ADDED: Ensure full viewport coverage */
+  top: 0;
+  left: 0;
 
   .loadingContainer {
     display: flex;
@@ -30,25 +34,32 @@
     }
   }
 
-  // REMOVED: .ni_header section - now integrated into toolbar
-
-  // SIMPLIFIED: Main content takes full space
+  // MAIN CONTENT - TAKES REMAINING SPACE
   .ni_content {
     display: flex;
     flex-direction: column;
     flex: 1;
-    overflow: hidden;
+    overflow: hidden; /* CRITICAL: Prevent content overflow */
+    min-height: 0; /* ADDED: Allow flex shrinking */
 
     .ni_canvas_area {
       display: flex;
       flex: 1;
       position: relative;
-      overflow: hidden;
+      overflow: hidden; /* CRITICAL: Prevent canvas area overflow */
+      min-height: 0; /* ADDED: Allow flex shrinking */
 
       .ni_page_setting {
-        position: relative;
+        position: absolute; /* CHANGED: From relative to absolute */
+        left: 0;
+        top: 0;
         z-index: 4;
         transition: transform 0.3s ease;
+        pointer-events: none; /* ADDED: Allow clicks to pass through */
+        
+        > * {
+          pointer-events: auto; /* ADDED: Re-enable for child elements */
+        }
       }
 
       .ni_canvas {
@@ -57,15 +68,35 @@
         align-items: center;
         justify-content: center;
         position: relative;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+       // background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
         transition: all 0.3s ease;
+        overflow: hidden; /* CRITICAL: Prevent canvas overflow */
+        min-height: 0; /* ADDED: Allow flex shrinking */
+        
+        /* ADDED: Ensure canvas container doesn't exceed bounds */
+        max-width: 100%;
+        max-height: 100%;
+        
+        /* ADDED: Center canvas content properly */
+        > * {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+        }
       }
 
       .ni_pen_setting {
-        position: relative;
+        position: absolute; /* CHANGED: From relative to absolute */
+        right: 0;
+        top: 0;
         z-index: 4;
         transition: transform 0.3s ease;
+        pointer-events: none; /* ADDED: Allow clicks to pass through */
+        
+        > * {
+          pointer-events: auto; /* ADDED: Re-enable for child elements */
+        }
       }
     }
   }
@@ -85,9 +116,11 @@
     z-index: 1000;
     opacity: 0.7;
     transition: opacity 0.2s ease;
+    pointer-events: none; /* ADDED: Don't interfere with other elements */
 
     &:hover {
       opacity: 1;
+      pointer-events: auto; /* ADDED: Re-enable on hover */
     }
 
     span {
@@ -102,7 +135,7 @@
   100% { transform: rotate(360deg); }
 }
 
-// Responsive design - Much simpler now
+// FIXED: Better responsive design with proper overflow handling
 @media (max-width: 1200px) {
   .ni_cover {
     .ni_content {
@@ -122,11 +155,70 @@
         .ni_canvas {
           padding: 0.5rem;
         }
+        
+        /* ADDED: Adjust panel positions for mobile */
+        .ni_page_setting {
+          left: 0.5rem;
+          top: 0.5rem;
+        }
+        
+        .ni_pen_setting {
+          right: 0.5rem;
+          top: 0.5rem;
+        }
       }
     }
 
     .shortcutsHelp {
-      display: none; // Hide on mobile to save space
+      display: none; /* Hide on mobile to save space */
     }
   }
+}
+
+/* ADDED: Global scroll prevention */
+html, body {
+  overflow: hidden; /* CRITICAL: Prevent any page-level scrolling when in notebook */
+}
+
+/* ADDED: Ensure no elements cause overflow */
+* {
+  box-sizing: border-box;
+}
+
+/* ADDED: Reset any default margins/padding that might cause overflow */
+.ni_cover * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ADDED: Specific fixes for common overflow causes */
+.ni_cover {
+  /* Prevent text from causing overflow */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  
+  /* Prevent images from causing overflow */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* Ensure all positioned elements stay within bounds */
+  [style*="position: absolute"],
+  [style*="position: fixed"] {
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+}
+
+/* ADDED: Ensure toolbar doesn't cause overflow */
+.ni_cover > *:first-child {
+  flex-shrink: 0; /* Don't shrink the toolbar */
+}
+
+/* ADDED: Ensure canvas doesn't exceed viewport */
+.ni_canvas > * {
+  max-width: calc(100vw - 4rem); /* Account for padding */
+  max-height: calc(100vh - 8rem); /* Account for toolbar and padding */
 }

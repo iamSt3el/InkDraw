@@ -316,12 +316,6 @@ const NotebookInside = () => {
         </div>
       </div>
 
-      {/* Keyboard shortcuts help */}
-      <div className={styles.shortcutsHelp}>
-        <span>Ctrl+S: Save</span>
-        <span>Ctrl+←/→: Switch Pages</span>
-        <span>Esc: Back to Notebooks</span>
-      </div>
     </div>
   );
 };

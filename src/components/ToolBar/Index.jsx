@@ -1,5 +1,5 @@
 // ===============================
-// src/components/ToolBar/Index.jsx - FIXED LAYOUT
+// src/components/ToolBar/Index.jsx - FIXED LAYOUT ORDER
 // ===============================
 import React from 'react';
 import styles from './ToolBar.module.scss';
@@ -82,9 +82,9 @@ const ToolBar = ({
 
   return (
     <>
-      {/* TOP TOOLBAR */}
+      {/* TOP TOOLBAR - FIXED ORDER */}
       <div className={styles.tb_cover}>
-        {/* LEFT SECTION: Navigation & Notebook Info */}
+        {/* LEFT SECTION: Notebook Info */}
         <div className={styles.tb_left}>
           {/* Back Button */}
           {onBackToNotebooks && (
@@ -107,19 +107,6 @@ const ToolBar = ({
                   {notebookInfo.description}
                 </span>
               )}
-            </div>
-          )}
-
-          {/* Page Navigator */}
-          {currentPage && totalPages && (
-            <div className={styles.pageNavigatorWrapper}>
-              <PageNavigator
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={onPageChange}
-                onPreviousPage={onPreviousPage}
-                onNextPage={onNextPage}
-              />
             </div>
           )}
         </div>
@@ -158,8 +145,21 @@ const ToolBar = ({
           </div>
         </div>
 
-        {/* RIGHT SECTION: Save & Menu */}
+        {/* RIGHT SECTION: Navigation & Menu */}
         <div className={styles.tb_right}>
+          {/* Page Navigator */}
+          {currentPage && totalPages && (
+            <div className={styles.pageNavigatorWrapper}>
+              <PageNavigator
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={onPageChange}
+                onPreviousPage={onPreviousPage}
+                onNextPage={onNextPage}
+              />
+            </div>
+          )}
+
           {/* Save Status */}
           <div className={styles.saveStatus}>
             {isTransitioning && (
@@ -241,7 +241,7 @@ const ToolBar = ({
         </div>
       </div>
 
-      {/* BOTTOM ZOOM CONTROLS - MOVED TO BOTTOM */}
+      {/* BOTTOM ZOOM CONTROLS */}
       <div className={styles.zoom_toolbar}>
         <div className={styles.zoom_controls}>
           <span className={styles.zoom_label}>Zoom:</span>
