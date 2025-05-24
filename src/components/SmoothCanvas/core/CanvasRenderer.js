@@ -1,23 +1,224 @@
-// src/components/SmoothCanvas/core/CanvasRenderer.js
+// src/components/SmoothCanvas/core/CanvasRenderer.js - SIMPLE ROUGH.JS APPROACH
 import React from 'react';
+import rough from 'roughjs';
 
 export class CanvasRenderer {
   constructor(canvasEngine, options = {}) {
     this.engine = canvasEngine;
     this.options = options;
+    this.roughSvg = null;
+    this.renderedShapeIds = new Set(); // Track what we've rendered
   }
 
+  initializeRoughSvg() {
+    if (!this.roughSvg && this.engine.svgRef.current) {
+      this.roughSvg = rough.svg(this.engine.svgRef.current);
+      console.log('CanvasRenderer: Rough.js SVG initialized');
+    }
+  }
+
+  // SIMPLE: Just render shapes directly as per Rough.js docs
+  renderShapesToSVG() {
+    this.initializeRoughSvg();
+    
+    if (!this.roughSvg || !this.engine.svgRef.current) {
+      console.warn('CanvasRenderer: Rough.js or SVG ref not available');
+      return;
+    }
+
+    const svg = this.engine.svgRef.current;
+    //const canvas = rough.canvas(this.engine.canvasRef.current);
+    const paths = this.engine.getPaths();
+    const shapes = paths.filter(path => path.type === 'shape');
+    const pathsToErase = this.engine.getPathsToErase();
+
+    console.log('CanvasRenderer: Rendering', shapes.length, 'shapes to SVG');
+
+    // Clear existing rough shapes (they have a specific class)
+    const existingRoughShapes = svg.querySelectorAll('.rough-shape');
+    existingRoughShapes.forEach(shape => shape.remove());
+    this.renderedShapeIds.clear();
+
+    // Render each shape
+    shapes.forEach((shape, index) => {
+      console.log(`CanvasRenderer: Rendering shape ${index}:`, shape.shapeType, shape.isRough ? 'rough' : 'clean');
+      
+      try {
+        let shapeNode = null;
+        const opacity = pathsToErase.has(shape.id) ? 0.3 : (shape.opacity || 100) / 100;
+
+        if (shape.isRough) {
+          // ROUGH SHAPE - Use Rough.js exactly as documented
+          const roughOptions = {
+            stroke: shape.color || '#000000',
+            strokeWidth: shape.strokeWidth || 2,
+            fill: shape.fill ? (shape.fillColor || shape.color || '#000000') : 'none',
+            fillStyle: shape.fillStyle || 'hachure',
+            roughness: shape.roughness || 1,
+            bowing: shape.bowing || 1,
+            fillWeight: (shape.strokeWidth || 2) * 0.5,
+          };
+
+          console.log('CanvasRenderer: Creating rough shape with options:', roughOptions);
+
+          switch (shape.shapeType) {
+            case 'rectangle':
+              // EXACTLY as per docs: roughSvg.rectangle returns a node
+             //canvas.rectangle(shape.x, shape.y, shape.width, shape.height, roughOptions);
+              shapeNode = this.roughSvg.rectangle(
+                shape.x, shape.y, shape.width, shape.height, roughOptions
+              );
+              break;
+              
+            case 'circle':
+              const centerX = shape.x + shape.width / 2;
+              const centerY = shape.y + shape.height / 2;
+              const diameter = Math.max(shape.width, shape.height);
+              shapeNode = this.roughSvg.circle(centerX, centerY, diameter, roughOptions);
+              break;
+              
+            case 'ellipse':
+              const ellipseCenterX = shape.x + shape.width / 2;
+              const ellipseCenterY = shape.y + shape.height / 2;
+              shapeNode = this.roughSvg.ellipse(
+                ellipseCenterX, ellipseCenterY, shape.width, shape.height, roughOptions
+              );
+              break;
+              
+            case 'line':
+              shapeNode = this.roughSvg.line(
+                shape.x1, shape.y1, shape.x2, shape.y2, roughOptions
+              );
+              break;
+              
+            default:
+              console.warn('Unknown rough shape type:', shape.shapeType);
+              return;
+          }
+          
+        } else {
+          // CLEAN SHAPE - Create standard SVG elements
+          shapeNode = this.createCleanSVGShape(shape);
+        }
+
+        if (shapeNode) {
+          // Set common attributes
+          shapeNode.setAttribute('opacity', opacity);
+          shapeNode.setAttribute('data-shape-id', shape.id);
+          shapeNode.setAttribute('class', 'rough-shape'); // For easy cleanup
+          shapeNode.style.transition = 'opacity 0.2s ease';
+
+          // EXACTLY as per docs: svg.appendChild(node)
+          svg.appendChild(shapeNode);
+          this.renderedShapeIds.add(shape.id);
+          
+          console.log('CanvasRenderer: Successfully appended shape to SVG');
+        }
+
+      } catch (error) {
+        console.error('CanvasRenderer: Error rendering shape:', error);
+      }
+    });
+  }
+
+  // Helper to create clean SVG shapes
+  createCleanSVGShape(shape) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    let element = null;
+
+    switch (shape.shapeType) {
+      case 'rectangle':
+        element = document.createElementNS(svgNS, 'rect');
+        element.setAttribute('x', shape.x);
+        element.setAttribute('y', shape.y);
+        element.setAttribute('width', shape.width);
+        element.setAttribute('height', shape.height);
+        break;
+        
+      case 'circle':
+        element = document.createElementNS(svgNS, 'circle');
+        const centerX = shape.x + shape.width / 2;
+        const centerY = shape.y + shape.height / 2;
+        const radius = Math.max(shape.width, shape.height) / 2;
+        element.setAttribute('cx', centerX);
+        element.setAttribute('cy', centerY);
+        element.setAttribute('r', radius);
+        break;
+        
+      case 'ellipse':
+        element = document.createElementNS(svgNS, 'ellipse');
+        const ellipseCenterX = shape.x + shape.width / 2;
+        const ellipseCenterY = shape.y + shape.height / 2;
+        element.setAttribute('cx', ellipseCenterX);
+        element.setAttribute('cy', ellipseCenterY);
+        element.setAttribute('rx', shape.width / 2);
+        element.setAttribute('ry', shape.height / 2);
+        break;
+        
+      case 'line':
+        element = document.createElementNS(svgNS, 'line');
+        element.setAttribute('x1', shape.x1);
+        element.setAttribute('y1', shape.y1);
+        element.setAttribute('x2', shape.x2);
+        element.setAttribute('y2', shape.y2);
+        break;
+        
+      default:
+        return null;
+    }
+
+    if (element) {
+      // Apply styling
+      element.setAttribute('stroke', shape.color || '#000000');
+      element.setAttribute('stroke-width', shape.strokeWidth || 2);
+      element.setAttribute('fill', shape.fill ? (shape.fillColor || shape.color) : 'none');
+      if (shape.fill) {
+        element.setAttribute('fill-opacity', (shape.fillOpacity || 20) / 100);
+      }
+    }
+
+    return element;
+  }
+
+  // Clear all rendered shapes
+  clearRenderedShapes() {
+    if (this.engine.svgRef.current) {
+      const svg = this.engine.svgRef.current;
+      const existingRoughShapes = svg.querySelectorAll('.rough-shape');
+      existingRoughShapes.forEach(shape => shape.remove());
+      this.renderedShapeIds.clear();
+      console.log('CanvasRenderer: Cleared all rendered shapes');
+    }
+  }
+
+  // Update eraser preview
+  updateEraserPreview(pathsToErase) {
+    if (this.engine.svgRef.current) {
+      const svg = this.engine.svgRef.current;
+      const shapeElements = svg.querySelectorAll('.rough-shape');
+      
+      shapeElements.forEach(element => {
+        const shapeId = element.getAttribute('data-shape-id');
+        const opacity = pathsToErase.has(shapeId) ? 0.3 : 1;
+        element.setAttribute('opacity', opacity);
+      });
+    }
+  }
+
+  // MAIN RENDER METHOD - called by React for stroke paths
   renderPaths() {
     const paths = this.engine.getPaths();
     const pathsToErase = this.engine.getPathsToErase();
 
-    const renderedPaths = paths.map((pathObj) => {
-      // Handle different types of paths
-      if (pathObj.type === 'shape') {
-        // For shapes, use direct SVG elements
-        return this.renderShape(pathObj, pathsToErase.has(pathObj.id));
-      } else {
-        // For normal strokes
+    console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape').length);
+
+    // Render shapes to SVG (direct DOM manipulation)
+    this.renderShapesToSVG();
+
+    // Return React elements for stroke paths only
+    const strokePaths = paths
+      .filter(pathObj => pathObj.type !== 'shape')
+      .map((pathObj) => {
         return (
           <path
             key={pathObj.id}
@@ -26,132 +227,14 @@ export class CanvasRenderer {
             stroke="none"
             fillRule="nonzero"
             style={{
-              opacity: pathsToErase.has(pathObj.id) ? 0.3 : 1,
+              opacity: pathsToErase.has(pathObj.id) ? 0.3 : (pathObj.opacity || 100) / 100,
               transition: 'opacity 0.1s ease'
             }}
           />
         );
-      }
-    });
+      });
 
-    return renderedPaths;
-  }
-  
-  // Render a shape based on its type
-  renderShape(shape, isBeingErased) {
-    const opacity = isBeingErased ? 0.3 : shape.opacity / 100;
-    const key = shape.id;
-    
-    const shapeStyles = {
-      stroke: shape.color,
-      strokeWidth: shape.strokeWidth,
-      fill: shape.fill ? shape.fillColor : 'none',
-      fillOpacity: shape.fill ? shape.fillOpacity / 100 : 0,
-      opacity: opacity,
-      transition: 'opacity 0.1s ease',
-    };
-    
-    switch (shape.shapeType) {
-      case 'rectangle':
-        return (
-          <rect
-            key={key}
-            x={shape.x}
-            y={shape.y}
-            width={shape.width}
-            height={shape.height}
-            style={shapeStyles}
-          />
-        );
-        
-      case 'circle':
-        const centerX = shape.x + shape.width / 2;
-        const centerY = shape.y + shape.height / 2;
-        const radius = Math.max(shape.width, shape.height) / 2;
-        
-        return (
-          <circle
-            key={key}
-            cx={centerX}
-            cy={centerY}
-            r={radius}
-            style={shapeStyles}
-          />
-        );
-        
-      case 'ellipse':
-        const ellipseCenterX = shape.x + shape.width / 2;
-        const ellipseCenterY = shape.y + shape.height / 2;
-        
-        return (
-          <ellipse
-            key={key}
-            cx={ellipseCenterX}
-            cy={ellipseCenterY}
-            rx={shape.width / 2}
-            ry={shape.height / 2}
-            style={shapeStyles}
-          />
-        );
-        
-      case 'line':
-        return (
-          <line
-            key={key}
-            x1={shape.x1}
-            y1={shape.y1}
-            x2={shape.x2}
-            y2={shape.y2}
-            stroke={shape.color}
-            strokeWidth={shape.strokeWidth}
-            style={{ opacity: opacity, transition: 'opacity 0.1s ease' }}
-          />
-        );
-        
-      case 'triangle':
-        // Create points for triangle
-        const points = [
-          [shape.x + shape.width / 2, shape.y],                // Top
-          [shape.x, shape.y + shape.height],                   // Bottom left
-          [shape.x + shape.width, shape.y + shape.height]      // Bottom right
-        ].map(p => p.join(',')).join(' ');
-        
-        return (
-          <polygon
-            key={key}
-            points={points}
-            style={shapeStyles}
-          />
-        );
-        
-      default:
-        // Fallback to a generic path if shape type is unknown
-        console.warn('Unknown shape type:', shape.shapeType);
-        return (
-          <rect
-            key={key}
-            x={shape.x || 0}
-            y={shape.y || 0}
-            width={shape.width || 10}
-            height={shape.height || 10}
-            style={shapeStyles}
-          />
-        );
-    }
-  }
-
-  // Add method to render temporary shapes during drawing
-  renderTemporaryShape(temporaryShape) {
-    if (!temporaryShape) return null;
-    
-    // Use the same rendering method but with temporary styling
-    const tempShape = {
-      ...temporaryShape,
-      id: 'temp-shape',
-      opacity: (temporaryShape.opacity || 100) * 0.8, // Slightly more transparent for preview
-    };
-    
-    return this.renderShape(tempShape, false);
+    return strokePaths;
   }
 
   renderEraserCursor(showEraser, eraserPosition, eraserWidth) {
@@ -171,7 +254,6 @@ export class CanvasRenderer {
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           zIndex: 100,
           transform: 'translateZ(0)',
-          animation: 'none'
         }}
       />
     );

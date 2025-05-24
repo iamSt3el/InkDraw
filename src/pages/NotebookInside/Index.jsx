@@ -1,6 +1,4 @@
-// ===============================
-// src/pages/NotebookInside/Index.jsx - UPDATED FOR NEW TOOLBAR LAYOUT
-// ===============================
+// src/pages/NotebookInside/Index.jsx - Updated with Shape Panel
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
@@ -8,6 +6,7 @@ import ToolBar from '../../components/ToolBar/Index';
 import NoteBookUi from '../../components/NotebookUi/Index';
 import PageSettingPanel from '../../components/PagePanel/PagePanel';
 import PenSettingPanel from '../../components/PenPanel/PenPanel';
+import ShapePanel from '../../components/ShapePanel/ShapePanel';  // Import Shape Panel
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
@@ -38,7 +37,12 @@ const NotebookInside = () => {
     clearCurrentPageData
   } = usePageStore();
 
-  const { showNotification } = useUIStore();
+  const { 
+    showNotification, 
+    switchPanelForTool,  // Import the smart panel switching
+    isPenPanelVisible,
+    isShapePanelVisible
+  } = useUIStore();
 
   // State management
   const [currentPageNumber, setCurrentPageNumber] = useState(parseInt(pageNumber) || 1);
@@ -117,17 +121,14 @@ const NotebookInside = () => {
     setIsTransitioning(true);
 
     try {
-      // Parallel operations for speed
       const savePromise = saveCurrentPage(currentPageNumber);
       const loadPromise = loadPageData(newPageNumber);
       const [, newPageData] = await Promise.all([savePromise, loadPromise]);
 
-      // Quick data update
       clearCanvasData();
       setCurrentPageNumber(newPageNumber);
       window.history.replaceState(null, '', `/notebook/${notebookId}/page/${newPageNumber}`);
 
-      // Set new data immediately
       if (newPageData?.canvasData) {
         setCanvasData(newPageData.canvasData);
       } else {
@@ -177,6 +178,13 @@ const NotebookInside = () => {
       setPendingPageData(null);
     }
   }, [pendingPageData, isTransitioning, setCanvasData]);
+
+  // Smart panel switching based on tool changes
+  useEffect(() => {
+    if (switchPanelForTool) {
+      switchPanelForTool(currentTool);
+    }
+  }, [currentTool, switchPanelForTool]);
 
   // Navigation handlers
   const handlePageChange = useCallback((newPageNumber) => {
@@ -282,7 +290,7 @@ const NotebookInside = () => {
 
   return (
     <div className={styles.ni_cover}>
-      {/* FIXED TOOLBAR: Now with proper layout - Page Nav (Left), Tools (Center), Menu (Right) */}
+      {/* Toolbar with shape support */}
       <ToolBar 
         notebookInfo={{
           title: notebook.title,
@@ -299,23 +307,34 @@ const NotebookInside = () => {
         isTransitioning={isTransitioning}
       />
 
-      {/* MAIN CONTENT: Clean layout without zoom controls (now at bottom) */}
+      {/* Main content with all panels */}
       <div className={styles.ni_content}>
         <div className={styles.ni_canvas_area}>
+          {/* Page Settings Panel (Left) */}
           <div className={styles.ni_page_setting}>
             <PageSettingPanel />
           </div>
           
+          {/* Canvas */}
           <div className={styles.ni_canvas}>
             <NoteBookUi />
           </div>
           
-          <div className={styles.ni_pen_setting}>
-            {currentTool === 'pen' && <PenSettingPanel />}
+          {/* Drawing Panels (Right) - Smart switching between pen and shape panels */}
+          <div className={styles.ni_drawing_settings}>
+            {isPenPanelVisible && <PenSettingPanel />}
+            {isShapePanelVisible && <ShapePanel />}
           </div>
         </div>
       </div>
 
+      {/* Keyboard shortcuts help */}
+      <div className={styles.shortcutsHelp}>
+        <span>Ctrl+S: Save</span>
+        <span>Ctrl+←/→: Navigate Pages</span>
+        <span>Esc: Back to Notebooks</span>
+        {currentTool === 'rectangle' && <span>Drag: Draw Rectangle</span>}
+      </div>
     </div>
   );
 };

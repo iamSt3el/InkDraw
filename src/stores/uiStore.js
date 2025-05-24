@@ -1,11 +1,11 @@
-// src/stores/uiStore.js - FIXED VERSION (added missing showNotification)
+// src/stores/uiStore.js - Updated with Shape Panel Support
 import { create } from 'zustand';
 
 export const useUIStore = create((set, get) => ({
   // Panel visibility
-  isPenPanelVisible: true,
-  isPagePanelVisible: true,
-  isShapePanelVisible: false,
+  isPenPanelVisible: false,
+  isPagePanelVisible: false,
+  isShapePanelVisible: false,  // Add shape panel visibility
   isMenuOpen: false,
   
   // Modal states
@@ -18,7 +18,7 @@ export const useUIStore = create((set, get) => ({
   selectedItemId: null,
   
   // Notification state
-  notification: null, // { type: 'success' | 'error' | 'info' | 'warning', message: string, duration: number }
+  notification: null,
   
   // Loading and saving states
   isLoading: false,
@@ -26,15 +26,37 @@ export const useUIStore = create((set, get) => ({
   error: null,
   
   // Actions for panel visibility
-  togglePenPanel: () => set(state => ({ isPenPanelVisible: !state.isPenPanelVisible })),
+  togglePenPanel: () => set(state => ({ 
+    isPenPanelVisible: !state.isPenPanelVisible,
+    // Auto-hide shape panel when pen panel is shown
+    isShapePanelVisible: !state.isPenPanelVisible ? false : state.isShapePanelVisible
+  })),
+  
   togglePagePanel: () => set(state => ({ isPagePanelVisible: !state.isPagePanelVisible })),
-  toggleShapePanel: () => set(state => ({ isShapePanelVisible: !state.isShapePanelVisible })),
+  
+  toggleShapePanel: () => set(state => ({ 
+    isShapePanelVisible: !state.isShapePanelVisible,
+    // Auto-hide pen panel when shape panel is shown
+    isPenPanelVisible: !state.isShapePanelVisible ? false : state.isPenPanelVisible
+  })),
+  
   toggleMenu: () => set(state => ({ isMenuOpen: !state.isMenuOpen })),
   
   // Set panel visibility directly
-  setPenPanelVisible: (visible) => set({ isPenPanelVisible: visible }),
+  setPenPanelVisible: (visible) => set({ 
+    isPenPanelVisible: visible,
+    // Auto-hide shape panel when pen panel is shown
+    isShapePanelVisible: visible ? false : get().isShapePanelVisible
+  }),
+  
   setPagePanelVisible: (visible) => set({ isPagePanelVisible: visible }),
-  setShapePanelVisible: (visible) => set({ isShapePanelVisible: visible }),
+  
+  setShapePanelVisible: (visible) => set({ 
+    isShapePanelVisible: visible,
+    // Auto-hide pen panel when shape panel is shown
+    isPenPanelVisible: visible ? false : get().isPenPanelVisible
+  }),
+  
   setMenuOpen: (open) => set({ isMenuOpen: open }),
   
   // Open and close specific modals
@@ -66,7 +88,7 @@ export const useUIStore = create((set, get) => ({
     set({ error });
   },
   
-  // FIXED: Show notification with proper implementation
+  // Show notification with proper implementation
   showNotification: (type, message, duration = 5000) => {
     console.log(`UIStore: Showing ${type} notification:`, message);
     
@@ -74,15 +96,13 @@ export const useUIStore = create((set, get) => ({
       type, 
       message, 
       duration,
-      id: Date.now() // Add unique ID for tracking
+      id: Date.now()
     };
     
     set({ notification });
     
-    // Auto-hide after duration
     setTimeout(() => {
       set(state => {
-        // Only clear if it's the same notification (prevent race conditions)
         if (state.notification && state.notification.id === notification.id) {
           return { notification: null };
         }
@@ -97,15 +117,21 @@ export const useUIStore = create((set, get) => ({
     set({ notification: null });
   },
   
-  // Show/hide specific panel
+  // Show/hide specific panel with smart switching
   showPanel: (panelName) => {
     console.log('UIStore: Showing panel:', panelName);
     switch (panelName) {
       case 'pen':
-        set({ isPenPanelVisible: true, isShapePanelVisible: false });
+        set({ 
+          isPenPanelVisible: true, 
+          isShapePanelVisible: false 
+        });
         break;
       case 'shape':
-        set({ isShapePanelVisible: true, isPenPanelVisible: false });
+        set({ 
+          isShapePanelVisible: true, 
+          isPenPanelVisible: false 
+        });
         break;
       case 'page':
         set({ isPagePanelVisible: true });
@@ -116,17 +142,52 @@ export const useUIStore = create((set, get) => ({
     }
   },
 
-  // ADDED: Export functions for toolbar
+  // Hide all drawing panels
+  hideDrawingPanels: () => {
+    console.log('UIStore: Hiding all drawing panels');
+    set({
+      isPenPanelVisible: false,
+      isShapePanelVisible: false
+    });
+  },
+
+  // Smart panel switching based on tool
+  switchPanelForTool: (tool) => {
+    console.log('UIStore: Switching panel for tool:', tool);
+    switch (tool) {
+      case 'pen':
+        set({ 
+          isPenPanelVisible: true, 
+          isShapePanelVisible: false 
+        });
+        break;
+      case 'rectangle':
+      case 'circle':
+      case 'triangle':
+      case 'line':
+        set({ 
+          isShapePanelVisible: true, 
+          isPenPanelVisible: false 
+        });
+        break;
+      case 'eraser':
+      case 'pan':
+        // Don't auto-show panels for these tools
+        break;
+      default:
+        break;
+    }
+  },
+
+  // Export functions for toolbar
   handleExportImage: async () => {
     console.log('UIStore: Handling image export');
     try {
-      // Get export function from drawing store
       const { exportCanvasImage } = require('./drawingStore').useDrawingStore.getState();
       
       if (exportCanvasImage) {
         const dataUrl = await exportCanvasImage('png');
         if (dataUrl) {
-          // Create download
           const link = document.createElement('a');
           link.download = `drawing-${Date.now()}.png`;
           link.href = dataUrl;
@@ -148,7 +209,6 @@ export const useUIStore = create((set, get) => ({
   handleExportSVG: async () => {
     console.log('UIStore: Handling SVG export');
     try {
-      // This would need to be implemented in the canvas engine
       get().showNotification('info', 'SVG export feature coming soon');
     } catch (error) {
       console.error('Export SVG error:', error);
@@ -171,8 +231,8 @@ export const useUIStore = create((set, get) => ({
   
   // Reset to default state
   resetUI: () => set({
-    isPenPanelVisible: true,
-    isPagePanelVisible: true,
+    isPenPanelVisible: false,
+    isPagePanelVisible: false,
     isShapePanelVisible: false,
     isMenuOpen: false,
     isDeleteModalOpen: false,

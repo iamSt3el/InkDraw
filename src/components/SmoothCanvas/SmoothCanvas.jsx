@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/SmoothCanvas.jsx - FIXED WITH PAN SUPPORT
+// src/components/SmoothCanvas/SmoothCanvas.jsx - Updated with Rough.js Shape Support
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
@@ -23,7 +23,16 @@ const SmoothCanvas = () => {
     clearCanvasData,
     panCanvas,
     setZoomLevel,
-    setViewBox
+    setViewBox,
+    // Rough.js properties
+    isRoughMode,
+    roughness,
+    bowing,
+    fillStyle,
+    shapeFill,
+    shapeFillColor,
+    shapeFillOpacity,
+    getShapeOptions
   } = useDrawingStore();
 
   const { currentPageData } = usePageStore();
@@ -102,7 +111,9 @@ const SmoothCanvas = () => {
       
       const svg = svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
+      const tempRect = svg?.querySelector('#temp-rectangle');
       if (tempPath) tempPath.remove();
+      if (tempRect) tempRect.remove();
       
       lastLoadedDataRef.current = null;
       return true;
@@ -151,7 +162,12 @@ const SmoothCanvas = () => {
       strokeWidth,
       opacity,
       eraserWidth,
-      viewBox
+      viewBox,
+      // Pass Rough.js options to engine
+      isRoughMode,
+      roughness,
+      bowing,
+      fillStyle
     });
 
     const eventHandler = new EventHandler(engine, {
@@ -166,9 +182,18 @@ const SmoothCanvas = () => {
 
     const renderer = new CanvasRenderer(engine);
 
-    // Set callbacks including pan support
+    // Set callbacks including shape support
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
+        const newPaths = [...engine.getPaths()];
+        setPaths(newPaths);
+        if (isInitialized) {
+          const canvasData = engine.exportAsJSON();
+          setCanvasData(canvasData);
+        }
+      },
+      onShapeComplete: (shape) => {
+        console.log('SmoothCanvas: Shape completed:', shape);
         const newPaths = [...engine.getPaths()];
         setPaths(newPaths);
         if (isInitialized) {
@@ -193,7 +218,6 @@ const SmoothCanvas = () => {
       onEraserShow: (show) => {
         setShowEraser(show);
       },
-      // NEW: Pan callbacks
       onPan: handlePan,
       onZoom: handleZoom,
       onPanStart: () => {
@@ -258,7 +282,7 @@ const SmoothCanvas = () => {
     }
   }, [width, height, isInitialized]);
 
-  // Update tool options
+  // Update tool options including Rough.js properties
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
       // Update engine options
@@ -267,7 +291,12 @@ const SmoothCanvas = () => {
         strokeWidth,
         opacity,
         eraserWidth,
-        viewBox
+        viewBox,
+        // Rough.js options
+        isRoughMode,
+        roughness,
+        bowing,
+        fillStyle
       });
 
       // Update event handler options
@@ -289,7 +318,7 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
     }
-  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, zoomLevel, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, zoomLevel, isRoughMode, roughness, bowing, fillStyle, isInitialized]);
 
   // Update SVG viewBox when viewBox changes
   useEffect(() => {
@@ -299,6 +328,22 @@ const SmoothCanvas = () => {
   }, [viewBox]);
 
   const dpr = window.devicePixelRatio || 1;
+
+  // Get cursor style based on current tool
+  const getCursorStyle = () => {
+    switch (currentTool) {
+      case 'pan':
+        return 'grab';
+      case 'pen':
+        return 'crosshair';
+      case 'rectangle':
+        return 'crosshair';
+      case 'eraser':
+        return 'none';
+      default:
+        return 'default';
+    }
+  };
 
   return (
     <div
@@ -321,10 +366,7 @@ const SmoothCanvas = () => {
           top: 0,
           left: 0,
           zIndex: 2,
-          cursor: currentTool === 'pan' ? 'grab' : 
-                 currentTool === 'pen' ? 'crosshair' :
-                 currentTool === 'eraser' ? 'none' :
-                 currentTool === 'rectangle' ? 'crosshair' : 'default'
+          cursor: getCursorStyle()
         }}
       />
 
@@ -353,6 +395,25 @@ const SmoothCanvas = () => {
       {/* Zoom indicator */}
       <div className={styles.zoomIndicator}>
         {Math.round(zoomLevel * 100)}%
+      </div>
+      
+      {/* Tool indicator */}
+      <div className={styles.toolIndicator}>
+        {currentTool === 'rectangle' && isRoughMode && (
+          <span>Rough Rectangle</span>
+        )}
+        {currentTool === 'rectangle' && !isRoughMode && (
+          <span>Clean Rectangle</span>
+        )}
+        {currentTool === 'pen' && (
+          <span>Pen Tool</span>
+        )}
+        {currentTool === 'eraser' && (
+          <span>Eraser</span>
+        )}
+        {currentTool === 'pan' && (
+          <span>Pan Tool</span>
+        )}
       </div>
       
       {/* Loading indicator */}

@@ -1,4 +1,6 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js
+// src/components/SmoothCanvas/core/CanvasEngine.js - Updated with Rough.js support
+import rough from 'roughjs';
+
 export class CanvasEngine {
   constructor(canvasRef, svgRef, options = {}) {
     this.canvasRef = canvasRef;
@@ -10,7 +12,12 @@ export class CanvasEngine {
       strokeWidth: 5,
       opacity: 100,
       eraserWidth: 10,
-      viewBox: { x: 0, y: 0, width: 900, height: 700 }, // Default viewBox
+      viewBox: { x: 0, y: 0, width: 900, height: 700 },
+      // Rough.js options
+      isRoughMode: true,
+      roughness: 1,
+      bowing: 1,
+      fillStyle: 'hachure',
       ...options
     };
     
@@ -29,8 +36,18 @@ export class CanvasEngine {
     this.pathsToErase = new Set();
     this.pathBBoxes = new Map();
     
+    // Rough.js instances
+    this.roughCanvas = null;
+    this.roughSvg = null;
+    
+    // Rectangle drawing state
+    this.isDrawingRectangle = false;
+    this.rectangleStart = null;
+    this.currentRectangle = null;
+    
     this.dpr = window.devicePixelRatio || 1;
     this.initializeCanvas();
+    this.initializeRough();
   }
 
   initializeCanvas() {
@@ -45,6 +62,15 @@ export class CanvasEngine {
     const ctx = canvas.getContext('2d');
     ctx.scale(this.dpr, this.dpr);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  initializeRough() {
+    if (this.canvasRef.current) {
+      this.roughCanvas = rough.canvas(this.canvasRef.current);
+    }
+    if (this.svgRef.current) {
+      this.roughSvg = rough.svg(this.svgRef.current);
+    }
   }
 
   getStrokeOptions(inputType, strokeWidth) {
@@ -129,6 +155,156 @@ export class CanvasEngine {
     }
 
     return [x, y, pressure];
+  }
+
+  // Rectangle drawing methods
+  startRectangle(startPoint) {
+    console.log('Starting rectangle at:', startPoint);
+    this.isDrawingRectangle = true;
+    this.rectangleStart = { x: startPoint[0], y: startPoint[1] };
+    this.currentRectangle = null;
+  }
+
+  updateRectangle(currentPoint) {
+    if (!this.isDrawingRectangle || !this.rectangleStart) return;
+
+    const startX = this.rectangleStart.x;
+    const startY = this.rectangleStart.y;
+    const currentX = currentPoint[0];
+    const currentY = currentPoint[1];
+
+    // Calculate rectangle bounds
+    const x = Math.min(startX, currentX);
+    const y = Math.min(startY, currentY);
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+
+    // Create temporary rectangle object
+    this.currentRectangle = {
+      x, y, width, height,
+      color: this.options.strokeColor,
+      strokeWidth: this.options.strokeWidth,
+      opacity: this.options.opacity,
+      fill: false, // For now, no fill
+      isRough: this.options.isRoughMode,
+      roughness: this.options.roughness,
+      bowing: this.options.bowing,
+      fillStyle: this.options.fillStyle
+    };
+
+    // Update temporary rectangle in SVG
+    this.updateTemporaryRectangle();
+  }
+
+  updateTemporaryRectangle() {
+    if (!this.currentRectangle || !this.svgRef.current) return;
+
+    // Remove existing temporary rectangle
+    const existingTemp = this.svgRef.current.querySelector('#temp-rectangle');
+    if (existingTemp) {
+      existingTemp.remove();
+    }
+
+    // Create new temporary rectangle
+    if (this.currentRectangle.isRough && this.roughSvg) {
+      this.createTempRoughRectangle();
+    } else {
+      this.createTempCleanRectangle();
+    }
+  }
+
+  createTempRoughRectangle() {
+    const rect = this.currentRectangle;
+    const roughOptions = {
+      stroke: rect.color,
+      strokeWidth: rect.strokeWidth,
+      fill: rect.fill ? rect.color : 'none',
+      fillStyle: rect.fillStyle,
+      roughness: rect.roughness,
+      bowing: rect.bowing,
+      fillWeight: rect.strokeWidth * 0.5,
+    };
+
+    try {
+
+      const roughRect = this.roughSvg.rectangle(
+        rect.x, rect.y, rect.width, rect.height, roughOptions
+      );
+
+      // Create a group element for the temporary rectangle
+      const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      tempGroup.id = 'temp-rectangle';
+      tempGroup.style.opacity = '0.8';
+      tempGroup.innerHTML = roughRect.innerHTML;
+      
+      this.svgRef.current.appendChild(tempGroup);
+    } catch (error) {
+      console.error('Error creating rough rectangle:', error);
+      this.createTempCleanRectangle(); // Fallback to clean rectangle
+    }
+  }
+
+  createTempCleanRectangle() {
+    const rect = this.currentRectangle;
+    const tempRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    
+    tempRect.id = 'temp-rectangle';
+    tempRect.setAttribute('x', rect.x);
+    tempRect.setAttribute('y', rect.y);
+    tempRect.setAttribute('width', rect.width);
+    tempRect.setAttribute('height', rect.height);
+    tempRect.setAttribute('stroke', rect.color);
+    tempRect.setAttribute('stroke-width', rect.strokeWidth);
+    tempRect.setAttribute('fill', rect.fill ? rect.color : 'none');
+    tempRect.setAttribute('opacity', '0.8');
+    
+    this.svgRef.current.appendChild(tempRect);
+  }
+
+  finishRectangle() {
+    if (!this.isDrawingRectangle || !this.currentRectangle) return null;
+
+    console.log('Finishing rectangle:', this.currentRectangle);
+
+    // Remove temporary rectangle
+    const tempRect = this.svgRef.current?.querySelector('#temp-rectangle');
+    if (tempRect) {
+      tempRect.remove();
+    }
+
+    // Only create rectangle if it has meaningful dimensions
+    if (this.currentRectangle.width > 5 && this.currentRectangle.height > 5) {
+      const rectangleShape = this.addShape({
+        type: 'rectangle',
+        ...this.currentRectangle
+      });
+
+      // Reset rectangle drawing state
+      this.isDrawingRectangle = false;
+      this.rectangleStart = null;
+      this.currentRectangle = null;
+
+      return rectangleShape;
+    }
+
+    // Reset state even if rectangle was too small
+    this.isDrawingRectangle = false;
+    this.rectangleStart = null;
+    this.currentRectangle = null;
+    return null;
+  }
+
+  cancelRectangle() {
+    // Remove temporary rectangle
+    const tempRect = this.svgRef.current?.querySelector('#temp-rectangle');
+    if (tempRect) {
+      tempRect.remove();
+    }
+
+    // Reset state
+    this.isDrawingRectangle = false;
+    this.rectangleStart = null;
+    this.currentRectangle = null;
   }
 
   calculateBoundingBox(pathData) {
@@ -219,7 +395,7 @@ export class CanvasEngine {
       type: 'stroke',
       inputType,
       strokeWidth,
-      opacity: this.options.opacity, // Add opacity to path
+      opacity: this.options.opacity,
       inputPoints,
       timestamp: Date.now()
     };
@@ -233,25 +409,35 @@ export class CanvasEngine {
     return newPath;
   }
 
-  // Add a shape with simplified approach
+  // Enhanced addShape method with Rough.js support
   addShape(shapeData) {
-    const { type, x, y, width, height, color, strokeWidth, opacity = this.options.opacity, fill, fillColor, fillOpacity } = shapeData;
+    const { 
+      type, x, y, width, height, color, strokeWidth, 
+      opacity = this.options.opacity, fill, fillColor, fillOpacity,
+      isRough = this.options.isRoughMode,
+      roughness = this.options.roughness,
+      bowing = this.options.bowing,
+      fillStyle = this.options.fillStyle
+    } = shapeData;
     
-    // Generate a unique ID for the shape
     const id = this.generatePathId();
     
-    // Create a consistent shape object
     const newShape = {
       id,
-      type: 'shape',          // Mark as shape type
-      shapeType: type,        // The specific shape type (rectangle, circle, etc.)
-      x, y, width, height,    // Position and dimensions
+      type: 'shape',
+      shapeType: type,
+      x, y, width, height,
       color: this.normalizeColor(color),
       strokeWidth,
-      opacity: opacity || this.options.opacity, // Use provided opacity or default
-      fill: !!fill,           // Convert to boolean
+      opacity: opacity || this.options.opacity,
+      fill: !!fill,
       fillColor: fillColor || color,
       fillOpacity: fillOpacity || 20,
+      // Rough.js properties
+      isRough,
+      roughness,
+      bowing,
+      fillStyle,
       timestamp: Date.now()
     };
     
@@ -272,6 +458,7 @@ export class CanvasEngine {
     // Add to paths array
     this.paths.push(newShape);
     
+    console.log('Added shape:', newShape);
     return newShape;
   }
 
@@ -281,6 +468,9 @@ export class CanvasEngine {
     this.currentPath = [];
     this.pathsToErase.clear();
     this.nextPathId = 0;
+    
+    // Clear any temporary rectangles
+    this.cancelRectangle();
   }
 
   undo() {
@@ -293,7 +483,7 @@ export class CanvasEngine {
     return true;
   }
 
-  // Export as JSON - simplified format for better interoperability
+  // Export as JSON with Rough.js properties
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
@@ -318,6 +508,11 @@ export class CanvasEngine {
             fill: path.fill,
             fillColor: path.fillColor,
             fillOpacity: path.fillOpacity,
+            // Rough.js properties
+            isRough: path.isRough,
+            roughness: path.roughness,
+            bowing: path.bowing,
+            fillStyle: path.fillStyle,
             timestamp: path.timestamp
           };
         } else {
@@ -327,7 +522,7 @@ export class CanvasEngine {
             pathData: path.pathData,
             color: path.color,
             strokeWidth: path.strokeWidth,
-            opacity: path.opacity, // Include opacity
+            opacity: path.opacity,
             inputType: path.inputType,
             inputPoints: path.inputPoints,
             timestamp: path.timestamp
@@ -337,13 +532,18 @@ export class CanvasEngine {
       appState: {
         width: this.options.width,
         height: this.options.height,
-        opacity: this.options.opacity, // Include opacity in app state
-        viewBox: this.options.viewBox // Include viewBox in app state
+        opacity: this.options.opacity,
+        viewBox: this.options.viewBox,
+        // Rough.js app state
+        isRoughMode: this.options.isRoughMode,
+        roughness: this.options.roughness,
+        bowing: this.options.bowing,
+        fillStyle: this.options.fillStyle
       }
     });
   }
 
-  // Import function that handles shapes
+  // Import function that handles Rough.js shapes
   importFromJSON(jsonData) {
     if (!jsonData) {
       return true;
@@ -352,9 +552,7 @@ export class CanvasEngine {
     try {
       let data;
       
-      // Parse JSON if string
       if (typeof jsonData === 'string') {
-        // Skip empty strings and non-JSON
         if (!jsonData.trim() || !jsonData.trim().startsWith('{')) {
           return true;
         }
@@ -369,18 +567,14 @@ export class CanvasEngine {
         data = jsonData;
       }
 
-      // Validate structure
       if (!data || !data.elements) {
         return true;
       }
 
-      // Clear existing paths
       this.clearPaths();
 
-      // Import elements
       data.elements.forEach((element) => {
         if (element.type === 'stroke' && element.pathData) {
-          // Create stroke object
           const newPath = {
             id: this.generatePathId(),
             pathData: element.pathData,
@@ -388,7 +582,7 @@ export class CanvasEngine {
             type: element.type,
             inputType: element.inputType || 'mouse',
             strokeWidth: element.strokeWidth || 5,
-            opacity: element.opacity !== undefined ? element.opacity : this.options.opacity, // Use stored opacity or default
+            opacity: element.opacity !== undefined ? element.opacity : this.options.opacity,
             inputPoints: element.inputPoints || [],
             timestamp: element.timestamp || Date.now()
           };
@@ -401,7 +595,6 @@ export class CanvasEngine {
           this.paths.push(newPath);
         }
         else if (element.type === 'shape') {
-          // Create shape object
           const newShape = {
             id: this.generatePathId(),
             type: 'shape',
@@ -412,14 +605,18 @@ export class CanvasEngine {
             height: element.height,
             color: element.color || '#000000',
             strokeWidth: element.strokeWidth || 2,
-            opacity: element.opacity !== undefined ? element.opacity : this.options.opacity, // Use stored opacity or default
+            opacity: element.opacity !== undefined ? element.opacity : this.options.opacity,
             fill: element.fill || false,
             fillColor: element.fillColor || element.color || '#000000',
             fillOpacity: element.fillOpacity || 20,
+            // Rough.js properties with defaults for older data
+            isRough: element.isRough !== undefined ? element.isRough : this.options.isRoughMode,
+            roughness: element.roughness || this.options.roughness,
+            bowing: element.bowing || this.options.bowing,
+            fillStyle: element.fillStyle || this.options.fillStyle,
             timestamp: element.timestamp || Date.now()
           };
           
-          // Handle special shape types like lines
           if (element.shapeType === 'line') {
             newShape.x1 = element.x1;
             newShape.y1 = element.y1;
@@ -442,7 +639,12 @@ export class CanvasEngine {
           width: data.appState.width || this.options.width,
           height: data.appState.height || this.options.height,
           opacity: data.appState.opacity !== undefined ? data.appState.opacity : this.options.opacity,
-          viewBox: data.appState.viewBox || this.options.viewBox
+          viewBox: data.appState.viewBox || this.options.viewBox,
+          // Rough.js options
+          isRoughMode: data.appState.isRoughMode !== undefined ? data.appState.isRoughMode : this.options.isRoughMode,
+          roughness: data.appState.roughness || this.options.roughness,
+          bowing: data.appState.bowing || this.options.bowing,
+          fillStyle: data.appState.fillStyle || this.options.fillStyle
         });
       }
 
@@ -453,7 +655,7 @@ export class CanvasEngine {
     }
   }
 
-  // Export as SVG
+  // Export as SVG with Rough.js support
   exportAsSVG() {
     const svg = this.svgRef.current;
     if (!svg) return '';
@@ -464,19 +666,6 @@ export class CanvasEngine {
     svgClone.setAttribute('width', this.options.width);
     svgClone.setAttribute('height', this.options.height);
     
-    const paths = svgClone.querySelectorAll('path');
-    paths.forEach((path, index) => {
-      if (this.paths[index] && this.paths[index].color) {
-        path.setAttribute('fill', this.paths[index].color);
-        path.setAttribute('stroke', 'none');
-        
-        // Add opacity
-        if (this.paths[index].opacity !== undefined) {
-          path.setAttribute('opacity', this.paths[index].opacity / 100);
-        }
-      }
-    });
-
     return new XMLSerializer().serializeToString(svgClone);
   }
 
@@ -522,6 +711,8 @@ export class CanvasEngine {
   getPaths() { return this.paths; }
   getPathsToErase() { return this.pathsToErase; }
   getCurrentPath() { return this.currentPath; }
+  getCurrentRectangle() { return this.currentRectangle; }
+  isDrawingShape() { return this.isDrawingRectangle; }
 
   // Setters
   setPathsToErase(pathsToErase) { this.pathsToErase = pathsToErase; }
@@ -532,6 +723,12 @@ export class CanvasEngine {
     if (newOptions.width || newOptions.height) {
       this.initializeCanvas();
     }
+    // Re-initialize rough.js if needed
+    if (newOptions.isRoughMode !== undefined || 
+        newOptions.roughness !== undefined || 
+        newOptions.bowing !== undefined) {
+      this.initializeRough();
+    }
   }
 
   destroy() {
@@ -539,5 +736,6 @@ export class CanvasEngine {
       cancelAnimationFrame(this.frameRequest);
     }
     this.pathBBoxes.clear();
+    this.cancelRectangle();
   }
 }

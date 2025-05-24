@@ -1,13 +1,11 @@
-// ===============================
-// src/components/ToolBar/Index.jsx - FIXED LAYOUT ORDER
-// ===============================
+// src/components/ToolBar/Index.jsx - Updated with Shape Panel Integration
 import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
 import PageNavigator from '../PageNavigator/PageNavigator';
 import { 
   Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, 
-  Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save 
+  Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, Shapes 
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -33,6 +31,7 @@ const ToolBar = ({
     clearCanvas,
     undoCanvas,
     zoomLevel,
+    isRoughMode
   } = useDrawingStore();
 
   const {
@@ -40,6 +39,7 @@ const ToolBar = ({
     isMenuOpen,
     togglePagePanel,
     togglePenPanel,
+    toggleShapePanel,  // Add shape panel toggle
     setMenuOpen,
     handleExportImage,
     handleExportSVG
@@ -126,12 +126,19 @@ const ToolBar = ({
               onClick={handleEraserClick}
               label="Eraser Tool"
             />
-            <Button
-              Icon={Square}
-              isActive={currentTool === 'rectangle'}
-              onClick={handleShapeClick}
-              label="Shape Tool"
-            />
+            <div className={styles.shape_tool_container}>
+              <Button
+                Icon={Square}
+                isActive={currentTool === 'rectangle'}
+                onClick={handleShapeClick}
+                label={`Rectangle Tool ${isRoughMode ? '(Rough)' : '(Clean)'}`}
+              />
+              {currentTool === 'rectangle' && (
+                <div className={styles.shape_mode_indicator}>
+                  {isRoughMode ? 'Rough' : 'Clean'}
+                </div>
+              )}
+            </div>
             <Button
               Icon={Trash}
               onClick={handleClearClick}
@@ -211,6 +218,13 @@ const ToolBar = ({
                   >
                     <Palette size={18} />
                     <span>Pen Settings</span>
+                  </button>
+                  <button
+                    className={styles.menu_item}
+                    onClick={() => { toggleShapePanel(); setMenuOpen(false); }}
+                  >
+                    <Shapes size={18} />
+                    <span>Shape Settings</span>
                   </button>
                   <button
                     className={styles.menu_item}

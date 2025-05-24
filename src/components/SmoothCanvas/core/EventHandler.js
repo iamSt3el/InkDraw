@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - FIXED PAN TOOL
+// src/components/SmoothCanvas/core/EventHandler.js - Updated with Rectangle Tool
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -34,7 +34,13 @@ export class EventHandler {
       return;
     }
 
-    // Existing drawing logic
+    // Handle rectangle tool
+    if (this.options.currentTool === 'rectangle') {
+      this.startRectangleDrawing(e);
+      return;
+    }
+
+    // Existing drawing logic for pen and eraser
     this.engine.isDrawing = true;
     this.engine.activePointer = e.pointerId;
     e.preventDefault();
@@ -61,6 +67,12 @@ export class EventHandler {
     // Handle panning
     if (this.isPanning) {
       this.continuePanning(e);
+      return;
+    }
+
+    // Handle rectangle drawing
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.updateRectangleDrawing(e);
       return;
     }
 
@@ -114,6 +126,12 @@ export class EventHandler {
       return;
     }
 
+    // Handle rectangle drawing end
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.finishRectangleDrawing(e);
+      return;
+    }
+
     if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
 
     this.engine.isDrawing = false;
@@ -132,7 +150,49 @@ export class EventHandler {
     this.engine.lastPoint = null;
   }
 
-  // NEW: Pan tool methods
+  // Rectangle drawing methods
+  startRectangleDrawing(e) {
+    console.log('Starting rectangle drawing');
+    e.preventDefault();
+    
+    if (this.engine.canvasRef.current.setPointerCapture) {
+      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
+    }
+
+    const point = this.engine.getPointFromEvent(e);
+    this.engine.startRectangle(point);
+    this.engine.activePointer = e.pointerId;
+  }
+
+  updateRectangleDrawing(e) {
+    if (!this.engine.isDrawingShape() || e.pointerId !== this.engine.activePointer) return;
+    
+    e.preventDefault();
+    const point = this.engine.getPointFromEvent(e);
+    this.engine.updateRectangle(point);
+  }
+
+  finishRectangleDrawing(e) {
+    console.log('Finishing rectangle drawing');
+    e.preventDefault();
+    
+    if (this.engine.canvasRef.current?.releasePointerCapture) {
+      this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    const createdShape = this.engine.finishRectangle();
+    this.engine.activePointer = null;
+
+    // Notify that a shape was completed
+    if (createdShape && this.callbacks.onShapeComplete) {
+      this.callbacks.onShapeComplete(createdShape);
+    } else if (this.callbacks.onStrokeComplete) {
+      // Fallback to stroke complete callback
+      this.callbacks.onStrokeComplete();
+    }
+  }
+
+  // Pan tool methods (unchanged)
   startPanning(e) {
     console.log('EventHandler: Starting pan');
     this.isPanning = true;
@@ -142,12 +202,10 @@ export class EventHandler {
     e.preventDefault();
     e.stopPropagation();
 
-    // Set pointer capture for smooth panning
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
 
-    // Update cursor to grabbing state
     const canvas = this.engine.canvasRef.current;
     const container = canvas.parentElement;
     if (canvas) {
@@ -157,7 +215,6 @@ export class EventHandler {
       container.classList.add('panningMode');
     }
 
-    // Notify callbacks
     if (this.callbacks.onPanStart) {
       this.callbacks.onPanStart();
     }
@@ -169,13 +226,11 @@ export class EventHandler {
     const deltaX = e.clientX - this.lastPanPoint.x;
     const deltaY = e.clientY - this.lastPanPoint.y;
 
-    // Apply panning through drawing store
     if (this.callbacks.onPan) {
       this.callbacks.onPan(deltaX, deltaY);
     } else if (this.engine.options.onPan) {
       this.engine.options.onPan(deltaX, deltaY);
     } else {
-      // Fallback: directly update viewBox
       const currentViewBox = this.options.viewBox || this.engine.options.viewBox;
       if (currentViewBox) {
         const scaledDeltaX = deltaX / (this.options.zoomLevel || 1);
@@ -188,11 +243,9 @@ export class EventHandler {
           height: currentViewBox.height
         };
         
-        // Update options
         this.options.viewBox = newViewBox;
         this.engine.options.viewBox = newViewBox;
         
-        // Update SVG viewBox
         if (this.engine.svgRef.current) {
           this.engine.svgRef.current.setAttribute('viewBox', 
             `${newViewBox.x} ${newViewBox.y} ${newViewBox.width} ${newViewBox.height}`);
@@ -210,24 +263,23 @@ export class EventHandler {
     this.panStartPoint = null;
     this.lastPanPoint = null;
 
-    // Release pointer capture
     if (this.engine.canvasRef.current?.releasePointerCapture) {
       this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
     }
 
-    // Reset cursor based on current tool
     const canvas = this.engine.canvasRef.current;
     const container = canvas?.parentElement;
     if (container) {
       container.classList.remove('panningMode');
     }
     if (canvas) {
-      // Reset to appropriate cursor for current tool
       switch (this.options.currentTool) {
         case 'pan':
           canvas.style.cursor = 'grab';
           break;
         case 'pen':
+          canvas.style.cursor = 'crosshair';
+          break;
         case 'rectangle':
           canvas.style.cursor = 'crosshair';
           break;
@@ -240,7 +292,6 @@ export class EventHandler {
       }
     }
 
-    // Notify callbacks
     if (this.callbacks.onPanEnd) {
       this.callbacks.onPanEnd();
     }
@@ -248,7 +299,7 @@ export class EventHandler {
     e.preventDefault();
   }
 
-  // NEW: Wheel zoom support
+  // Wheel zoom support
   handleWheel(e) {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -274,6 +325,11 @@ export class EventHandler {
     this.engine.showEraser = false;
     if (this.callbacks.onEraserShow) {
       this.callbacks.onEraserShow(false);
+    }
+    
+    // Cancel any ongoing rectangle drawing if mouse leaves
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.engine.cancelRectangle();
     }
   }
 
@@ -341,9 +397,11 @@ export class EventHandler {
       if (!bbox) {
         if (pathObj.type === 'stroke' && pathObj.pathData) {
           bbox = this.engine.calculateBoundingBox(pathObj.pathData);
-          if (bbox) {
-            this.engine.pathBBoxes.set(pathObj.id, bbox);
-          }
+        } else if (pathObj.type === 'shape') {
+          bbox = this.engine.calculateBoundingBox(pathObj);
+        }
+        if (bbox) {
+          this.engine.pathBBoxes.set(pathObj.id, bbox);
         }
       }
 
@@ -453,7 +511,7 @@ export class EventHandler {
     element.addEventListener('pointercancel', this.handlePointerUp);
     element.addEventListener('mouseenter', this.handleMouseEnter);
     element.addEventListener('mouseleave', this.handleMouseLeave);
-    element.addEventListener('wheel', this.handleWheel, { passive: false }); // NEW: Wheel support
+    element.addEventListener('wheel', this.handleWheel, { passive: false });
   }
 
   detachListeners(element) {
@@ -463,6 +521,6 @@ export class EventHandler {
     element.removeEventListener('pointercancel', this.handlePointerUp);
     element.removeEventListener('mouseenter', this.handleMouseEnter);
     element.removeEventListener('mouseleave', this.handleMouseLeave);
-    element.removeEventListener('wheel', this.handleWheel); // NEW: Remove wheel listener
+    element.removeEventListener('wheel', this.handleWheel);
   }
 }
