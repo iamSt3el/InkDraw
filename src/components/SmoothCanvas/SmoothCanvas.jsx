@@ -1,6 +1,4 @@
-// ===============================
-// src/components/SmoothCanvas/SmoothCanvas.jsx - FIXED VERSION
-// ===============================
+// src/components/SmoothCanvas/SmoothCanvas.jsx - FIXED WITH PAN SUPPORT
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
@@ -19,10 +17,13 @@ const SmoothCanvas = () => {
     canvasDimensions,
     zoomLevel,
     viewBox,
-    canvasData, // FIXED: Watch for canvas data changes
+    canvasData,
     setCanvasData,
     registerCanvasMethods,
-    clearCanvasData
+    clearCanvasData,
+    panCanvas,
+    setZoomLevel,
+    setViewBox
   } = useDrawingStore();
 
   const { currentPageData } = usePageStore();
@@ -42,17 +43,15 @@ const SmoothCanvas = () => {
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // ADDED: Track last loaded data to prevent unnecessary reloads
   const lastLoadedDataRef = useRef(null);
   const isLoadingDataRef = useRef(false);
 
   const { width, height } = canvasDimensions;
 
-  // FIXED: Separated canvas data loading to prevent re-initialization
+  // Load canvas data
   const loadCanvasData = useCallback((vectorData) => {
     if (!engineRef.current || !vectorData || isLoadingDataRef.current) return false;
     
-    // ADDED: Skip if same data
     if (lastLoadedDataRef.current === vectorData) {
       console.log('SmoothCanvas: Skipping reload of same data');
       return true;
@@ -62,11 +61,9 @@ const SmoothCanvas = () => {
       console.log('SmoothCanvas: Loading new canvas data...');
       isLoadingDataRef.current = true;
       
-      // FIXED: Clear paths without destroying canvas
       engineRef.current.clearPaths();
       setPaths([]);
       
-      // Import new data
       const success = engineRef.current.importFromJSON(vectorData);
       
       if (success) {
@@ -95,7 +92,7 @@ const SmoothCanvas = () => {
     return null;
   }, []);
 
-  // FIXED: Clear canvas without destroying engine
+  // Clear canvas
   const clearCanvas = useCallback(() => {
     if (engineRef.current) {
       console.log('SmoothCanvas: Clearing canvas paths');
@@ -103,20 +100,30 @@ const SmoothCanvas = () => {
       setPaths([]);
       setPathsToErase(new Set());
       
-      // Remove temp elements
       const svg = svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) tempPath.remove();
       
-      // ADDED: Clear the last loaded data reference
       lastLoadedDataRef.current = null;
-      
       return true;
     }
     return false;
   }, []);
 
-  // FIXED: Watch canvas data from store for updates
+  // Handle pan events
+  const handlePan = useCallback((deltaX, deltaY) => {
+    console.log('SmoothCanvas: Handling pan', deltaX, deltaY);
+    panCanvas(deltaX, deltaY);
+  }, [panCanvas]);
+
+  // Handle zoom events
+  const handleZoom = useCallback((zoomDelta, center) => {
+    console.log('SmoothCanvas: Handling zoom', zoomDelta);
+    const newZoom = Math.max(0.1, Math.min(5, zoomLevel * zoomDelta));
+    setZoomLevel(newZoom);
+  }, [zoomLevel, setZoomLevel]);
+
+  // Watch canvas data from store
   useEffect(() => {
     if (isInitialized && canvasData && canvasData !== lastLoadedDataRef.current) {
       console.log('SmoothCanvas: Canvas data changed in store, loading...');
@@ -124,7 +131,7 @@ const SmoothCanvas = () => {
     }
   }, [canvasData, isInitialized, loadCanvasData]);
 
-  // FIXED: Watch current page data but don't auto-load (let store handle it)
+  // Watch current page data
   useEffect(() => {
     if (isInitialized && currentPageData?.canvasData && !canvasData) {
       console.log('SmoothCanvas: Page data available but no store data, loading from page...');
@@ -132,7 +139,7 @@ const SmoothCanvas = () => {
     }
   }, [currentPageData?.canvasData, isInitialized, canvasData, loadCanvasData]);
 
-  // FIXED: Initialize canvas ONLY ONCE
+  // Initialize canvas ONCE
   useEffect(() => {
     if (!canvasRef.current || !svgRef.current || isInitialized) return;
 
@@ -154,11 +161,12 @@ const SmoothCanvas = () => {
       opacity,
       eraserWidth,
       viewBox,
+      zoomLevel
     });
 
     const renderer = new CanvasRenderer(engine);
 
-    // Set callbacks
+    // Set callbacks including pan support
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
         const newPaths = [...engine.getPaths()];
@@ -184,6 +192,15 @@ const SmoothCanvas = () => {
       },
       onEraserShow: (show) => {
         setShowEraser(show);
+      },
+      // NEW: Pan callbacks
+      onPan: handlePan,
+      onZoom: handleZoom,
+      onPanStart: () => {
+        console.log('SmoothCanvas: Pan started');
+      },
+      onPanEnd: () => {
+        console.log('SmoothCanvas: Pan ended');
       }
     });
 
@@ -218,7 +235,7 @@ const SmoothCanvas = () => {
         return false;
       },
       getCurrentCanvasData: getCurrentCanvasData,
-      loadCanvasData: loadCanvasData // ADDED: Register load function
+      loadCanvasData: loadCanvasData
     });
 
     setIsInitialized(true);
@@ -231,9 +248,9 @@ const SmoothCanvas = () => {
         engineRef.current.destroy?.();
       }
     };
-  }, []); // FIXED: Empty dependency array - initialize only once
+  }, []); // Empty dependency array - initialize only once
 
-  // FIXED: Update canvas dimensions without re-initialization
+  // Update canvas dimensions
   useEffect(() => {
     if (engineRef.current && isInitialized && (width !== engineRef.current.options.width || height !== engineRef.current.options.height)) {
       console.log('SmoothCanvas: Updating canvas dimensions');
@@ -241,7 +258,7 @@ const SmoothCanvas = () => {
     }
   }, [width, height, isInitialized]);
 
-  // FIXED: Update tool options without re-initialization
+  // Update tool options
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
       // Update engine options
@@ -261,7 +278,8 @@ const SmoothCanvas = () => {
         strokeWidth,
         opacity,
         eraserWidth,
-        viewBox
+        viewBox,
+        zoomLevel
       };
 
       engineRef.current.isErasing = currentTool === 'eraser';
@@ -271,7 +289,14 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
     }
-  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, zoomLevel, isInitialized]);
+
+  // Update SVG viewBox when viewBox changes
+  useEffect(() => {
+    if (svgRef.current && viewBox) {
+      svgRef.current.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+    }
+  }, [viewBox]);
 
   const dpr = window.devicePixelRatio || 1;
 
@@ -296,6 +321,10 @@ const SmoothCanvas = () => {
           top: 0,
           left: 0,
           zIndex: 2,
+          cursor: currentTool === 'pan' ? 'grab' : 
+                 currentTool === 'pen' ? 'crosshair' :
+                 currentTool === 'eraser' ? 'none' :
+                 currentTool === 'rectangle' ? 'crosshair' : 'default'
         }}
       />
 
@@ -326,7 +355,7 @@ const SmoothCanvas = () => {
         {Math.round(zoomLevel * 100)}%
       </div>
       
-      {/* ADDED: Loading indicator for data transitions */}
+      {/* Loading indicator */}
       {isLoadingDataRef.current && (
         <div className={styles.dataLoadingIndicator}>
           <div className={styles.miniSpinner}></div>

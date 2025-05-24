@@ -1,4 +1,4 @@
-/* src/components/SmoothCanvas/SmoothCanvas.module.scss - ENHANCED VERSION */
+/* src/components/SmoothCanvas/SmoothCanvas.module.scss - FIXED PAN CURSOR */
 .canvasContainer {
   position: relative;
   display: flex;
@@ -24,29 +24,75 @@
   // Isolation for better compositing
   isolation: isolate;
 
-  // Tool-specific cursors
+  // FIXED: Tool-specific cursors with proper inheritance
   &.penMode {
     cursor: crosshair;
+    
+    .canvas {
+      cursor: crosshair !important;
+    }
   }
 
   &.eraserMode {
     cursor: none;
+    
+    .canvas {
+      cursor: none !important;
+    }
   }
 
   &.pointerMode {
     cursor: pointer;
-  }
-  
-  &.panMode {
-    cursor: grab;
     
-    &:active {
-      cursor: grabbing;
+    .canvas {
+      cursor: pointer !important;
     }
   }
   
+  &.panMode {
+    cursor: grab !important;
+    
+    &:active {
+      cursor: grabbing !important;
+    }
+    
+    .canvas {
+      cursor: grab !important;
+      
+      &:active {
+        cursor: grabbing !important;
+      }
+    }
+  }
+  
+  // Rectangle/shape mode
+  &.rectangleMode {
+    cursor: crosshair;
+    
+    .canvas {
+      cursor: crosshair !important;
+    }
+  }
+  
+  // Special state for active panning (takes highest priority)
   &.panningMode {
     cursor: grabbing !important;
+    
+    .canvas {
+      cursor: grabbing !important;
+    }
+    
+    // Override all other cursor states during panning
+    &.penMode,
+    &.eraserMode,
+    &.rectangleMode,
+    &.pointerMode {
+      cursor: grabbing !important;
+      
+      .canvas {
+        cursor: grabbing !important;
+      }
+    }
   }
   
   // Zoom indicator
@@ -72,7 +118,7 @@
     }
   }
 
-  // ADDED: Data loading indicator for smooth transitions
+  // Data loading indicator
   .dataLoadingIndicator {
     position: absolute;
     top: 10px;
@@ -145,7 +191,6 @@
 }
 
 .svg {
-  // Existing properties...
   shape-rendering: geometricPrecision;
   text-rendering: geometricPrecision;
   color-rendering: optimizeQuality;
@@ -164,14 +209,13 @@
     fill-rule: nonzero;
     stroke: none;
     
-    // Add these for smoother curves
+    // Smoother curves
     stroke-linecap: round;
     stroke-linejoin: round;
     
     // Better path rendering
     &:not(#temp-path) {
       mix-blend-mode: normal;
-      // ADDED: Smooth transition for path updates
       transition: opacity 0.15s ease, fill 0.15s ease;
     }
     
@@ -180,8 +224,6 @@
       fill-rule: nonzero;
       shape-rendering: geometricPrecision;
       will-change: d;
-      
-      // Add subtle shadow for better visual feedback
       filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
     }
   }
@@ -217,7 +259,7 @@
   }
 }
 
-// ENHANCED: Smooth transition animations
+// Animations
 @keyframes slideDownFade {
   0% {
     opacity: 0;
@@ -229,18 +271,15 @@
   }
 }
 
-// Smooth eraser animations
 @keyframes eraserPulse {
   0% {
     transform: scale(1) translateZ(0);
     opacity: 0.8;
   }
-
   50% {
     transform: scale(1.05) translateZ(0);
     opacity: 0.6;
   }
-
   100% {
     transform: scale(1) translateZ(0);
     opacity: 0.8;
@@ -252,12 +291,10 @@
     transform: translate(-50%, -50%) scale(1);
     opacity: 0.3;
   }
-
   50% {
     transform: translate(-50%, -50%) scale(1.2);
     opacity: 0.1;
   }
-
   100% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0.3;
@@ -269,7 +306,7 @@
   100% { transform: rotate(360deg); }
 }
 
-// ADDED: Data transition animations
+// Data transition animations
 @keyframes fadeInData {
   0% { 
     opacity: 0; 
@@ -292,7 +329,7 @@
   }
 }
 
-// ADDED: Smooth data transitions
+// Smooth data transitions
 .canvasContainer.dataTransitioning {
   .svg path:not(#temp-path) {
     animation: fadeInData 0.3s ease-out;
@@ -302,41 +339,30 @@
 // Optimize for high DPI displays
 @media (-webkit-min-device-pixel-ratio: 2),
 (min-resolution: 192dpi) {
-
   .canvas,
   .svg {
-    // Enhanced high DPI optimizations
     image-rendering: -webkit-optimize-contrast;
     image-rendering: pixelated;
-
-    // Force hardware acceleration
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
     will-change: transform, contents;
-
-    // Optimize font rendering
     -webkit-font-smoothing: subpixel-antialiased;
     -moz-osx-font-smoothing: auto;
   }
 
   .svg path {
-    // Enhance stroke quality on high DPI
     shape-rendering: geometricPrecision;
     vector-effect: non-scaling-stroke;
   }
 }
 
-// Pen input optimizations (for devices with pressure sensitivity)
+// Pen input optimizations
 @media (pointer: fine) {
   .canvasContainer {
-
     .canvas,
     .svg {
-      // Maximum precision for pen input
       touch-action: none;
       -webkit-touch-callout: none;
-
-      // Ensure no interference with pen events
       -webkit-user-select: none;
       user-select: none;
     }
@@ -346,18 +372,13 @@
 // Touch device optimizations
 @media (pointer: coarse) {
   .canvasContainer {
-
     .canvas,
     .svg {
       touch-action: none;
       -webkit-overflow-scrolling: touch;
-
-      // Prevent zoom and other gestures
       -webkit-touch-callout: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
-
-      // Optimize for finger drawing
       -webkit-user-drag: none;
     }
   }
@@ -365,7 +386,6 @@
 
 // Reduced motion support
 @media (prefers-reduced-motion: reduce) {
-
   .canvasContainer,
   .eraserCursor,
   .dataLoadingIndicator {
@@ -387,20 +407,16 @@
   @keyframes fadeInData,
   @keyframes fadeOutData,
   @keyframes slideDownFade {
-
-    0%,
-    100% {
+    0%, 100% {
       transform: scale(1) translateZ(0);
       opacity: 0.8;
     }
   }
 }
 
-// Dark mode support (if needed)
+// Dark mode support
 @media (prefers-color-scheme: dark) {
   .canvasContainer {
-
-    // Adjust cursor colors for dark mode
     &.eraserMode .eraserCursor {
       border-color: #f87171;
       background-color: rgba(248, 113, 113, 0.1);
@@ -420,7 +436,7 @@
   }
 }
 
-// Print optimizations (for canvas export)
+// Print optimizations
 @media print {
   .canvasContainer {
     .eraserCursor {
@@ -433,14 +449,13 @@
     }
 
     .svg path {
-      // Ensure crisp printing
       shape-rendering: crispEdges;
       vector-effect: non-scaling-stroke;
     }
   }
 }
 
-// ADDED: Mobile optimizations for smooth page transitions
+// Mobile optimizations
 @media (max-width: 768px) {
   .canvasContainer {
     .dataLoadingIndicator {
