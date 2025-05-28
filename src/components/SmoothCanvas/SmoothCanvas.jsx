@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/SmoothCanvas.jsx - Updated with Rough.js Shape Support
+// src/components/SmoothCanvas/SmoothCanvas.jsx - Updated with simplified shape support
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
@@ -24,15 +24,12 @@ const SmoothCanvas = () => {
     panCanvas,
     setZoomLevel,
     setViewBox,
-    // Rough.js properties
-    isRoughMode,
-    roughness,
-    bowing,
-    fillStyle,
+    // Simplified shape properties
+    shapeColor,
+    shapeBorderSize,
     shapeFill,
     shapeFillColor,
-    shapeFillOpacity,
-    getShapeOptions
+    shapeRoundCorners
   } = useDrawingStore();
 
   const { currentPageData } = usePageStore();
@@ -115,6 +112,11 @@ const SmoothCanvas = () => {
       if (tempPath) tempPath.remove();
       if (tempRect) tempRect.remove();
       
+      // FIXED: Clear rendered shapes properly
+      if (rendererRef.current) {
+        rendererRef.current.clearRenderedShapes();
+      }
+      
       lastLoadedDataRef.current = null;
       return true;
     }
@@ -163,11 +165,12 @@ const SmoothCanvas = () => {
       opacity,
       eraserWidth,
       viewBox,
-      // Pass Rough.js options to engine
-      isRoughMode,
-      roughness,
-      bowing,
-      fillStyle
+      // FIXED: Pass simplified shape options to engine
+      shapeColor,
+      shapeBorderSize,
+      shapeFill,
+      shapeFillColor,
+      shapeRoundCorners
     });
 
     const eventHandler = new EventHandler(engine, {
@@ -282,7 +285,7 @@ const SmoothCanvas = () => {
     }
   }, [width, height, isInitialized]);
 
-  // Update tool options including Rough.js properties
+  // FIXED: Update tool options including simplified shape properties
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
       // Update engine options
@@ -292,11 +295,12 @@ const SmoothCanvas = () => {
         opacity,
         eraserWidth,
         viewBox,
-        // Rough.js options
-        isRoughMode,
-        roughness,
-        bowing,
-        fillStyle
+        // FIXED: Update simplified shape options
+        shapeColor,
+        shapeBorderSize,
+        shapeFill,
+        shapeFillColor,
+        shapeRoundCorners
       });
 
       // Update event handler options
@@ -318,7 +322,8 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
     }
-  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, zoomLevel, isRoughMode, roughness, bowing, fillStyle, isInitialized]);
+  }, [currentTool, strokeColor, strokeWidth, opacity, eraserWidth, viewBox, zoomLevel, 
+      shapeColor, shapeBorderSize, shapeFill, shapeFillColor, shapeRoundCorners, isInitialized]);
 
   // Update SVG viewBox when viewBox changes
   useEffect(() => {
@@ -326,6 +331,13 @@ const SmoothCanvas = () => {
       svgRef.current.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
     }
   }, [viewBox]);
+
+  // FIXED: Update eraser preview without re-rendering shapes
+  useEffect(() => {
+    if (rendererRef.current && isInitialized) {
+      rendererRef.current.updateEraserPreview(pathsToErase);
+    }
+  }, [pathsToErase, isInitialized]);
 
   const dpr = window.devicePixelRatio || 1;
 
@@ -396,25 +408,7 @@ const SmoothCanvas = () => {
       <div className={styles.zoomIndicator}>
         {Math.round(zoomLevel * 100)}%
       </div>
-      
-      {/* Tool indicator */}
-      <div className={styles.toolIndicator}>
-        {currentTool === 'rectangle' && isRoughMode && (
-          <span>Rough Rectangle</span>
-        )}
-        {currentTool === 'rectangle' && !isRoughMode && (
-          <span>Clean Rectangle</span>
-        )}
-        {currentTool === 'pen' && (
-          <span>Pen Tool</span>
-        )}
-        {currentTool === 'eraser' && (
-          <span>Eraser</span>
-        )}
-        {currentTool === 'pan' && (
-          <span>Pan Tool</span>
-        )}
-      </div>
+    
       
       {/* Loading indicator */}
       {isLoadingDataRef.current && (

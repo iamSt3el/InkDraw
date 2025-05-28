@@ -133,11 +133,6 @@ const ToolBar = ({
                 onClick={handleShapeClick}
                 label={`Rectangle Tool ${isRoughMode ? '(Rough)' : '(Clean)'}`}
               />
-              {currentTool === 'rectangle' && (
-                <div className={styles.shape_mode_indicator}>
-                  {isRoughMode ? 'Rough' : 'Clean'}
-                </div>
-              )}
             </div>
             <Button
               Icon={Trash}

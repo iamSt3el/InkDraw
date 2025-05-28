@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js - Updated with Rough.js support
+// src/components/SmoothCanvas/core/CanvasEngine.js - Fixed shape properties
 import rough from 'roughjs';
 
 export class CanvasEngine {
@@ -13,11 +13,12 @@ export class CanvasEngine {
       opacity: 100,
       eraserWidth: 10,
       viewBox: { x: 0, y: 0, width: 900, height: 700 },
-      // Rough.js options
-      isRoughMode: true,
-      roughness: 1,
-      bowing: 1,
-      fillStyle: 'hachure',
+      // Shape options (simplified)
+      shapeColor: '#000000',
+      shapeBorderSize: 2,
+      shapeFill: false,
+      shapeFillColor: '#000000',
+      shapeRoundCorners: false,
       ...options
     };
     
@@ -179,17 +180,19 @@ export class CanvasEngine {
     const width = Math.abs(currentX - startX);
     const height = Math.abs(currentY - startY);
 
-    // Create temporary rectangle object
+    // FIXED: Create temporary rectangle with PRESERVED properties from store
     this.currentRectangle = {
       x, y, width, height,
-      color: this.options.strokeColor,
-      strokeWidth: this.options.strokeWidth,
-      opacity: this.options.opacity,
-      fill: false, // For now, no fill
-      isRough: this.options.isRoughMode,
-      roughness: this.options.roughness,
-      bowing: this.options.bowing,
-      fillStyle: this.options.fillStyle
+      color: this.options.shapeColor || '#000000',
+      borderSize: this.options.shapeBorderSize || 2,
+      fill: this.options.shapeFill || false,
+      fillColor: this.options.shapeFillColor || '#000000',
+      roundCorners: this.options.shapeRoundCorners || false,
+      // Always rough style as requested
+      isRough: true,
+      roughness: 1.2, // Fixed value for hand-drawn style
+      bowing: 1.0,    // Fixed value for hand-drawn style
+      fillStyle: 'hachure' // Fixed fill style
     };
 
     // Update temporary rectangle in SVG
@@ -205,28 +208,25 @@ export class CanvasEngine {
       existingTemp.remove();
     }
 
-    // Create new temporary rectangle
-    if (this.currentRectangle.isRough && this.roughSvg) {
-      this.createTempRoughRectangle();
-    } else {
-      this.createTempCleanRectangle();
-    }
+    // Always create rough rectangle since we only support hand-drawn style
+    this.createTempRoughRectangle();
   }
 
   createTempRoughRectangle() {
     const rect = this.currentRectangle;
+    
+    // FIXED: Use consistent rough options that match the final shape
     const roughOptions = {
       stroke: rect.color,
-      strokeWidth: rect.strokeWidth,
-      fill: rect.fill ? rect.color : 'none',
+      strokeWidth: rect.borderSize,
+      fill: rect.fill ? rect.fillColor : 'none',
       fillStyle: rect.fillStyle,
       roughness: rect.roughness,
       bowing: rect.bowing,
-      fillWeight: rect.strokeWidth * 0.5,
+      fillWeight: rect.borderSize * 0.5,
     };
 
     try {
-
       const roughRect = this.roughSvg.rectangle(
         rect.x, rect.y, rect.width, rect.height, roughOptions
       );
@@ -240,25 +240,7 @@ export class CanvasEngine {
       this.svgRef.current.appendChild(tempGroup);
     } catch (error) {
       console.error('Error creating rough rectangle:', error);
-      this.createTempCleanRectangle(); // Fallback to clean rectangle
     }
-  }
-
-  createTempCleanRectangle() {
-    const rect = this.currentRectangle;
-    const tempRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    
-    tempRect.id = 'temp-rectangle';
-    tempRect.setAttribute('x', rect.x);
-    tempRect.setAttribute('y', rect.y);
-    tempRect.setAttribute('width', rect.width);
-    tempRect.setAttribute('height', rect.height);
-    tempRect.setAttribute('stroke', rect.color);
-    tempRect.setAttribute('stroke-width', rect.strokeWidth);
-    tempRect.setAttribute('fill', rect.fill ? rect.color : 'none');
-    tempRect.setAttribute('opacity', '0.8');
-    
-    this.svgRef.current.appendChild(tempRect);
   }
 
   finishRectangle() {
@@ -312,7 +294,7 @@ export class CanvasEngine {
     if (typeof pathData === 'string') {
       const coords = pathData.match(/(-?\d+(?:\.\d+)?)/g);
       if (!coords || coords.length < 4) return null;
-  
+
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       
       for (let i = 0; i < coords.length - 1; i += 2) {
@@ -409,45 +391,35 @@ export class CanvasEngine {
     return newPath;
   }
 
-  // Enhanced addShape method with Rough.js support
+  // FIXED: Enhanced addShape method with proper property preservation
   addShape(shapeData) {
     const { 
-      type, x, y, width, height, color, strokeWidth, 
-      opacity = this.options.opacity, fill, fillColor, fillOpacity,
-      isRough = this.options.isRoughMode,
-      roughness = this.options.roughness,
-      bowing = this.options.bowing,
-      fillStyle = this.options.fillStyle
+      type, x, y, width, height, 
+      color, borderSize, fill, fillColor, roundCorners,
+      isRough, roughness, bowing, fillStyle
     } = shapeData;
     
     const id = this.generatePathId();
     
+    // FIXED: Create shape with ALL required properties preserved
     const newShape = {
       id,
       type: 'shape',
       shapeType: type,
       x, y, width, height,
-      color: this.normalizeColor(color),
-      strokeWidth,
-      opacity: opacity || this.options.opacity,
+      // FIXED: Ensure all shape properties are stored consistently
+      color: this.normalizeColor(color || '#000000'),
+      borderSize: borderSize || 2,
       fill: !!fill,
-      fillColor: fillColor || color,
-      fillOpacity: fillOpacity || 20,
-      // Rough.js properties
-      isRough,
-      roughness,
-      bowing,
-      fillStyle,
+      fillColor: this.normalizeColor(fillColor || color || '#000000'),
+      roundCorners: !!roundCorners,
+      // FIXED: Always store rough properties for consistency
+      isRough: isRough !== undefined ? isRough : true,
+      roughness: roughness || 1.2,  // Fixed hand-drawn values
+      bowing: bowing || 1.0,        // Fixed hand-drawn values
+      fillStyle: fillStyle || 'hachure',
       timestamp: Date.now()
     };
-    
-    // Handle special shape types like lines
-    if (type === 'line') {
-      newShape.x1 = shapeData.x1;
-      newShape.y1 = shapeData.y1;
-      newShape.x2 = shapeData.x2;
-      newShape.y2 = shapeData.y2;
-    }
     
     // Calculate bounding box for the shape
     const bbox = this.calculateBoundingBox(newShape);
@@ -458,7 +430,16 @@ export class CanvasEngine {
     // Add to paths array
     this.paths.push(newShape);
     
-    console.log('Added shape:', newShape);
+    console.log('CanvasEngine: Added shape with preserved properties:', {
+      id: newShape.id,
+      color: newShape.color,
+      borderSize: newShape.borderSize,
+      fill: newShape.fill,
+      fillColor: newShape.fillColor,
+      roundCorners: newShape.roundCorners,
+      isRough: newShape.isRough
+    });
+    
     return newShape;
   }
 
@@ -483,7 +464,7 @@ export class CanvasEngine {
     return true;
   }
 
-  // Export as JSON with Rough.js properties
+  // FIXED: Export with complete shape properties
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
@@ -498,16 +479,12 @@ export class CanvasEngine {
             y: path.y,
             width: path.width,
             height: path.height,
-            x1: path.x1,
-            y1: path.y1,
-            x2: path.x2,
-            y2: path.y2,
+            // FIXED: Export all shape properties
             color: path.color,
-            strokeWidth: path.strokeWidth,
-            opacity: path.opacity,
+            borderSize: path.borderSize,
             fill: path.fill,
             fillColor: path.fillColor,
-            fillOpacity: path.fillOpacity,
+            roundCorners: path.roundCorners,
             // Rough.js properties
             isRough: path.isRough,
             roughness: path.roughness,
@@ -534,16 +511,17 @@ export class CanvasEngine {
         height: this.options.height,
         opacity: this.options.opacity,
         viewBox: this.options.viewBox,
-        // Rough.js app state
-        isRoughMode: this.options.isRoughMode,
-        roughness: this.options.roughness,
-        bowing: this.options.bowing,
-        fillStyle: this.options.fillStyle
+        // FIXED: Store current shape options in app state
+        shapeColor: this.options.shapeColor,
+        shapeBorderSize: this.options.shapeBorderSize,
+        shapeFill: this.options.shapeFill,
+        shapeFillColor: this.options.shapeFillColor,
+        shapeRoundCorners: this.options.shapeRoundCorners
       }
     });
   }
 
-  // Import function that handles Rough.js shapes
+  // FIXED: Import function that properly restores shape properties
   importFromJSON(jsonData) {
     if (!jsonData) {
       return true;
@@ -595,6 +573,7 @@ export class CanvasEngine {
           this.paths.push(newPath);
         }
         else if (element.type === 'shape') {
+          // FIXED: Import with ALL shape properties preserved
           const newShape = {
             id: this.generatePathId(),
             type: 'shape',
@@ -603,26 +582,19 @@ export class CanvasEngine {
             y: element.y,
             width: element.width,
             height: element.height,
+            // FIXED: Restore all shape properties with proper defaults
             color: element.color || '#000000',
-            strokeWidth: element.strokeWidth || 2,
-            opacity: element.opacity !== undefined ? element.opacity : this.options.opacity,
-            fill: element.fill || false,
+            borderSize: element.borderSize !== undefined ? element.borderSize : (element.strokeWidth || 2),
+            fill: element.fill !== undefined ? element.fill : false,
             fillColor: element.fillColor || element.color || '#000000',
-            fillOpacity: element.fillOpacity || 20,
-            // Rough.js properties with defaults for older data
-            isRough: element.isRough !== undefined ? element.isRough : this.options.isRoughMode,
-            roughness: element.roughness || this.options.roughness,
-            bowing: element.bowing || this.options.bowing,
-            fillStyle: element.fillStyle || this.options.fillStyle,
+            roundCorners: element.roundCorners !== undefined ? element.roundCorners : false,
+            // FIXED: Restore rough properties with hand-drawn defaults
+            isRough: element.isRough !== undefined ? element.isRough : true,
+            roughness: element.roughness !== undefined ? element.roughness : 1.2,
+            bowing: element.bowing !== undefined ? element.bowing : 1.0,
+            fillStyle: element.fillStyle || 'hachure',
             timestamp: element.timestamp || Date.now()
           };
-          
-          if (element.shapeType === 'line') {
-            newShape.x1 = element.x1;
-            newShape.y1 = element.y1;
-            newShape.x2 = element.x2;
-            newShape.y2 = element.y2;
-          }
 
           const bbox = this.calculateBoundingBox(newShape);
           if (bbox) {
@@ -630,21 +602,30 @@ export class CanvasEngine {
           }
 
           this.paths.push(newShape);
+          
+          console.log('CanvasEngine: Imported shape with properties:', {
+            id: newShape.id,
+            color: newShape.color,
+            borderSize: newShape.borderSize,
+            fill: newShape.fill,
+            isRough: newShape.isRough
+          });
         }
       });
 
-      // Update options if provided
+      // FIXED: Update options with imported app state
       if (data.appState) {
         this.updateOptions({
           width: data.appState.width || this.options.width,
           height: data.appState.height || this.options.height,
           opacity: data.appState.opacity !== undefined ? data.appState.opacity : this.options.opacity,
           viewBox: data.appState.viewBox || this.options.viewBox,
-          // Rough.js options
-          isRoughMode: data.appState.isRoughMode !== undefined ? data.appState.isRoughMode : this.options.isRoughMode,
-          roughness: data.appState.roughness || this.options.roughness,
-          bowing: data.appState.bowing || this.options.bowing,
-          fillStyle: data.appState.fillStyle || this.options.fillStyle
+          // FIXED: Restore shape options
+          shapeColor: data.appState.shapeColor || this.options.shapeColor,
+          shapeBorderSize: data.appState.shapeBorderSize || this.options.shapeBorderSize,
+          shapeFill: data.appState.shapeFill !== undefined ? data.appState.shapeFill : this.options.shapeFill,
+          shapeFillColor: data.appState.shapeFillColor || this.options.shapeFillColor,
+          shapeRoundCorners: data.appState.shapeRoundCorners !== undefined ? data.appState.shapeRoundCorners : this.options.shapeRoundCorners
         });
       }
 
@@ -655,7 +636,7 @@ export class CanvasEngine {
     }
   }
 
-  // Export as SVG with Rough.js support
+  // Export as SVG
   exportAsSVG() {
     const svg = this.svgRef.current;
     if (!svg) return '';
@@ -724,11 +705,7 @@ export class CanvasEngine {
       this.initializeCanvas();
     }
     // Re-initialize rough.js if needed
-    if (newOptions.isRoughMode !== undefined || 
-        newOptions.roughness !== undefined || 
-        newOptions.bowing !== undefined) {
-      this.initializeRough();
-    }
+    this.initializeRough();
   }
 
   destroy() {

@@ -1,8 +1,7 @@
-// src/stores/drawingStore.js - Updated with Rough.js properties
+// src/stores/drawingStore.js - Simplified for rectangles only
 import { create } from 'zustand';
 
 const VALID_PATTERNS = ['blank', 'grid', 'dots', 'lines', 'graph'];
-const VALID_FILL_STYLES = ['hachure', 'cross-hatch', 'dots', 'dashed', 'zigzag', 'solid'];
 
 export const useDrawingStore = create((set, get) => ({
   // Tool state
@@ -11,17 +10,13 @@ export const useDrawingStore = create((set, get) => ({
   strokeWidth: 5,
   opacity: 100,
   eraserWidth: 10,
-  sketchyMode: false,
-  shapeMode: false,
   
-  // Rough.js properties for shapes
-  isRoughMode: true,
-  roughness: 1,
-  bowing: 1,
-  fillStyle: 'hachure',
+  // Simplified shape properties (rectangles only)
+  shapeColor: '#000000',
+  shapeBorderSize: 2,
   shapeFill: false,
   shapeFillColor: '#000000',
-  shapeFillOpacity: 20,
+  shapeRoundCorners: false,
   
   // Canvas dimensions
   canvasDimensions: {
@@ -46,8 +41,6 @@ export const useDrawingStore = create((set, get) => ({
   hasUnsavedChanges: false,
   isDataLoading: false,
   
-  setShapeMode: () => set(state => ({shapeMode: !state.shapeMode})),
-
   // Tool actions
   setTool: (tool) => {
     const validTools = ['pen', 'eraser', 'pointer', 'pan', 'rectangle'];
@@ -81,53 +74,34 @@ export const useDrawingStore = create((set, get) => ({
     set({ eraserWidth: validWidth });
   },
   
-  setSketchyMode: (sketchyMode) => set({ sketchyMode: !!sketchyMode }),
-  
-  // Rough.js actions
-  setRoughMode: (isRough) => {
-    console.log('Setting rough mode:', isRough);
-    set({ isRoughMode: !!isRough });
-  },
-  
-  setRoughness: (roughness) => {
-    const validRoughness = Math.max(0.5, Math.min(3, roughness));
-    console.log('Setting roughness:', validRoughness);
-    set({ roughness: validRoughness });
-  },
-  
-  setBowing: (bowing) => {
-    const validBowing = Math.max(0, Math.min(3, bowing));
-    console.log('Setting bowing:', validBowing);
-    set({ bowing: validBowing });
-  },
-  
-  setFillStyle: (fillStyle) => {
-    if (VALID_FILL_STYLES.includes(fillStyle)) {
-      console.log('Setting fill style:', fillStyle);
-      set({ fillStyle });
+  // Simplified shape actions
+  setShapeColor: (color) => {
+    if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
+      set({ shapeColor: color });
     } else {
-      console.warn(`Invalid fill style: ${fillStyle}`);
+      console.warn(`Invalid shape color: ${color}`);
     }
   },
   
+  setShapeBorderSize: (size) => {
+    const validSize = Math.max(1, Math.min(20, size));
+    set({ shapeBorderSize: validSize });
+  },
+  
   setShapeFill: (fill) => {
-    console.log('Setting shape fill:', fill);
     set({ shapeFill: !!fill });
   },
   
   setShapeFillColor: (color) => {
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
-      console.log('Setting shape fill color:', color);
       set({ shapeFillColor: color });
     } else {
       console.warn(`Invalid shape fill color: ${color}`);
     }
   },
   
-  setShapeFillOpacity: (opacity) => {
-    const validOpacity = Math.max(0, Math.min(100, opacity));
-    console.log('Setting shape fill opacity:', validOpacity);
-    set({ shapeFillOpacity: validOpacity });
+  setShapeRoundCorners: (round) => {
+    set({ shapeRoundCorners: !!round });
   },
   
   setCanvasDimensions: (dimensions) => set({
@@ -374,77 +348,24 @@ export const useDrawingStore = create((set, get) => ({
       isDataLoading: state.isDataLoading,
       currentTool: state.currentTool,
       pageSettings: state.pageSettings,
-      // Include rough.js state
-      isRoughMode: state.isRoughMode,
-      roughness: state.roughness,
-      bowing: state.bowing,
-      fillStyle: state.fillStyle,
+      // Shape state
+      shapeColor: state.shapeColor,
+      shapeBorderSize: state.shapeBorderSize,
       shapeFill: state.shapeFill,
       shapeFillColor: state.shapeFillColor,
-      shapeFillOpacity: state.shapeFillOpacity
+      shapeRoundCorners: state.shapeRoundCorners
     };
   },
 
-  // Helper methods for getting shape options
+  // Helper method for getting current shape options
   getShapeOptions: () => {
     const state = get();
     return {
-      color: state.strokeColor,
-      strokeWidth: state.strokeWidth,
-      opacity: state.opacity,
-      isRough: state.isRoughMode,
-      roughness: state.roughness,
-      bowing: state.bowing,
-      fillStyle: state.fillStyle,
+      color: state.shapeColor,
+      borderSize: state.shapeBorderSize,
       fill: state.shapeFill,
       fillColor: state.shapeFillColor,
-      fillOpacity: state.shapeFillOpacity
+      roundCorners: state.shapeRoundCorners
     };
-  },
-
-  // Preset rough styles
-  applyRoughPreset: (presetName) => {
-    const presets = {
-      smooth: {
-        isRoughMode: false,
-        roughness: 0,
-        bowing: 0
-      },
-      sketchy: {
-        isRoughMode: true,
-        roughness: 1.5,
-        bowing: 1,
-        fillStyle: 'hachure'
-      },
-      rough: {
-        isRoughMode: true,
-        roughness: 2.5,
-        bowing: 2,
-        fillStyle: 'cross-hatch'
-      },
-      cartoon: {
-        isRoughMode: true,
-        roughness: 1,
-        bowing: 3,
-        fillStyle: 'zigzag'
-      },
-      architectural: {
-        isRoughMode: true,
-        roughness: 0.5,
-        bowing: 0,
-        fillStyle: 'hachure'
-      }
-    };
-
-    const preset = presets[presetName];
-    if (preset) {
-      console.log('Applying rough preset:', presetName, preset);
-      set(state => ({
-        ...state,
-        ...preset
-      }));
-    } else {
-      console.warn('Unknown rough preset:', presetName);
-    }
   }
 }));
