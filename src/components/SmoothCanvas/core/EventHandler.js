@@ -6,12 +6,12 @@ export class EventHandler {
     this.engine = canvasEngine;
     this.options = options;
     this.callbacks = {};
-    
+
     // Pan tool state
     this.isPanning = false;
     this.lastPanPoint = null;
     this.panStartPoint = null;
-    
+
     // Selection state
     this.isSelecting = false;
     this.isDraggingSelection = false;
@@ -19,7 +19,7 @@ export class EventHandler {
     this.selectionDragStart = null;
     this.resizeHandle = null;
     this.originalBounds = null;
-    
+
     // Bind methods
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -48,6 +48,7 @@ export class EventHandler {
 
     // Handle selection tool
     if (this.options.currentTool === 'select') {
+
       this.handleSelectionPointerDown(e, worldPoint);
       return;
     }
@@ -80,9 +81,30 @@ export class EventHandler {
 
   handleSelectionPointerDown(e, worldPoint) {
     e.preventDefault();
-    
-    console.log('Selection pointer down at:', worldPoint);
-    
+
+    // ADD COMPREHENSIVE DEBUG LOGGING
+    console.log('=== SELECTION CLICK DEBUG ===');
+    console.log('World point:', worldPoint);
+    console.log('Event details:', {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      button: e.button,
+      buttons: e.buttons
+    });
+    console.log('Available paths:', this.engine.paths.length);
+
+    // Log all path bounding boxes
+    this.engine.paths.forEach((path, index) => {
+      const bbox = this.engine.pathBBoxes.get(path.id);
+      console.log(`Path ${index} (${path.id}):`, {
+        type: path.type,
+        bbox: bbox,
+        transform: path.transform
+      });
+    });
+
     // Check if clicking on a resize handle first
     if (this.engine.selectionBounds) {
       const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
@@ -93,11 +115,18 @@ export class EventHandler {
       }
     }
 
-    // Find what item was clicked
+    // Find what item was clicked - ADD MORE DEBUG
+    console.log('Starting hit test...');
     const clickedItem = this.engine.findItemAtPoint(worldPoint);
-    console.log('Clicked item:', clickedItem ? clickedItem.id : 'none');
+    console.log('Hit test result:', clickedItem);
 
     if (clickedItem) {
+      console.log('Found clicked item:', {
+        id: clickedItem.id,
+        type: clickedItem.type,
+        isSelected: this.engine.isItemSelected(clickedItem.id)
+      });
+
       // Check if clicking on already selected item (for dragging)
       if (this.engine.isItemSelected(clickedItem.id)) {
         console.log('Clicked on selected item, starting drag');
@@ -108,14 +137,12 @@ export class EventHandler {
       // Clicking on unselected item
       if (e.ctrlKey || e.metaKey) {
         console.log('Multi-select mode');
-        // Multi-select: add to selection
         this.engine.addToSelection(clickedItem.id);
       } else {
         console.log('Single select mode');
-        // Single select: clear others and select this one
         this.engine.setSelectedItems([clickedItem.id]);
       }
-      
+
       // Notify selection change
       if (this.callbacks.onSelectionChanged) {
         this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
@@ -125,7 +152,7 @@ export class EventHandler {
 
     // Clicking on empty space
     console.log('Clicked on empty space');
-    
+
     // Clear selection if not holding Ctrl
     if (!e.ctrlKey && !e.metaKey) {
       this.engine.clearSelection();
@@ -134,7 +161,7 @@ export class EventHandler {
       }
     }
 
-    // Always start area selection when clicking on empty space
+    // Start area selection
     console.log('Starting area selection');
     this.startAreaSelection(e, worldPoint);
   }
@@ -142,24 +169,29 @@ export class EventHandler {
   startAreaSelection(e, worldPoint) {
     this.isSelecting = true;
     this.engine.startAreaSelection(worldPoint);
-    
+
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
-    
+
     this.engine.activePointer = e.pointerId;
   }
 
   startDraggingSelection(e, worldPoint) {
     this.isDraggingSelection = true;
     this.selectionDragStart = worldPoint;
-    
+
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
-    
+
     this.engine.activePointer = e.pointerId;
-    
+
+    // ADD: Notify drag start
+    if (this.callbacks.onSelectionDragStart) {
+      this.callbacks.onSelectionDragStart();
+    }
+
     // Change cursor to indicate dragging
     this.engine.canvasRef.current.style.cursor = 'move';
   }
@@ -169,13 +201,13 @@ export class EventHandler {
     this.resizeHandle = handle;
     this.selectionDragStart = worldPoint;
     this.originalBounds = { ...this.engine.selectionBounds };
-    
+
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
-    
+
     this.engine.activePointer = e.pointerId;
-    
+
     // Set appropriate cursor for resize direction
     const cursors = {
       'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
@@ -196,6 +228,33 @@ export class EventHandler {
       this.continuePanning(e);
       return;
     }
+
+    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
+      e.preventDefault();
+
+      // THROTTLE: Only update every few pixels to prevent excessive updates
+      if (!this.lastDragPoint ||
+        Math.abs(worldPoint.x - this.lastDragPoint.x) > 2 ||
+        Math.abs(worldPoint.y - this.lastDragPoint.y) > 2) {
+
+        console.log('Dragging selection');
+
+        const deltaX = worldPoint.x - this.selectionDragStart.x;
+        const deltaY = worldPoint.y - this.selectionDragStart.y;
+
+        this.engine.moveSelectedItems(deltaX, deltaY);
+        this.selectionDragStart = worldPoint;
+        this.lastDragPoint = worldPoint;
+
+        // THROTTLED: Only notify occasionally during drag
+        if (this.callbacks.onSelectionMoved) {
+          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+        }
+      }
+      return;
+    }
+
+
 
     // Handle selection tool interactions
     if (this.options.currentTool === 'select') {
@@ -256,7 +315,7 @@ export class EventHandler {
       e.preventDefault();
       console.log('Updating area selection to:', worldPoint);
       this.engine.updateAreaSelection(worldPoint);
-      
+
       if (this.callbacks.onSelectionRectChanged) {
         this.callbacks.onSelectionRectChanged(this.engine.selectionRect);
       }
@@ -267,13 +326,13 @@ export class EventHandler {
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
       console.log('Dragging selection');
-      
+
       const deltaX = worldPoint.x - this.selectionDragStart.x;
       const deltaY = worldPoint.y - this.selectionDragStart.y;
-      
+
       this.engine.moveSelectedItems(deltaX, deltaY);
       this.selectionDragStart = worldPoint;
-      
+
       if (this.callbacks.onSelectionChanged) {
         this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
       }
@@ -284,11 +343,11 @@ export class EventHandler {
     if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
       console.log('Resizing selection');
-      
+
       const newBounds = this.calculateNewBounds(worldPoint);
       if (newBounds) {
         this.engine.resizeSelectedItems(newBounds);
-        
+
         if (this.callbacks.onSelectionChanged) {
           this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
         }
@@ -447,13 +506,13 @@ export class EventHandler {
       console.log('Finishing area selection');
       const addToExisting = e.ctrlKey || e.metaKey;
       const selectedItems = this.engine.finishAreaSelection(addToExisting);
-      
+
       console.log('Area selection result:', selectedItems);
-      
+
       if (this.callbacks.onSelectionChanged) {
         this.callbacks.onSelectionChanged(selectedItems);
       }
-      
+
       this.isSelecting = false;
     }
 
@@ -462,7 +521,7 @@ export class EventHandler {
       console.log('Finished dragging selection');
       this.isDraggingSelection = false;
       this.selectionDragStart = null;
-      
+
       if (this.callbacks.onSelectionMoved) {
         this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
       }
@@ -475,14 +534,14 @@ export class EventHandler {
       this.resizeHandle = null;
       this.selectionDragStart = null;
       this.originalBounds = null;
-      
+
       if (this.callbacks.onSelectionResized) {
         this.callbacks.onSelectionResized(this.engine.getSelectedItems());
       }
     }
 
     this.engine.activePointer = null;
-    
+
     // Reset cursor
     if (this.options.currentTool === 'select') {
       this.engine.canvasRef.current.style.cursor = 'default';
@@ -504,7 +563,7 @@ export class EventHandler {
           }
         }
         break;
-        
+
       case 'a':
       case 'A':
         if (e.ctrlKey || e.metaKey) {
@@ -517,7 +576,7 @@ export class EventHandler {
           }
         }
         break;
-        
+
       case 'Escape':
         if (this.engine.selectedItems.size > 0) {
           e.preventDefault();
@@ -527,7 +586,8 @@ export class EventHandler {
           }
         }
         break;
-        
+
+      // FIX: Arrow key movement - the bug is here
       case 'ArrowUp':
       case 'ArrowDown':
       case 'ArrowLeft':
@@ -536,30 +596,40 @@ export class EventHandler {
           e.preventDefault();
           const step = e.shiftKey ? 10 : 1;
           let deltaX = 0, deltaY = 0;
-          
+
           switch (e.key) {
             case 'ArrowUp': deltaY = -step; break;
             case 'ArrowDown': deltaY = step; break;
             case 'ArrowLeft': deltaX = -step; break;
             case 'ArrowRight': deltaX = step; break;
           }
-          
+
+          // BUG WAS HERE: Don't clear selection after moving!
+          console.log('Moving selection by:', { deltaX, deltaY });
           this.engine.moveSelectedItems(deltaX, deltaY);
+
+          // Update selection bounds after moving
+          this.engine.selectionBounds = this.engine.getSelectionBounds(this.engine.selectedItems);
+
+          // IMPORTANT: Keep selection active and notify of movement (not selection change)
           if (this.callbacks.onSelectionMoved) {
             this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
           }
+
+          // Force re-render to show moved items
+          const currentPaths = this.engine.getPaths();
+          // Trigger canvas update - this might need to be handled differently depending on your setup
         }
         break;
     }
   }
-
   // Existing methods (pan, rectangle, drawing, etc.)...
 
   // Rectangle drawing methods
   startRectangleDrawing(e) {
     console.log('Starting rectangle drawing');
     e.preventDefault();
-    
+
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
     }
@@ -571,7 +641,7 @@ export class EventHandler {
 
   updateRectangleDrawing(e) {
     if (!this.engine.isDrawingShape() || e.pointerId !== this.engine.activePointer) return;
-    
+
     e.preventDefault();
     const point = this.engine.getPointFromEvent(e);
     this.engine.updateRectangle(point);
@@ -580,7 +650,7 @@ export class EventHandler {
   finishRectangleDrawing(e) {
     console.log('Finishing rectangle drawing');
     e.preventDefault();
-    
+
     if (this.engine.canvasRef.current?.releasePointerCapture) {
       this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
     }
@@ -601,7 +671,7 @@ export class EventHandler {
     this.isPanning = true;
     this.panStartPoint = { x: e.clientX, y: e.clientY };
     this.lastPanPoint = { x: e.clientX, y: e.clientY };
-    
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -638,19 +708,19 @@ export class EventHandler {
       if (currentViewBox) {
         const scaledDeltaX = deltaX / (this.options.zoomLevel || 1);
         const scaledDeltaY = deltaY / (this.options.zoomLevel || 1);
-        
+
         const newViewBox = {
           x: currentViewBox.x - scaledDeltaX,
           y: currentViewBox.y - scaledDeltaY,
           width: currentViewBox.width,
           height: currentViewBox.height
         };
-        
+
         this.options.viewBox = newViewBox;
         this.engine.options.viewBox = newViewBox;
-        
+
         if (this.engine.svgRef.current) {
-          this.engine.svgRef.current.setAttribute('viewBox', 
+          this.engine.svgRef.current.setAttribute('viewBox',
             `${newViewBox.x} ${newViewBox.y} ${newViewBox.width} ${newViewBox.height}`);
         }
       }
@@ -709,9 +779,9 @@ export class EventHandler {
   handleWheel(e) {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      
+
       const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-      
+
       if (this.callbacks.onZoom) {
         this.callbacks.onZoom(zoomDelta, { x: e.clientX, y: e.clientY });
       }
@@ -732,12 +802,12 @@ export class EventHandler {
     if (this.callbacks.onEraserShow) {
       this.callbacks.onEraserShow(false);
     }
-    
+
     // Cancel any ongoing operations if mouse leaves
     if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
       this.engine.cancelRectangle();
     }
-    
+
     if (this.options.currentTool === 'select' && this.isSelecting) {
       // Optionally cancel area selection
       this.engine.clearSelection();
@@ -749,7 +819,7 @@ export class EventHandler {
   createTempPath(point) {
     const svg = this.engine.svgRef.current;
     if (!svg) return;
-    
+
     const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     tempPath.id = 'temp-path';
     tempPath.setAttribute('fill', this.options.strokeColor);
@@ -856,16 +926,16 @@ export class EventHandler {
 
   finalizeStroke(e) {
     const currentPath = this.engine.getCurrentPath();
-    
+
     if (currentPath.length <= 1) {
       console.log('Path too short to finalize, points:', currentPath.length);
-      
+
       const svg = this.engine.svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) {
         tempPath.remove();
       }
-      
+
       this.engine.setCurrentPath([]);
       return;
     }
@@ -874,7 +944,7 @@ export class EventHandler {
       const strokeOptions = this.engine.getStrokeOptions(this.engine.inputType, this.options.strokeWidth);
       const stroke = getStroke(currentPath, strokeOptions);
       const pathData = this.engine.getSvgPathFromStroke(stroke);
-      
+
       if (!pathData || pathData === '') {
         console.error('Invalid path data generated:', pathData);
         const svg = this.engine.svgRef.current;
@@ -882,7 +952,7 @@ export class EventHandler {
         if (tempPath) {
           tempPath.remove();
         }
-        
+
         this.engine.setCurrentPath([]);
         return;
       }
@@ -908,13 +978,13 @@ export class EventHandler {
       }
     } catch (error) {
       console.error('Error finalizing stroke:', error);
-      
+
       const svg = this.engine.svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) {
         tempPath.remove();
       }
-      
+
       this.engine.setCurrentPath([]);
     }
   }
@@ -927,7 +997,7 @@ export class EventHandler {
     element.addEventListener('mouseenter', this.handleMouseEnter);
     element.addEventListener('mouseleave', this.handleMouseLeave);
     element.addEventListener('wheel', this.handleWheel, { passive: false });
-    
+
     // Add keyboard event listener to document for selection shortcuts
     document.addEventListener('keydown', this.handleKeyDown);
   }
@@ -940,7 +1010,7 @@ export class EventHandler {
     element.removeEventListener('mouseenter', this.handleMouseEnter);
     element.removeEventListener('mouseleave', this.handleMouseLeave);
     element.removeEventListener('wheel', this.handleWheel);
-    
+
     // Remove keyboard event listener
     document.removeEventListener('keydown', this.handleKeyDown);
   }

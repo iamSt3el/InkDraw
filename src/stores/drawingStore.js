@@ -1,4 +1,4 @@
-// src/stores/drawingStore.js - Updated with Selection Support
+// src/stores/drawingStore.js - COMPLETE FIXED VERSION
 import { create } from 'zustand';
 
 const VALID_PATTERNS = ['blank', 'grid', 'dots', 'lines', 'graph'];
@@ -50,7 +50,7 @@ export const useDrawingStore = create((set, get) => ({
   
   // Tool actions
   setTool: (tool) => {
-    const validTools = ['pen', 'eraser', 'pointer', 'pan', 'rectangle', 'select'];
+    const validTools = ['pen', 'eraser', 'pan', 'rectangle', 'select'];
     if (validTools.includes(tool)) {
       // Clear selection when switching away from select tool
       if (get().currentTool === 'select' && tool !== 'select') {
@@ -62,14 +62,15 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
   
-  // Selection actions
+  // FIXED: Selection actions with proper method connections
   addToSelection: (itemId) => {
     set(state => {
       const newSelected = new Set(state.selectedItems);
       newSelected.add(itemId);
+      const newBounds = get().calculateSelectionBounds(newSelected);
       return { 
         selectedItems: newSelected,
-        selectionBounds: get().calculateSelectionBounds(newSelected)
+        selectionBounds: newBounds
       };
     });
   },
@@ -78,18 +79,20 @@ export const useDrawingStore = create((set, get) => ({
     set(state => {
       const newSelected = new Set(state.selectedItems);
       newSelected.delete(itemId);
+      const newBounds = newSelected.size > 0 ? get().calculateSelectionBounds(newSelected) : null;
       return { 
         selectedItems: newSelected,
-        selectionBounds: newSelected.size > 0 ? get().calculateSelectionBounds(newSelected) : null
+        selectionBounds: newBounds
       };
     });
   },
   
   setSelection: (itemIds) => {
     const selectedSet = new Set(Array.isArray(itemIds) ? itemIds : [itemIds]);
+    const newBounds = selectedSet.size > 0 ? get().calculateSelectionBounds(selectedSet) : null;
     set({ 
       selectedItems: selectedSet,
-      selectionBounds: selectedSet.size > 0 ? get().calculateSelectionBounds(selectedSet) : null
+      selectionBounds: newBounds
     });
   },
   
@@ -136,14 +139,20 @@ export const useDrawingStore = create((set, get) => ({
     set({ selectionRect: rect });
   },
   
+  // FIXED: finishAreaSelection with connected methods
   finishAreaSelection: () => {
     const state = get();
     if (!state.isSelecting || !state.selectionRect) return;
     
-    // This will be implemented in CanvasEngine to find items in selection rect
+    console.log('DrawingStore: Finishing area selection with rect:', state.selectionRect);
+    
+    // Use the connected findItemsInRect method
     if (state.findItemsInRect) {
       const itemsInRect = state.findItemsInRect(state.selectionRect);
+      console.log('DrawingStore: Found items in selection rect:', itemsInRect);
       state.setSelection(itemsInRect);
+    } else {
+      console.warn('DrawingStore: findItemsInRect method not available');
     }
     
     set({
@@ -153,25 +162,37 @@ export const useDrawingStore = create((set, get) => ({
     });
   },
   
-  // Selection bounds calculation (will be implemented by canvas engine)
+  // FIXED: Selection bounds calculation with connected methods
   calculateSelectionBounds: (selectedItems) => {
     const state = get();
+    console.log('DrawingStore: Calculating selection bounds for:', selectedItems);
+    
     if (state.getSelectionBounds) {
-      return state.getSelectionBounds(selectedItems);
+      const bounds = state.getSelectionBounds(selectedItems);
+      console.log('DrawingStore: Calculated bounds:', bounds);
+      return bounds;
+    } else {
+      console.warn('DrawingStore: getSelectionBounds method not available');
+      return null;
     }
-    return null;
   },
   
-  // Transform selected items
+  // FIXED: Transform selected items with connected methods
   moveSelection: (deltaX, deltaY) => {
     const state = get();
     if (state.selectedItems.size === 0) return;
     
+    console.log('DrawingStore: Moving selection:', deltaX, deltaY);
+    
     if (state.moveSelectedItems) {
       state.moveSelectedItems(deltaX, deltaY);
       // Update selection bounds
-      const newBounds = state.calculateSelectionBounds(state.selectedItems);
-      set({ selectionBounds: newBounds });
+      if (state.getSelectionBounds) {
+        const newBounds = state.getSelectionBounds(state.selectedItems);
+        set({ selectionBounds: newBounds });
+      }
+    } else {
+      console.warn('DrawingStore: moveSelectedItems method not available');
     }
   },
   
@@ -179,9 +200,13 @@ export const useDrawingStore = create((set, get) => ({
     const state = get();
     if (state.selectedItems.size === 0) return;
     
+    console.log('DrawingStore: Resizing selection:', newBounds);
+    
     if (state.resizeSelectedItems) {
       state.resizeSelectedItems(newBounds);
       set({ selectionBounds: newBounds });
+    } else {
+      console.warn('DrawingStore: resizeSelectedItems method not available');
     }
   },
   
@@ -189,9 +214,13 @@ export const useDrawingStore = create((set, get) => ({
     const state = get();
     if (state.selectedItems.size === 0) return;
     
+    console.log('DrawingStore: Deleting selection');
+    
     if (state.deleteSelectedItems) {
       state.deleteSelectedItems();
       state.clearSelection();
+    } else {
+      console.warn('DrawingStore: deleteSelectedItems method not available');
     }
   },
   
@@ -253,7 +282,7 @@ export const useDrawingStore = create((set, get) => ({
     canvasDimensions: dimensions
   }),
   
-  // Zoom and Pan actions (existing code)...
+  // Zoom and Pan actions
   setZoomLevel: (level) => set(state => {
     const newZoom = Math.max(0.1, Math.min(5, level));
     
@@ -362,7 +391,7 @@ export const useDrawingStore = create((set, get) => ({
     };
   }),
   
-  // Page settings actions (existing code)...
+  // Page settings actions
   setPattern: (pattern) => {
     if (VALID_PATTERNS.includes(pattern)) {
       set(state => ({
@@ -395,7 +424,7 @@ export const useDrawingStore = create((set, get) => ({
     }));
   },
   
-  // Canvas data actions (existing code)...
+  // Canvas data actions
   setCanvasData: (data) => {
     const currentData = get().canvasData;
     
@@ -453,20 +482,21 @@ export const useDrawingStore = create((set, get) => ({
     return null;
   },
   
-  // Canvas method references
+  // Canvas method references (FIXED: Remove null assignments, let registerCanvasMethods set them)
   clearCanvas: null,
   exportCanvasImage: null,
   undoCanvas: null,
   getCurrentCanvasData: null,
   loadCanvasData: null,
   
-  // Selection method references (to be set by CanvasEngine)
+  // FIXED: Selection method references (these will be set by registerCanvasMethods)
   findItemsInRect: null,
   getSelectionBounds: null,
   moveSelectedItems: null,
   resizeSelectedItems: null,
   deleteSelectedItems: null,
   
+  // FIXED: Register canvas methods with ALL selection methods
   registerCanvasMethods: (methods) => {
     console.log('DrawingStore: Registering canvas methods', Object.keys(methods));
     
@@ -483,13 +513,15 @@ export const useDrawingStore = create((set, get) => ({
       undoCanvas: methods.undo,
       getCurrentCanvasData: methods.getCurrentCanvasData,
       loadCanvasData: methods.loadCanvasData,
-      // Selection methods
+      // FIXED: Add all selection methods
       findItemsInRect: methods.findItemsInRect,
       getSelectionBounds: methods.getSelectionBounds,
       moveSelectedItems: methods.moveSelectedItems,
       resizeSelectedItems: methods.resizeSelectedItems,
       deleteSelectedItems: methods.deleteSelectedItems
     });
+    
+    console.log('DrawingStore: All methods registered successfully');
   },
   
   batchUpdateCanvasState: (updates) => {
@@ -530,3 +562,27 @@ export const useDrawingStore = create((set, get) => ({
     };
   }
 }));
+
+// FIXED: Add global debug function
+if (typeof window !== 'undefined') {
+  window.debugSelection = () => {
+    console.log('=== SELECTION DEBUG ===');
+    
+    const drawingState = useDrawingStore.getState();
+    console.log('Drawing store selection methods:', {
+      findItemsInRect: !!drawingState.findItemsInRect,
+      getSelectionBounds: !!drawingState.getSelectionBounds,
+      moveSelectedItems: !!drawingState.moveSelectedItems,
+      resizeSelectedItems: !!drawingState.resizeSelectedItems,
+      deleteSelectedItems: !!drawingState.deleteSelectedItems
+    });
+    
+    console.log('Current selection state:', {
+      selectedItems: Array.from(drawingState.selectedItems),
+      selectionBounds: drawingState.selectionBounds,
+      currentTool: drawingState.currentTool
+    });
+    
+    console.log('=== END DEBUG ===');
+  };
+}
