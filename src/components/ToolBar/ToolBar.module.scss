@@ -530,3 +530,132 @@
     }
   }
 }
+
+/* Selection-specific toolbar styles */
+.selection_tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #e5e7eb;
+  
+  .selection_action_btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background-color: #dc2626;
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+    
+    svg {
+      flex-shrink: 0;
+    }
+  }
+}
+
+/* Selection info in zoom toolbar */
+.selection_info {
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid #e5e7eb;
+  
+  span {
+    font-size: 12px;
+    font-weight: 500;
+    color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+    padding: 4px 8px;
+    border-radius: 10px;
+  }
+}
+
+/* SVG selection styles */
+.selected-stroke {
+  filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.5)) !important;
+}
+
+.selected-shape {
+  filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.5)) !important;
+}
+
+/* Responsive adjustments for selection */
+@media (max-width: 768px) {
+  .selection_shortcuts {
+    bottom: 60px;
+    right: 10px;
+    
+    .shortcuts_panel {
+      padding: 8px;
+      font-size: 10px;
+      max-width: 180px;
+      
+      .shortcuts_title {
+        margin-bottom: 6px;
+      }
+      
+      .shortcuts_list {
+        gap: 3px;
+        
+        span {
+          line-height: 1.2;
+        }
+      }
+    }
+  }
+  
+  .selectionInfo {
+    top: 5px;
+    left: 5px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .selection_tools {
+    margin-left: 4px;
+    padding-left: 4px;
+    
+    .selection_action_btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      gap: 4px;
+      
+      span {
+        display: none; // Hide text on mobile
+      }
+    }
+  }
+  
+  .selection_info {
+    margin-left: 8px;
+    padding-left: 8px;
+    
+    span {
+      font-size: 11px;
+      padding: 3px 6px;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .selection_shortcuts {
+    display: none; // Hide shortcuts panel on very small screens
+  }
+}

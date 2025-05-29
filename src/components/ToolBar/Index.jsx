@@ -1,11 +1,12 @@
-// src/components/ToolBar/Index.jsx - Updated with Shape Panel Integration
+// src/components/ToolBar/Index.jsx - Updated with Selection Tool
 import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
 import PageNavigator from '../PageNavigator/PageNavigator';
 import { 
   Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, 
-  Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, Shapes 
+  Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, 
+  Shapes, MousePointer2
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -24,14 +25,16 @@ const ToolBar = ({
   isSaving = false,
   isTransitioning = false
 }) => {
-  // Get currentTool and setTool from the store
+  // Get drawing store state
   const {
     currentTool,
     setTool,
     clearCanvas,
     undoCanvas,
     zoomLevel,
-    isRoughMode
+    isRoughMode,
+    selectedItems,
+    deleteSelection
   } = useDrawingStore();
 
   const {
@@ -39,10 +42,11 @@ const ToolBar = ({
     isMenuOpen,
     togglePagePanel,
     togglePenPanel,
-    toggleShapePanel,  // Add shape panel toggle
+    toggleShapePanel,
     setMenuOpen,
     handleExportImage,
-    handleExportSVG
+    handleExportSVG,
+    showNotification
   } = useUIStore();
 
   const { isSaving: storeSaving } = usePageStore();
@@ -58,7 +62,11 @@ const ToolBar = ({
 
   const handleShapeClick = () => {
     setTool('rectangle');
-  }
+  };
+
+  const handleSelectClick = () => {
+    setTool('select');
+  };
 
   const handleClearClick = () => {
     if (clearCanvas) {
@@ -69,6 +77,13 @@ const ToolBar = ({
   const handleUndoClick = () => {
     if (undoCanvas) {
       undoCanvas();
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedItems.size > 0) {
+      deleteSelection();
+      showNotification('success', `Deleted ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}`);
     }
   };
 
@@ -115,25 +130,46 @@ const ToolBar = ({
         <div className={styles.tb_center}>
           <div className={styles.drawing_tools}>
             <Button
+              Icon={MousePointer2}
+              isActive={currentTool === 'select'}
+              onClick={handleSelectClick}
+              label="Select Tool (V)"
+            />
+            <Button
               Icon={Pen}
               isActive={currentTool === 'pen'}
               onClick={handlePenClick}
-              label="Pen Tool"
+              label="Pen Tool (P)"
             />
             <Button
               Icon={Eraser}
               isActive={currentTool === 'eraser'}
               onClick={handleEraserClick}
-              label="Eraser Tool"
+              label="Eraser Tool (E)"
             />
             <div className={styles.shape_tool_container}>
               <Button
                 Icon={Square}
                 isActive={currentTool === 'rectangle'}
                 onClick={handleShapeClick}
-                label={`Rectangle Tool ${isRoughMode ? '(Rough)' : '(Clean)'}`}
+                label={`Rectangle Tool (R) ${isRoughMode ? '(Rough)' : '(Clean)'}`}
               />
             </div>
+            
+            {/* Selection-specific tools */}
+            {currentTool === 'select' && selectedItems.size > 0 && (
+              <div className={styles.selection_tools}>
+                <button
+                  className={styles.selection_action_btn}
+                  onClick={handleDeleteSelected}
+                  title={`Delete ${selectedItems.size} selected item${selectedItems.size > 1 ? 's' : ''}`}
+                >
+                  <Trash size={16} />
+                  <span>Delete ({selectedItems.size})</span>
+                </button>
+              </div>
+            )}
+            
             <Button
               Icon={Trash}
               onClick={handleClearClick}
@@ -142,7 +178,7 @@ const ToolBar = ({
             <Button
               Icon={Undo}
               onClick={handleUndoClick}
-              label="Undo"
+              label="Undo (Ctrl+Z)"
             />
           </div>
         </div>
@@ -287,7 +323,7 @@ const ToolBar = ({
                 const { setTool } = useDrawingStore.getState();
                 setTool(currentTool === 'pan' ? 'pen' : 'pan');
               }}
-              title="Pan Tool"
+              title="Pan Tool (H)"
               data-active={currentTool === 'pan'}
             >
               <Move size={16} />
@@ -305,7 +341,32 @@ const ToolBar = ({
             </button>
           </div>
         </div>
+
+        {/* Selection info in zoom toolbar */}
+        {currentTool === 'select' && selectedItems.size > 0 && (
+          <div className={styles.selection_info}>
+            <span>{selectedItems.size} selected</span>
+          </div>
+        )}
       </div>
+
+      {/* Keyboard shortcuts overlay for selection */}
+      {currentTool === 'select' && (
+        <div className={styles.selection_shortcuts}>
+          <div className={styles.shortcuts_panel}>
+            <div className={styles.shortcuts_title}>Selection Shortcuts:</div>
+            <div className={styles.shortcuts_list}>
+              <span>Click: Select item</span>
+              <span>Ctrl+Click: Multi-select</span>
+              <span>Drag: Area select</span>
+              <span>Delete: Delete selected</span>
+              <span>Ctrl+A: Select all</span>
+              <span>Esc: Clear selection</span>
+              <span>Arrow keys: Move selected</span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

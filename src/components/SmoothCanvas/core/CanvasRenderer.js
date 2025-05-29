@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasRenderer.js - FIXED to preserve shape properties
+// src/components/SmoothCanvas/core/CanvasRenderer.js - Updated with Selection Visuals
 import React from 'react';
 import rough from 'roughjs';
 
@@ -8,7 +8,7 @@ export class CanvasRenderer {
     this.options = options;
     this.roughSvg = null;
     this.renderedShapeIds = new Set();
-    this.shapeElements = new Map(); // FIXED: Track rendered elements
+    this.shapeElements = new Map();
   }
 
   initializeRoughSvg() {
@@ -18,7 +18,7 @@ export class CanvasRenderer {
     }
   }
 
-  // FIXED: Render shapes with property preservation
+  // Render shapes with selection state
   renderShapesToSVG() {
     this.initializeRoughSvg();
     
@@ -34,7 +34,6 @@ export class CanvasRenderer {
 
     console.log('CanvasRenderer: Rendering', shapes.length, 'shapes to SVG');
 
-    // FIXED: Instead of clearing all shapes, only update changed ones
     const currentShapeIds = new Set(shapes.map(s => s.id));
     
     // Remove shapes that no longer exist
@@ -51,44 +50,48 @@ export class CanvasRenderer {
     // Render new or update existing shapes
     shapes.forEach((shape, index) => {
       const isMarkedForErase = pathsToErase.has(shape.id);
+      const isSelected = this.engine.isItemSelected(shape.id);
       const existingElement = this.shapeElements.get(shape.id);
       
-      // FIXED: Only re-render if shape is new or eraser state changed
       if (!existingElement) {
         console.log(`CanvasRenderer: Creating new shape ${shape.id}:`, shape.shapeType);
-        this.createNewShape(shape, isMarkedForErase);
+        this.createNewShape(shape, isMarkedForErase, isSelected);
       } else {
-        // FIXED: Only update opacity for eraser preview, preserve all other properties
+        // Update opacity and selection state
         const currentOpacity = parseFloat(existingElement.getAttribute('opacity') || '1');
-        const targetOpacity = isMarkedForErase ? 0.3 : 1;
+        const targetOpacity = isMarkedForErase ? 0.3 : (isSelected ? 0.8 : 1);
         
         if (Math.abs(currentOpacity - targetOpacity) > 0.01) {
           existingElement.setAttribute('opacity', targetOpacity);
+        }
+
+        // Update selection class
+        if (isSelected) {
+          existingElement.classList.add('selected-shape');
+        } else {
+          existingElement.classList.remove('selected-shape');
         }
       }
     });
   }
 
-  // FIXED: Create new shape with preserved properties
-  createNewShape(shape, isMarkedForErase) {
+  createNewShape(shape, isMarkedForErase, isSelected) {
     try {
       let shapeNode = null;
-      const opacity = isMarkedForErase ? 0.3 : 1;
+      const opacity = isMarkedForErase ? 0.3 : (isSelected ? 0.8 : 1);
 
-      // FIXED: Always use the ORIGINAL shape properties, never current store values
       const shapeOptions = {
-        stroke: shape.color, // Use shape's own color
-        strokeWidth: shape.borderSize, // Use shape's own border size
-        fill: shape.fill ? shape.fillColor : 'none', // Use shape's own fill settings
+        stroke: shape.color,
+        strokeWidth: shape.borderSize,
+        fill: shape.fill ? shape.fillColor : 'none',
         fillStyle: shape.fillStyle || 'hachure',
-        roughness: shape.roughness || 1.2, // Use shape's own roughness
-        bowing: shape.bowing || 1.0, // Use shape's own bowing
+        roughness: shape.roughness || 1.2,
+        bowing: shape.bowing || 1.0,
         fillWeight: (shape.borderSize || 2) * 0.5,
       };
 
-      console.log('CanvasRenderer: Creating shape with PRESERVED options:', shapeOptions);
+      console.log('CanvasRenderer: Creating shape with options:', shapeOptions);
 
-      // Always create rough rectangle (hand-drawn style as requested)
       switch (shape.shapeType) {
         case 'rectangle':
           shapeNode = this.roughSvg.rectangle(
@@ -102,17 +105,14 @@ export class CanvasRenderer {
       }
 
       if (shapeNode) {
-        // Set attributes with preserved properties
         shapeNode.setAttribute('opacity', opacity);
         shapeNode.setAttribute('data-shape-id', shape.id);
-        shapeNode.setAttribute('class', 'rough-shape');
+        shapeNode.setAttribute('class', `rough-shape ${isSelected ? 'selected-shape' : ''}`);
         shapeNode.style.transition = 'opacity 0.2s ease';
 
-        // FIXED: Store reference to prevent re-creation
         this.shapeElements.set(shape.id, shapeNode);
         this.renderedShapeIds.add(shape.id);
 
-        // Append to SVG
         this.engine.svgRef.current.appendChild(shapeNode);
         
         console.log('CanvasRenderer: Successfully created and stored shape element');
@@ -123,17 +123,14 @@ export class CanvasRenderer {
     }
   }
 
-  // FIXED: Clear with proper cleanup
   clearRenderedShapes() {
     if (this.engine.svgRef.current) {
-      // Remove all tracked elements
       for (const [shapeId, element] of this.shapeElements.entries()) {
         if (element.parentNode) {
           element.parentNode.removeChild(element);
         }
       }
       
-      // Clear tracking
       this.shapeElements.clear();
       this.renderedShapeIds.clear();
       
@@ -141,9 +138,7 @@ export class CanvasRenderer {
     }
   }
 
-  // FIXED: Update eraser preview without re-rendering shapes
   updateEraserPreview(pathsToErase) {
-    // Only update opacity of existing elements
     for (const [shapeId, element] of this.shapeElements.entries()) {
       const opacity = pathsToErase.has(shapeId) ? 0.3 : 1;
       element.setAttribute('opacity', opacity);
@@ -154,16 +149,26 @@ export class CanvasRenderer {
   renderPaths() {
     const paths = this.engine.getPaths();
     const pathsToErase = this.engine.getPathsToErase();
+    const selectedItems = this.engine.selectedItems;
 
     console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape').length);
 
-    // FIXED: Render shapes to SVG with property preservation
+    // Render shapes to SVG with selection state
     this.renderShapesToSVG();
 
     // Return React elements for stroke paths only
     const strokePaths = paths
       .filter(pathObj => pathObj.type !== 'shape')
       .map((pathObj) => {
+        const isSelected = selectedItems.has(pathObj.id);
+        const isMarkedForErase = pathsToErase.has(pathObj.id);
+        
+        // Apply transform if it exists
+        let transform = '';
+        if (pathObj.transform && (pathObj.transform.translateX || pathObj.transform.translateY)) {
+          transform = `translate(${pathObj.transform.translateX || 0}, ${pathObj.transform.translateY || 0})`;
+        }
+
         return (
           <path
             key={pathObj.id}
@@ -171,15 +176,95 @@ export class CanvasRenderer {
             fill={pathObj.color}
             stroke="none"
             fillRule="nonzero"
+            transform={transform}
+            className={isSelected ? 'selected-stroke' : ''}
             style={{
-              opacity: pathsToErase.has(pathObj.id) ? 0.3 : (pathObj.opacity || 100) / 100,
-              transition: 'opacity 0.1s ease'
+              opacity: isMarkedForErase ? 0.3 : (isSelected ? 0.8 : (pathObj.opacity || 100) / 100),
+              transition: 'opacity 0.1s ease',
+              filter: isSelected ? 'drop-shadow(0 0 3px rgba(59, 130, 246, 0.5))' : 'none'
             }}
           />
         );
       });
 
     return strokePaths;
+  }
+
+  // Render selection overlay (called from SmoothCanvas component)
+  renderSelectionOverlay() {
+    const elements = [];
+
+    // Render area selection rectangle
+    if (this.engine.isSelecting && this.engine.selectionRect) {
+      const rect = this.engine.selectionRect;
+      elements.push(
+        <rect
+          key="selection-area"
+          x={rect.x}
+          y={rect.y}
+          width={rect.width}
+          height={rect.height}
+          fill="rgba(59, 130, 246, 0.1)"
+          stroke="rgba(59, 130, 246, 0.5)"
+          strokeWidth="1"
+          strokeDasharray="5,5"
+          style={{ pointerEvents: 'none' }}
+        />
+      );
+    }
+
+    // Render selection bounds and handles
+    if (this.engine.selectionBounds && this.engine.selectedItems.size > 0) {
+      const bounds = this.engine.selectionBounds;
+      
+      // Selection bounds rectangle
+      elements.push(
+        <rect
+          key="selection-bounds"
+          x={bounds.x - 2}
+          y={bounds.y - 2}
+          width={bounds.width + 4}
+          height={bounds.height + 4}
+          fill="none"
+          stroke="rgba(59, 130, 246, 0.8)"
+          strokeWidth="1"
+          strokeDasharray="3,3"
+          style={{ pointerEvents: 'none' }}
+        />
+      );
+
+      // Resize handles
+      const handles = this.engine.getResizeHandles(bounds);
+      Object.entries(handles).forEach(([name, handle]) => {
+        elements.push(
+          <rect
+            key={`handle-${name}`}
+            x={handle.x - 4}
+            y={handle.y - 4}
+            width="8"
+            height="8"
+            fill="white"
+            stroke="rgba(59, 130, 246, 0.8)"
+            strokeWidth="1"
+            style={{ 
+              cursor: this.getHandleCursor(name),
+              pointerEvents: 'auto'
+            }}
+          />
+        );
+      });
+    }
+
+    return elements;
+  }
+
+  getHandleCursor(handleName) {
+    const cursors = {
+      'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
+      'e': 'e-resize', 'se': 'se-resize', 's': 's-resolve',
+      'sw': 'sw-resize', 'w': 'w-resize'
+    };
+    return cursors[handleName] || 'default';
   }
 
   renderEraserCursor(showEraser, eraserPosition, eraserWidth) {

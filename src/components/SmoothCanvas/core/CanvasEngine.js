@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js - Fixed shape properties
+// src/components/SmoothCanvas/core/CanvasEngine.js - Updated with Selection Support
 import rough from 'roughjs';
 
 export class CanvasEngine {
@@ -13,7 +13,6 @@ export class CanvasEngine {
       opacity: 100,
       eraserWidth: 10,
       viewBox: { x: 0, y: 0, width: 900, height: 700 },
-      // Shape options (simplified)
       shapeColor: '#000000',
       shapeBorderSize: 2,
       shapeFill: false,
@@ -22,6 +21,7 @@ export class CanvasEngine {
       ...options
     };
     
+    // Existing properties
     this.isDrawing = false;
     this.currentPath = [];
     this.paths = [];
@@ -37,20 +37,31 @@ export class CanvasEngine {
     this.pathsToErase = new Set();
     this.pathBBoxes = new Map();
     
-    // Rough.js instances
-    this.roughCanvas = null;
-    this.roughSvg = null;
+    // Selection properties
+    this.selectedItems = new Set();
+    this.isSelecting = false;
+    this.selectionStart = null;
+    this.selectionRect = null;
+    this.selectionBounds = null;
+    this.isDraggingSelection = false;
+    this.dragStart = null;
+    this.resizeHandle = null; // Which resize handle is being dragged
     
     // Rectangle drawing state
     this.isDrawingRectangle = false;
     this.rectangleStart = null;
     this.currentRectangle = null;
     
+    // Rough.js instances
+    this.roughCanvas = null;
+    this.roughSvg = null;
+    
     this.dpr = window.devicePixelRatio || 1;
     this.initializeCanvas();
     this.initializeRough();
   }
 
+  // Existing methods (initializeCanvas, initializeRough, etc.)...
   initializeCanvas() {
     if (!this.canvasRef.current) return;
     
@@ -74,8 +85,377 @@ export class CanvasEngine {
     }
   }
 
+  // SELECTION METHODS
+
+  // Hit testing for individual items
+  hitTest(point, item) {
+    const tolerance = 15 / (this.options.viewBox ? 
+      this.options.width / this.options.viewBox.width : 1);
+    
+    console.log('Hit testing item:', item.id, 'at point:', point, 'tolerance:', tolerance);
+    
+    if (item.type === 'stroke') {
+      return this.hitTestStroke(point, item, tolerance);
+    } else if (item.type === 'shape') {
+      return this.hitTestShape(point, item, tolerance);
+    }
+    return false;
+  }
+
+  hitTestStroke(point, stroke, tolerance) {
+    // Get or calculate bounding box
+    let bbox = this.pathBBoxes.get(stroke.id);
+    if (!bbox) {
+      bbox = this.calculateBoundingBox(stroke.pathData);
+      if (bbox) {
+        // Apply transform if it exists
+        if (stroke.transform) {
+          bbox.x += stroke.transform.translateX || 0;
+          bbox.y += stroke.transform.translateY || 0;
+        }
+        this.pathBBoxes.set(stroke.id, bbox);
+      }
+    }
+    
+    if (!bbox) {
+      console.log('No bounding box for stroke:', stroke.id);
+      return false;
+    }
+    
+    console.log('Stroke bbox:', bbox, 'point:', point);
+    
+    // Expanded bounding box test with tolerance
+    const hit = point.x >= bbox.x - tolerance && 
+                 point.x <= bbox.x + bbox.width + tolerance &&
+                 point.y >= bbox.y - tolerance && 
+                 point.y <= bbox.y + bbox.height + tolerance;
+    
+    console.log('Stroke hit test result:', hit);
+    return hit;
+  }
+
+  hitTestShape(point, shape, tolerance) {
+    console.log('Shape hit test:', shape, 'point:', point);
+    
+    if (shape.shapeType === 'rectangle') {
+      const hit = point.x >= shape.x - tolerance && 
+                   point.x <= shape.x + shape.width + tolerance &&
+                   point.y >= shape.y - tolerance && 
+                   point.y <= shape.y + shape.height + tolerance;
+      
+      console.log('Rectangle hit test result:', hit);
+      return hit;
+    }
+    return false;
+  }
+
+  // Find the topmost item at a point
+  findItemAtPoint(point) {
+    console.log('Finding item at point:', point, 'total paths:', this.paths.length);
+    
+    // Search from top to bottom (reverse order since later items are on top)
+    for (let i = this.paths.length - 1; i >= 0; i--) {
+      const item = this.paths[i];
+      console.log('Testing item:', item.id, item.type);
+      
+      if (this.hitTest(point, item)) {
+        console.log('Found item:', item.id);
+        return item;
+      }
+    }
+    
+    console.log('No item found at point');
+    return null;
+  }
+
+  // Find all items within a rectangle
+  findItemsInRect(rect) {
+    console.log('Finding items in rect:', rect);
+    const itemsInRect = [];
+    
+    for (const item of this.paths) {
+      if (this.itemIntersectsRect(item, rect)) {
+        itemsInRect.push(item.id);
+        console.log('Item in rect:', item.id);
+      }
+    }
+    
+    console.log('Found items in rect:', itemsInRect);
+    return itemsInRect;
+  }
+
+  itemIntersectsRect(item, rect) {
+    let itemBounds;
+    
+    if (item.type === 'stroke') {
+      itemBounds = this.pathBBoxes.get(item.id);
+      if (!itemBounds) {
+        itemBounds = this.calculateBoundingBox(item.pathData);
+        if (itemBounds && item.transform) {
+          itemBounds.x += item.transform.translateX || 0;
+          itemBounds.y += item.transform.translateY || 0;
+        }
+        if (itemBounds) {
+          this.pathBBoxes.set(item.id, itemBounds);
+        }
+      }
+    } else if (item.type === 'shape') {
+      itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+    }
+    
+    if (!itemBounds) return false;
+    
+    // Check if rectangles intersect
+    const intersects = !(rect.x > itemBounds.x + itemBounds.width ||
+                        rect.x + rect.width < itemBounds.x ||
+                        rect.y > itemBounds.y + itemBounds.height ||
+                        rect.y + rect.height < itemBounds.y);
+    
+    console.log('Item intersects rect:', item.id, intersects, 'itemBounds:', itemBounds, 'rect:', rect);
+    return intersects;
+  }
+
+  // Calculate bounding box for selected items
+  getSelectionBounds(selectedItemIds) {
+    if (selectedItemIds.size === 0) return null;
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    for (const itemId of selectedItemIds) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) continue;
+      
+      let itemBounds;
+      if (item.type === 'stroke') {
+        itemBounds = this.pathBBoxes.get(item.id) || this.calculateBoundingBox(item.pathData);
+      } else if (item.type === 'shape') {
+        itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+      }
+      
+      if (itemBounds) {
+        minX = Math.min(minX, itemBounds.x);
+        minY = Math.min(minY, itemBounds.y);
+        maxX = Math.max(maxX, itemBounds.x + itemBounds.width);
+        maxY = Math.max(maxY, itemBounds.y + itemBounds.height);
+      }
+    }
+    
+    if (minX === Infinity) return null;
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+  }
+
+  // Get resize handle at point
+  getResizeHandleAtPoint(point, bounds) {
+    if (!bounds) return null;
+    
+    const handleSize = 8;
+    const handles = this.getResizeHandles(bounds);
+    
+    for (const [name, handle] of Object.entries(handles)) {
+      if (point.x >= handle.x - handleSize/2 && point.x <= handle.x + handleSize/2 &&
+          point.y >= handle.y - handleSize/2 && point.y <= handle.y + handleSize/2) {
+        return name;
+      }
+    }
+    
+    return null;
+  }
+
+  getResizeHandles(bounds) {
+    const { x, y, width, height } = bounds;
+    return {
+      'nw': { x: x, y: y },                    // top-left
+      'n':  { x: x + width/2, y: y },          // top-center
+      'ne': { x: x + width, y: y },            // top-right
+      'e':  { x: x + width, y: y + height/2 }, // middle-right
+      'se': { x: x + width, y: y + height },   // bottom-right
+      's':  { x: x + width/2, y: y + height }, // bottom-center
+      'sw': { x: x, y: y + height },           // bottom-left
+      'w':  { x: x, y: y + height/2 }          // middle-left
+    };
+  }
+
+  // TRANSFORMATION METHODS
+
+  moveSelectedItems(deltaX, deltaY) {
+    for (const itemId of this.selectedItems) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) continue;
+      
+      if (item.type === 'stroke') {
+        this.moveStroke(item, deltaX, deltaY);
+      } else if (item.type === 'shape') {
+        this.moveShape(item, deltaX, deltaY);
+      }
+    }
+    
+    // Update bounding boxes
+    this.updatePathBoundingBoxes();
+  }
+
+  moveStroke(stroke, deltaX, deltaY) {
+    // This is complex - we need to parse and modify the SVG path data
+    // For now, we'll store the transformation and apply it during rendering
+    if (!stroke.transform) {
+      stroke.transform = { translateX: 0, translateY: 0 };
+    }
+    stroke.transform.translateX += deltaX;
+    stroke.transform.translateY += deltaY;
+  }
+
+  moveShape(shape, deltaX, deltaY) {
+    shape.x += deltaX;
+    shape.y += deltaY;
+  }
+
+  resizeSelectedItems(newBounds) {
+    if (this.selectedItems.size === 0 || !this.selectionBounds) return;
+    
+    const oldBounds = this.selectionBounds;
+    const scaleX = newBounds.width / oldBounds.width;
+    const scaleY = newBounds.height / oldBounds.height;
+    
+    for (const itemId of this.selectedItems) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) continue;
+      
+      if (item.type === 'shape') {
+        this.resizeShape(item, oldBounds, newBounds, scaleX, scaleY);
+      }
+      // Note: Stroke resizing is more complex and would require path transformation
+    }
+    
+    this.selectionBounds = newBounds;
+    this.updatePathBoundingBoxes();
+  }
+
+  resizeShape(shape, oldBounds, newBounds, scaleX, scaleY) {
+    // Calculate relative position within old bounds
+    const relX = (shape.x - oldBounds.x) / oldBounds.width;
+    const relY = (shape.y - oldBounds.y) / oldBounds.height;
+    const relW = shape.width / oldBounds.width;
+    const relH = shape.height / oldBounds.height;
+    
+    // Apply to new bounds
+    shape.x = newBounds.x + relX * newBounds.width;
+    shape.y = newBounds.y + relY * newBounds.height;
+    shape.width = relW * newBounds.width;
+    shape.height = relH * newBounds.height;
+  }
+
+  deleteSelectedItems() {
+    const itemsToDelete = Array.from(this.selectedItems);
+    
+    // Remove items from paths array
+    this.paths = this.paths.filter(item => !itemsToDelete.includes(item.id));
+    
+    // Clean up bounding boxes
+    for (const itemId of itemsToDelete) {
+      this.pathBBoxes.delete(itemId);
+    }
+    
+    // Clear selection
+    this.selectedItems.clear();
+    this.selectionBounds = null;
+  }
+
+  updatePathBoundingBoxes() {
+    for (const item of this.paths) {
+      if (item.type === 'stroke') {
+        const bbox = this.calculateBoundingBox(item.pathData);
+        if (bbox && item.transform) {
+          bbox.x += item.transform.translateX;
+          bbox.y += item.transform.translateY;
+        }
+        if (bbox) {
+          this.pathBBoxes.set(item.id, bbox);
+        }
+      } else if (item.type === 'shape') {
+        const bbox = { x: item.x, y: item.y, width: item.width, height: item.height };
+        this.pathBBoxes.set(item.id, bbox);
+      }
+    }
+  }
+
+  // SELECTION STATE METHODS
+
+  setSelectedItems(itemIds) {
+    this.selectedItems = new Set(itemIds);
+    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
+  }
+
+  addToSelection(itemId) {
+    this.selectedItems.add(itemId);
+    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
+  }
+
+  removeFromSelection(itemId) {
+    this.selectedItems.delete(itemId);
+    this.selectionBounds = this.selectedItems.size > 0 ? 
+      this.getSelectionBounds(this.selectedItems) : null;
+  }
+
+  clearSelection() {
+    this.selectedItems.clear();
+    this.selectionBounds = null;
+    this.isSelecting = false;
+    this.selectionStart = null;
+    this.selectionRect = null;
+  }
+
+  isItemSelected(itemId) {
+    return this.selectedItems.has(itemId);
+  }
+
+  // AREA SELECTION METHODS
+
+  startAreaSelection(point) {
+    this.isSelecting = true;
+    this.selectionStart = point;
+    this.selectionRect = { x: point.x, y: point.y, width: 0, height: 0 };
+  }
+
+  updateAreaSelection(currentPoint) {
+    if (!this.isSelecting || !this.selectionStart) return;
+    
+    const start = this.selectionStart;
+    this.selectionRect = {
+      x: Math.min(start.x, currentPoint.x),
+      y: Math.min(start.y, currentPoint.y),
+      width: Math.abs(currentPoint.x - start.x),
+      height: Math.abs(currentPoint.y - start.y)
+    };
+  }
+
+  finishAreaSelection(addToExisting = false) {
+    if (!this.isSelecting || !this.selectionRect) return [];
+    
+    const itemsInRect = this.findItemsInRect(this.selectionRect);
+    
+    if (!addToExisting) {
+      this.setSelectedItems(itemsInRect);
+    } else {
+      for (const itemId of itemsInRect) {
+        this.addToSelection(itemId);
+      }
+    }
+    
+    this.isSelecting = false;
+    this.selectionStart = null;
+    this.selectionRect = null;
+    
+    return Array.from(this.selectedItems);
+  }
+
+  // EXISTING METHODS (keeping all the original functionality)
+
   getStrokeOptions(inputType, strokeWidth) {
-    // Adjust stroke width based on zoom level
     const zoomLevel = this.options.viewBox ? 
       this.options.width / this.options.viewBox.width : 1;
     
@@ -131,11 +511,9 @@ export class CanvasEngine {
       this.inputType = type;
     }
     
-    // Transform coordinates to account for viewBox (zoom and pan)
     const canvasX = (e.clientX - rect.left) / rect.width * this.options.width;
     const canvasY = (e.clientY - rect.top) / rect.height * this.options.height;
     
-    // Apply viewBox transformation
     const viewBox = this.options.viewBox || { x: 0, y: 0, width: this.options.width, height: this.options.height };
     const x = viewBox.x + (canvasX / this.options.width) * viewBox.width;
     const y = viewBox.y + (canvasY / this.options.height) * viewBox.height;
@@ -158,7 +536,7 @@ export class CanvasEngine {
     return [x, y, pressure];
   }
 
-  // Rectangle drawing methods
+  // Rectangle drawing methods (existing)
   startRectangle(startPoint) {
     console.log('Starting rectangle at:', startPoint);
     this.isDrawingRectangle = true;
@@ -174,13 +552,11 @@ export class CanvasEngine {
     const currentX = currentPoint[0];
     const currentY = currentPoint[1];
 
-    // Calculate rectangle bounds
     const x = Math.min(startX, currentX);
     const y = Math.min(startY, currentY);
     const width = Math.abs(currentX - startX);
     const height = Math.abs(currentY - startY);
 
-    // FIXED: Create temporary rectangle with PRESERVED properties from store
     this.currentRectangle = {
       x, y, width, height,
       color: this.options.shapeColor || '#000000',
@@ -188,34 +564,29 @@ export class CanvasEngine {
       fill: this.options.shapeFill || false,
       fillColor: this.options.shapeFillColor || '#000000',
       roundCorners: this.options.shapeRoundCorners || false,
-      // Always rough style as requested
       isRough: true,
-      roughness: 1.2, // Fixed value for hand-drawn style
-      bowing: 1.0,    // Fixed value for hand-drawn style
-      fillStyle: 'hachure' // Fixed fill style
+      roughness: 1.2,
+      bowing: 1.0,
+      fillStyle: 'hachure'
     };
 
-    // Update temporary rectangle in SVG
     this.updateTemporaryRectangle();
   }
 
   updateTemporaryRectangle() {
     if (!this.currentRectangle || !this.svgRef.current) return;
 
-    // Remove existing temporary rectangle
     const existingTemp = this.svgRef.current.querySelector('#temp-rectangle');
     if (existingTemp) {
       existingTemp.remove();
     }
 
-    // Always create rough rectangle since we only support hand-drawn style
     this.createTempRoughRectangle();
   }
 
   createTempRoughRectangle() {
     const rect = this.currentRectangle;
     
-    // FIXED: Use consistent rough options that match the final shape
     const roughOptions = {
       stroke: rect.color,
       strokeWidth: rect.borderSize,
@@ -231,7 +602,6 @@ export class CanvasEngine {
         rect.x, rect.y, rect.width, rect.height, roughOptions
       );
 
-      // Create a group element for the temporary rectangle
       const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       tempGroup.id = 'temp-rectangle';
       tempGroup.style.opacity = '0.8';
@@ -248,20 +618,17 @@ export class CanvasEngine {
 
     console.log('Finishing rectangle:', this.currentRectangle);
 
-    // Remove temporary rectangle
     const tempRect = this.svgRef.current?.querySelector('#temp-rectangle');
     if (tempRect) {
       tempRect.remove();
     }
 
-    // Only create rectangle if it has meaningful dimensions
     if (this.currentRectangle.width > 5 && this.currentRectangle.height > 5) {
       const rectangleShape = this.addShape({
         type: 'rectangle',
         ...this.currentRectangle
       });
 
-      // Reset rectangle drawing state
       this.isDrawingRectangle = false;
       this.rectangleStart = null;
       this.currentRectangle = null;
@@ -269,7 +636,6 @@ export class CanvasEngine {
       return rectangleShape;
     }
 
-    // Reset state even if rectangle was too small
     this.isDrawingRectangle = false;
     this.rectangleStart = null;
     this.currentRectangle = null;
@@ -277,20 +643,17 @@ export class CanvasEngine {
   }
 
   cancelRectangle() {
-    // Remove temporary rectangle
     const tempRect = this.svgRef.current?.querySelector('#temp-rectangle');
     if (tempRect) {
       tempRect.remove();
     }
 
-    // Reset state
     this.isDrawingRectangle = false;
     this.rectangleStart = null;
     this.currentRectangle = null;
   }
 
   calculateBoundingBox(pathData) {
-    // For path data strings
     if (typeof pathData === 'string') {
       const coords = pathData.match(/(-?\d+(?:\.\d+)?)/g);
       if (!coords || coords.length < 4) return null;
@@ -311,11 +674,9 @@ export class CanvasEngine {
       
       return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
     }
-    // For shape objects
     else if (typeof pathData === 'object') {
       const shape = pathData;
       
-      // Different calculations based on shape type
       if (shape.type === 'line') {
         const x = Math.min(shape.x1, shape.x2);
         const y = Math.min(shape.y1, shape.y2);
@@ -324,7 +685,6 @@ export class CanvasEngine {
         return { x, y, width, height };
       }
       else {
-        // For rectangle, circle, triangle, etc.
         return { 
           x: shape.x, 
           y: shape.y, 
@@ -338,7 +698,6 @@ export class CanvasEngine {
   }
 
   eraserIntersectsBoundingBox(eraserX, eraserY, eraserRadius, bbox) {
-    // Adjust eraser radius based on zoom level
     const zoomLevel = this.options.viewBox ? 
       this.options.width / this.options.viewBox.width : 1;
     
@@ -368,7 +727,6 @@ export class CanvasEngine {
     return `path-${Date.now()}-${this.nextPathId++}`;
   }
 
-  // Add a path for drawing strokes
   addPath(pathData, color, strokeWidth, inputType, inputPoints = []) {
     const newPath = {
       id: this.generatePathId(),
@@ -379,7 +737,8 @@ export class CanvasEngine {
       strokeWidth,
       opacity: this.options.opacity,
       inputPoints,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      transform: null // For selection transformations
     };
     
     const bbox = this.calculateBoundingBox(pathData);
@@ -391,7 +750,6 @@ export class CanvasEngine {
     return newPath;
   }
 
-  // FIXED: Enhanced addShape method with proper property preservation
   addShape(shapeData) {
     const { 
       type, x, y, width, height, 
@@ -401,33 +759,28 @@ export class CanvasEngine {
     
     const id = this.generatePathId();
     
-    // FIXED: Create shape with ALL required properties preserved
     const newShape = {
       id,
       type: 'shape',
       shapeType: type,
       x, y, width, height,
-      // FIXED: Ensure all shape properties are stored consistently
       color: this.normalizeColor(color || '#000000'),
       borderSize: borderSize || 2,
       fill: !!fill,
       fillColor: this.normalizeColor(fillColor || color || '#000000'),
       roundCorners: !!roundCorners,
-      // FIXED: Always store rough properties for consistency
       isRough: isRough !== undefined ? isRough : true,
-      roughness: roughness || 1.2,  // Fixed hand-drawn values
-      bowing: bowing || 1.0,        // Fixed hand-drawn values
+      roughness: roughness || 1.2,
+      bowing: bowing || 1.0,
       fillStyle: fillStyle || 'hachure',
       timestamp: Date.now()
     };
     
-    // Calculate bounding box for the shape
     const bbox = this.calculateBoundingBox(newShape);
     if (bbox) {
       this.pathBBoxes.set(newShape.id, bbox);
     }
     
-    // Add to paths array
     this.paths.push(newShape);
     
     console.log('CanvasEngine: Added shape with preserved properties:', {
@@ -449,8 +802,7 @@ export class CanvasEngine {
     this.currentPath = [];
     this.pathsToErase.clear();
     this.nextPathId = 0;
-    
-    // Clear any temporary rectangles
+    this.clearSelection(); // Clear selection when clearing paths
     this.cancelRectangle();
   }
 
@@ -460,11 +812,12 @@ export class CanvasEngine {
     const lastPath = this.paths.pop();
     if (lastPath && lastPath.id !== undefined) {
       this.pathBBoxes.delete(lastPath.id);
+      // Remove from selection if it was selected
+      this.removeFromSelection(lastPath.id);
     }
     return true;
   }
 
-  // FIXED: Export with complete shape properties
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
@@ -479,13 +832,11 @@ export class CanvasEngine {
             y: path.y,
             width: path.width,
             height: path.height,
-            // FIXED: Export all shape properties
             color: path.color,
             borderSize: path.borderSize,
             fill: path.fill,
             fillColor: path.fillColor,
             roundCorners: path.roundCorners,
-            // Rough.js properties
             isRough: path.isRough,
             roughness: path.roughness,
             bowing: path.bowing,
@@ -502,7 +853,8 @@ export class CanvasEngine {
             opacity: path.opacity,
             inputType: path.inputType,
             inputPoints: path.inputPoints,
-            timestamp: path.timestamp
+            timestamp: path.timestamp,
+            transform: path.transform
           };
         }
       }),
@@ -511,7 +863,6 @@ export class CanvasEngine {
         height: this.options.height,
         opacity: this.options.opacity,
         viewBox: this.options.viewBox,
-        // FIXED: Store current shape options in app state
         shapeColor: this.options.shapeColor,
         shapeBorderSize: this.options.shapeBorderSize,
         shapeFill: this.options.shapeFill,
@@ -521,7 +872,6 @@ export class CanvasEngine {
     });
   }
 
-  // FIXED: Import function that properly restores shape properties
   importFromJSON(jsonData) {
     if (!jsonData) {
       return true;
@@ -562,7 +912,8 @@ export class CanvasEngine {
             strokeWidth: element.strokeWidth || 5,
             opacity: element.opacity !== undefined ? element.opacity : this.options.opacity,
             inputPoints: element.inputPoints || [],
-            timestamp: element.timestamp || Date.now()
+            timestamp: element.timestamp || Date.now(),
+            transform: element.transform || null
           };
 
           const bbox = this.calculateBoundingBox(element.pathData);
@@ -573,7 +924,6 @@ export class CanvasEngine {
           this.paths.push(newPath);
         }
         else if (element.type === 'shape') {
-          // FIXED: Import with ALL shape properties preserved
           const newShape = {
             id: this.generatePathId(),
             type: 'shape',
@@ -582,13 +932,11 @@ export class CanvasEngine {
             y: element.y,
             width: element.width,
             height: element.height,
-            // FIXED: Restore all shape properties with proper defaults
             color: element.color || '#000000',
             borderSize: element.borderSize !== undefined ? element.borderSize : (element.strokeWidth || 2),
             fill: element.fill !== undefined ? element.fill : false,
             fillColor: element.fillColor || element.color || '#000000',
             roundCorners: element.roundCorners !== undefined ? element.roundCorners : false,
-            // FIXED: Restore rough properties with hand-drawn defaults
             isRough: element.isRough !== undefined ? element.isRough : true,
             roughness: element.roughness !== undefined ? element.roughness : 1.2,
             bowing: element.bowing !== undefined ? element.bowing : 1.0,
@@ -613,14 +961,12 @@ export class CanvasEngine {
         }
       });
 
-      // FIXED: Update options with imported app state
       if (data.appState) {
         this.updateOptions({
           width: data.appState.width || this.options.width,
           height: data.appState.height || this.options.height,
           opacity: data.appState.opacity !== undefined ? data.appState.opacity : this.options.opacity,
           viewBox: data.appState.viewBox || this.options.viewBox,
-          // FIXED: Restore shape options
           shapeColor: data.appState.shapeColor || this.options.shapeColor,
           shapeBorderSize: data.appState.shapeBorderSize || this.options.shapeBorderSize,
           shapeFill: data.appState.shapeFill !== undefined ? data.appState.shapeFill : this.options.shapeFill,
@@ -636,7 +982,6 @@ export class CanvasEngine {
     }
   }
 
-  // Export as SVG
   exportAsSVG() {
     const svg = this.svgRef.current;
     if (!svg) return '';
@@ -650,7 +995,6 @@ export class CanvasEngine {
     return new XMLSerializer().serializeToString(svgClone);
   }
 
-  // Export as data URL
   exportAsDataUrl(format = 'png', transparent = true) {
     return new Promise(resolve => {
       const exportCanvas = document.createElement('canvas');
@@ -694,6 +1038,9 @@ export class CanvasEngine {
   getCurrentPath() { return this.currentPath; }
   getCurrentRectangle() { return this.currentRectangle; }
   isDrawingShape() { return this.isDrawingRectangle; }
+  getSelectedItems() { return Array.from(this.selectedItems); }
+  getSelectionBounds() { return this.selectionBounds; }
+  getSelectionRect() { return this.selectionRect; }
 
   // Setters
   setPathsToErase(pathsToErase) { this.pathsToErase = pathsToErase; }
@@ -704,7 +1051,6 @@ export class CanvasEngine {
     if (newOptions.width || newOptions.height) {
       this.initializeCanvas();
     }
-    // Re-initialize rough.js if needed
     this.initializeRough();
   }
 
@@ -714,5 +1060,6 @@ export class CanvasEngine {
     }
     this.pathBBoxes.clear();
     this.cancelRectangle();
+    this.clearSelection();
   }
 }

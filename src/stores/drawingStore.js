@@ -1,4 +1,4 @@
-// src/stores/drawingStore.js - Simplified for rectangles only
+// src/stores/drawingStore.js - Updated with Selection Support
 import { create } from 'zustand';
 
 const VALID_PATTERNS = ['blank', 'grid', 'dots', 'lines', 'graph'];
@@ -11,7 +11,14 @@ export const useDrawingStore = create((set, get) => ({
   opacity: 100,
   eraserWidth: 10,
   
-  // Simplified shape properties (rectangles only)
+  // Selection state
+  selectedItems: new Set(), // Set of selected item IDs
+  selectionBounds: null, // { x, y, width, height } of selection
+  isSelecting: false, // True when dragging selection area
+  selectionStart: null, // Start point for area selection
+  selectionRect: null, // Current selection rectangle
+  
+  // Shape properties
   shapeColor: '#000000',
   shapeBorderSize: 2,
   shapeFill: false,
@@ -43,14 +50,152 @@ export const useDrawingStore = create((set, get) => ({
   
   // Tool actions
   setTool: (tool) => {
-    const validTools = ['pen', 'eraser', 'pointer', 'pan', 'rectangle'];
+    const validTools = ['pen', 'eraser', 'pointer', 'pan', 'rectangle', 'select'];
     if (validTools.includes(tool)) {
+      // Clear selection when switching away from select tool
+      if (get().currentTool === 'select' && tool !== 'select') {
+        get().clearSelection();
+      }
       set({ currentTool: tool });
     } else {
       console.warn(`Invalid tool: ${tool}`);
     }
   },
   
+  // Selection actions
+  addToSelection: (itemId) => {
+    set(state => {
+      const newSelected = new Set(state.selectedItems);
+      newSelected.add(itemId);
+      return { 
+        selectedItems: newSelected,
+        selectionBounds: get().calculateSelectionBounds(newSelected)
+      };
+    });
+  },
+  
+  removeFromSelection: (itemId) => {
+    set(state => {
+      const newSelected = new Set(state.selectedItems);
+      newSelected.delete(itemId);
+      return { 
+        selectedItems: newSelected,
+        selectionBounds: newSelected.size > 0 ? get().calculateSelectionBounds(newSelected) : null
+      };
+    });
+  },
+  
+  setSelection: (itemIds) => {
+    const selectedSet = new Set(Array.isArray(itemIds) ? itemIds : [itemIds]);
+    set({ 
+      selectedItems: selectedSet,
+      selectionBounds: selectedSet.size > 0 ? get().calculateSelectionBounds(selectedSet) : null
+    });
+  },
+  
+  clearSelection: () => {
+    set({ 
+      selectedItems: new Set(),
+      selectionBounds: null,
+      isSelecting: false,
+      selectionStart: null,
+      selectionRect: null
+    });
+  },
+  
+  toggleSelection: (itemId) => {
+    const state = get();
+    if (state.selectedItems.has(itemId)) {
+      state.removeFromSelection(itemId);
+    } else {
+      state.addToSelection(itemId);
+    }
+  },
+  
+  // Selection area methods
+  startAreaSelection: (point) => {
+    set({
+      isSelecting: true,
+      selectionStart: point,
+      selectionRect: { x: point.x, y: point.y, width: 0, height: 0 }
+    });
+  },
+  
+  updateAreaSelection: (currentPoint) => {
+    const state = get();
+    if (!state.isSelecting || !state.selectionStart) return;
+    
+    const start = state.selectionStart;
+    const rect = {
+      x: Math.min(start.x, currentPoint.x),
+      y: Math.min(start.y, currentPoint.y),
+      width: Math.abs(currentPoint.x - start.x),
+      height: Math.abs(currentPoint.y - start.y)
+    };
+    
+    set({ selectionRect: rect });
+  },
+  
+  finishAreaSelection: () => {
+    const state = get();
+    if (!state.isSelecting || !state.selectionRect) return;
+    
+    // This will be implemented in CanvasEngine to find items in selection rect
+    if (state.findItemsInRect) {
+      const itemsInRect = state.findItemsInRect(state.selectionRect);
+      state.setSelection(itemsInRect);
+    }
+    
+    set({
+      isSelecting: false,
+      selectionStart: null,
+      selectionRect: null
+    });
+  },
+  
+  // Selection bounds calculation (will be implemented by canvas engine)
+  calculateSelectionBounds: (selectedItems) => {
+    const state = get();
+    if (state.getSelectionBounds) {
+      return state.getSelectionBounds(selectedItems);
+    }
+    return null;
+  },
+  
+  // Transform selected items
+  moveSelection: (deltaX, deltaY) => {
+    const state = get();
+    if (state.selectedItems.size === 0) return;
+    
+    if (state.moveSelectedItems) {
+      state.moveSelectedItems(deltaX, deltaY);
+      // Update selection bounds
+      const newBounds = state.calculateSelectionBounds(state.selectedItems);
+      set({ selectionBounds: newBounds });
+    }
+  },
+  
+  resizeSelection: (newBounds) => {
+    const state = get();
+    if (state.selectedItems.size === 0) return;
+    
+    if (state.resizeSelectedItems) {
+      state.resizeSelectedItems(newBounds);
+      set({ selectionBounds: newBounds });
+    }
+  },
+  
+  deleteSelection: () => {
+    const state = get();
+    if (state.selectedItems.size === 0) return;
+    
+    if (state.deleteSelectedItems) {
+      state.deleteSelectedItems();
+      state.clearSelection();
+    }
+  },
+  
+  // Existing stroke/shape actions...
   setStrokeColor: (color) => {
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
       set({ strokeColor: color });
@@ -74,7 +219,7 @@ export const useDrawingStore = create((set, get) => ({
     set({ eraserWidth: validWidth });
   },
   
-  // Simplified shape actions
+  // Shape actions
   setShapeColor: (color) => {
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
       set({ shapeColor: color });
@@ -108,7 +253,7 @@ export const useDrawingStore = create((set, get) => ({
     canvasDimensions: dimensions
   }),
   
-  // Zoom and Pan actions
+  // Zoom and Pan actions (existing code)...
   setZoomLevel: (level) => set(state => {
     const newZoom = Math.max(0.1, Math.min(5, level));
     
@@ -217,7 +362,7 @@ export const useDrawingStore = create((set, get) => ({
     };
   }),
   
-  // Page settings actions
+  // Page settings actions (existing code)...
   setPattern: (pattern) => {
     if (VALID_PATTERNS.includes(pattern)) {
       set(state => ({
@@ -250,7 +395,7 @@ export const useDrawingStore = create((set, get) => ({
     }));
   },
   
-  // Canvas data actions
+  // Canvas data actions (existing code)...
   setCanvasData: (data) => {
     const currentData = get().canvasData;
     
@@ -284,6 +429,8 @@ export const useDrawingStore = create((set, get) => ({
       hasUnsavedChanges: false,
       isDataLoading: false
     });
+    // Also clear selection when clearing canvas
+    get().clearSelection();
   },
   
   refreshCanvasData: () => {
@@ -313,6 +460,13 @@ export const useDrawingStore = create((set, get) => ({
   getCurrentCanvasData: null,
   loadCanvasData: null,
   
+  // Selection method references (to be set by CanvasEngine)
+  findItemsInRect: null,
+  getSelectionBounds: null,
+  moveSelectedItems: null,
+  resizeSelectedItems: null,
+  deleteSelectedItems: null,
+  
   registerCanvasMethods: (methods) => {
     console.log('DrawingStore: Registering canvas methods', Object.keys(methods));
     
@@ -328,7 +482,13 @@ export const useDrawingStore = create((set, get) => ({
       exportCanvasImage: methods.exportImage,
       undoCanvas: methods.undo,
       getCurrentCanvasData: methods.getCurrentCanvasData,
-      loadCanvasData: methods.loadCanvasData
+      loadCanvasData: methods.loadCanvasData,
+      // Selection methods
+      findItemsInRect: methods.findItemsInRect,
+      getSelectionBounds: methods.getSelectionBounds,
+      moveSelectedItems: methods.moveSelectedItems,
+      resizeSelectedItems: methods.resizeSelectedItems,
+      deleteSelectedItems: methods.deleteSelectedItems
     });
   },
   
@@ -348,7 +508,8 @@ export const useDrawingStore = create((set, get) => ({
       isDataLoading: state.isDataLoading,
       currentTool: state.currentTool,
       pageSettings: state.pageSettings,
-      // Shape state
+      selectedItems: state.selectedItems,
+      selectionBounds: state.selectionBounds,
       shapeColor: state.shapeColor,
       shapeBorderSize: state.shapeBorderSize,
       shapeFill: state.shapeFill,
