@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - Updated with Selection Support
+// src/components/SmoothCanvas/core/EventHandler.js - FIXED VERSION
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -20,6 +20,13 @@ export class EventHandler {
     this.resizeHandle = null;
     this.originalBounds = null;
 
+    // FIXED: Add throttling and optimization variables
+    this.dragThrottleTimeout = null;
+    this.lastDragUpdate = 0;
+    this.dragUpdateInterval = 16; // ~60fps
+    this.accumulatedDelta = { x: 0, y: 0 };
+    this.isThrottling = false;
+
     // Bind methods
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -33,6 +40,39 @@ export class EventHandler {
   setCallbacks(callbacks) {
     this.callbacks = { ...this.callbacks, ...callbacks };
   }
+
+  // FIXED: Throttled drag update method
+  throttledDragUpdate = () => {
+    if (!this.isThrottling || !this.isDraggingSelection) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
+      const { x, y } = this.accumulatedDelta;
+      
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        // Apply the accumulated movement
+        this.engine.moveSelectedItems(x, y);
+        
+        // Reset accumulator
+        this.accumulatedDelta = { x: 0, y: 0 };
+        this.lastDragUpdate = now;
+
+        // FIXED: Only call callback once per throttle interval
+        if (this.callbacks.onSelectionMoved) {
+          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+        }
+      }
+    }
+
+    // Continue throttling if still dragging
+    if (this.isDraggingSelection) {
+      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+    } else {
+      this.isThrottling = false;
+    }
+  };
 
   handlePointerDown(e) {
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
@@ -48,7 +88,6 @@ export class EventHandler {
 
     // Handle selection tool
     if (this.options.currentTool === 'select') {
-
       this.handleSelectionPointerDown(e, worldPoint);
       return;
     }
@@ -82,28 +121,9 @@ export class EventHandler {
   handleSelectionPointerDown(e, worldPoint) {
     e.preventDefault();
 
-    // ADD COMPREHENSIVE DEBUG LOGGING
     console.log('=== SELECTION CLICK DEBUG ===');
     console.log('World point:', worldPoint);
-    console.log('Event details:', {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      ctrlKey: e.ctrlKey,
-      metaKey: e.metaKey,
-      button: e.button,
-      buttons: e.buttons
-    });
     console.log('Available paths:', this.engine.paths.length);
-
-    // Log all path bounding boxes
-    this.engine.paths.forEach((path, index) => {
-      const bbox = this.engine.pathBBoxes.get(path.id);
-      console.log(`Path ${index} (${path.id}):`, {
-        type: path.type,
-        bbox: bbox,
-        transform: path.transform
-      });
-    });
 
     // Check if clicking on a resize handle first
     if (this.engine.selectionBounds) {
@@ -115,7 +135,7 @@ export class EventHandler {
       }
     }
 
-    // Find what item was clicked - ADD MORE DEBUG
+    // Find what item was clicked
     console.log('Starting hit test...');
     const clickedItem = this.engine.findItemAtPoint(worldPoint);
     console.log('Hit test result:', clickedItem);
@@ -178,8 +198,11 @@ export class EventHandler {
   }
 
   startDraggingSelection(e, worldPoint) {
+    console.log('FIXED: Starting selection drag');
     this.isDraggingSelection = true;
     this.selectionDragStart = worldPoint;
+    this.accumulatedDelta = { x: 0, y: 0 };
+    this.lastDragUpdate = Date.now();
 
     if (this.engine.canvasRef.current.setPointerCapture) {
       this.engine.canvasRef.current.setPointerCapture(e.pointerId);
@@ -187,7 +210,11 @@ export class EventHandler {
 
     this.engine.activePointer = e.pointerId;
 
-    // ADD: Notify drag start
+    // FIXED: Start throttled updates
+    this.isThrottling = true;
+    this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+
+    // Notify drag start (once)
     if (this.callbacks.onSelectionDragStart) {
       this.callbacks.onSelectionDragStart();
     }
@@ -229,32 +256,24 @@ export class EventHandler {
       return;
     }
 
+    // FIXED: Optimized selection dragging
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
 
-      // THROTTLE: Only update every few pixels to prevent excessive updates
-      if (!this.lastDragPoint ||
-        Math.abs(worldPoint.x - this.lastDragPoint.x) > 2 ||
-        Math.abs(worldPoint.y - this.lastDragPoint.y) > 2) {
+      // FIXED: Accumulate movement instead of applying immediately
+      const deltaX = worldPoint.x - this.selectionDragStart.x;
+      const deltaY = worldPoint.y - this.selectionDragStart.y;
 
-        console.log('Dragging selection');
-
-        const deltaX = worldPoint.x - this.selectionDragStart.x;
-        const deltaY = worldPoint.y - this.selectionDragStart.y;
-
-        this.engine.moveSelectedItems(deltaX, deltaY);
+      // Only accumulate if movement is significant
+      if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
+        this.accumulatedDelta.x += deltaX;
+        this.accumulatedDelta.y += deltaY;
         this.selectionDragStart = worldPoint;
-        this.lastDragPoint = worldPoint;
-
-        // THROTTLED: Only notify occasionally during drag
-        if (this.callbacks.onSelectionMoved) {
-          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
-        }
       }
+
+      // The actual movement is handled by throttledDragUpdate
       return;
     }
-
-
 
     // Handle selection tool interactions
     if (this.options.currentTool === 'select') {
@@ -313,28 +332,10 @@ export class EventHandler {
     // Handle area selection
     if (this.isSelecting && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
-      console.log('Updating area selection to:', worldPoint);
       this.engine.updateAreaSelection(worldPoint);
 
       if (this.callbacks.onSelectionRectChanged) {
         this.callbacks.onSelectionRectChanged(this.engine.selectionRect);
-      }
-      return;
-    }
-
-    // Handle dragging selection
-    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
-      e.preventDefault();
-      console.log('Dragging selection');
-
-      const deltaX = worldPoint.x - this.selectionDragStart.x;
-      const deltaY = worldPoint.y - this.selectionDragStart.y;
-
-      this.engine.moveSelectedItems(deltaX, deltaY);
-      this.selectionDragStart = worldPoint;
-
-      if (this.callbacks.onSelectionChanged) {
-        this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
       }
       return;
     }
@@ -516,12 +517,34 @@ export class EventHandler {
       this.isSelecting = false;
     }
 
-    // Finish dragging selection
+    // FIXED: Finish dragging selection with proper cleanup
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
-      console.log('Finished dragging selection');
+      console.log('FIXED: Finished dragging selection');
+      
+      // Stop throttling
+      this.isThrottling = false;
+      if (this.dragThrottleTimeout) {
+        cancelAnimationFrame(this.dragThrottleTimeout);
+        this.dragThrottleTimeout = null;
+      }
+
+      // Apply any remaining accumulated movement
+      const { x, y } = this.accumulatedDelta;
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        this.engine.moveSelectedItems(x, y);
+      }
+
+      // Final cleanup
       this.isDraggingSelection = false;
       this.selectionDragStart = null;
+      this.accumulatedDelta = { x: 0, y: 0 };
 
+      // Notify drag end (once)
+      if (this.callbacks.onSelectionDragEnd) {
+        this.callbacks.onSelectionDragEnd();
+      }
+
+      // Final movement notification
       if (this.callbacks.onSelectionMoved) {
         this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
       }
@@ -548,7 +571,7 @@ export class EventHandler {
     }
   }
 
-  // Keyboard event handler for selection operations
+  // FIXED: Keyboard event handler with proper arrow key movement
   handleKeyDown(e) {
     if (this.options.currentTool !== 'select') return;
 
@@ -587,7 +610,7 @@ export class EventHandler {
         }
         break;
 
-      // FIX: Arrow key movement - the bug is here
+      // FIXED: Arrow key movement without clearing selection
       case 'ArrowUp':
       case 'ArrowDown':
       case 'ArrowLeft':
@@ -604,26 +627,25 @@ export class EventHandler {
             case 'ArrowRight': deltaX = step; break;
           }
 
-          // BUG WAS HERE: Don't clear selection after moving!
-          console.log('Moving selection by:', { deltaX, deltaY });
+          console.log('FIXED: Moving selection by keyboard:', { deltaX, deltaY });
+          
+          // Move selected items
           this.engine.moveSelectedItems(deltaX, deltaY);
 
-          // Update selection bounds after moving
+          // Update selection bounds
           this.engine.selectionBounds = this.engine.getSelectionBounds(this.engine.selectedItems);
 
-          // IMPORTANT: Keep selection active and notify of movement (not selection change)
+          // FIXED: Use onSelectionMoved instead of onSelectionChanged
           if (this.callbacks.onSelectionMoved) {
             this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
           }
-
-          // Force re-render to show moved items
-          const currentPaths = this.engine.getPaths();
-          // Trigger canvas update - this might need to be handled differently depending on your setup
         }
         break;
     }
   }
-  // Existing methods (pan, rectangle, drawing, etc.)...
+
+  // Rest of the existing methods remain the same...
+  // [Previous methods like startRectangleDrawing, updateRectangleDrawing, etc. remain unchanged]
 
   // Rectangle drawing methods
   startRectangleDrawing(e) {
@@ -989,6 +1011,30 @@ export class EventHandler {
     }
   }
 
+  // FIXED: Cleanup method to prevent memory leaks
+  cleanup() {
+    console.log('EventHandler: Cleaning up');
+    
+    // Cancel any pending throttled updates
+    if (this.dragThrottleTimeout) {
+      cancelAnimationFrame(this.dragThrottleTimeout);
+      this.dragThrottleTimeout = null;
+    }
+
+    // Reset all state
+    this.isThrottling = false;
+    this.isDraggingSelection = false;
+    this.isSelecting = false;
+    this.isResizingSelection = false;
+    this.isPanning = false;
+    
+    // Clear references
+    this.accumulatedDelta = { x: 0, y: 0 };
+    this.selectionDragStart = null;
+    this.lastPanPoint = null;
+    this.panStartPoint = null;
+  }
+
   attachListeners(element) {
     element.addEventListener('pointerdown', this.handlePointerDown);
     element.addEventListener('pointermove', this.handlePointerMove);
@@ -1003,6 +1049,9 @@ export class EventHandler {
   }
 
   detachListeners(element) {
+    // FIXED: Add cleanup before detaching
+    this.cleanup();
+    
     element.removeEventListener('pointerdown', this.handlePointerDown);
     element.removeEventListener('pointermove', this.handlePointerMove);
     element.removeEventListener('pointerup', this.handlePointerUp);

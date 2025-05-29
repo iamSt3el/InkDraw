@@ -350,7 +350,7 @@ const ToolBar = ({
         )}
       </div>
 
-      {/* Keyboard shortcuts overlay for selection */}
+      {/* Keyboard shortcuts overlay for selection
       {currentTool === 'select' && (
         <div className={styles.selection_shortcuts}>
           <div className={styles.shortcuts_panel}>
@@ -366,7 +366,7 @@ const ToolBar = ({
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </>
   );
 };

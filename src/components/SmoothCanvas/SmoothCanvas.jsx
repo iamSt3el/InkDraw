@@ -1,5 +1,5 @@
-// src/components/SmoothCanvas/SmoothCanvas.jsx - COMPLETE FIXED VERSION
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+// src/components/SmoothCanvas/SmoothCanvas.jsx - SIMPLE CLEAN VERSION
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
 import { CanvasRenderer } from './core/CanvasRenderer';
@@ -32,19 +32,8 @@ const SmoothCanvas = () => {
     shapeRoundCorners,
     // Selection properties
     selectedItems,
-    selectionBounds,
-    isSelecting,
-    selectionRect,
     setSelection,
-    clearSelection,
-    addToSelection,
-    removeFromSelection,
-    moveSelection,
-    resizeSelection,
-    deleteSelection,
-    startAreaSelection,
-    updateAreaSelection,
-    finishAreaSelection
+    clearSelection
   } = useDrawingStore();
 
   const { currentPageData } = usePageStore();
@@ -56,7 +45,7 @@ const SmoothCanvas = () => {
   const engineRef = useRef(null);
   const eventHandlerRef = useRef(null);
   const rendererRef = useRef(null);
-  const selectionUpdateTimeoutRef = useRef(null);
+  
   const isDraggingSelectionRef = useRef(false);
 
   // State
@@ -66,86 +55,47 @@ const SmoothCanvas = () => {
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const lastLoadedDataRef = useRef(null);
-  const isLoadingDataRef = useRef(false);
-
   const { width, height } = canvasDimensions;
 
-  // FIXED: Load canvas data with selection preservation
+  // Simple canvas data loader
   const loadCanvasData = useCallback((vectorData) => {
-    if (!engineRef.current || !vectorData || isLoadingDataRef.current) return false;
-
-    if (lastLoadedDataRef.current === vectorData) {
-      console.log('SmoothCanvas: Skipping reload of same data');
-      return true;
-    }
+    if (!engineRef.current || !vectorData) return false;
 
     try {
-      console.log('SmoothCanvas: Loading new canvas data...');
-      isLoadingDataRef.current = true;
-
-      // PRESERVE SELECTION STATE BEFORE CLEARING
-      const previousSelection = Array.from(engineRef.current.getSelectedItems());
-      console.log('SmoothCanvas: Preserving selection:', previousSelection);
-
       engineRef.current.clearPaths();
-      setPaths([]);
-
+      engineRef.current.clearSelection();
+      
       const success = engineRef.current.importFromJSON(vectorData);
-
+      
       if (success) {
         const currentPaths = engineRef.current.getPaths();
         setPaths([...currentPaths]);
-        lastLoadedDataRef.current = vectorData;
-        console.log('SmoothCanvas: Loaded', currentPaths.length, 'paths');
-
-        // RESTORE SELECTION STATE AFTER LOADING
-        if (previousSelection.length > 0) {
-          // Filter out any items that no longer exist after reload
-          const validSelection = previousSelection.filter(itemId =>
-            currentPaths.some(path => path.id === itemId)
-          );
-
-          if (validSelection.length > 0) {
-            console.log('SmoothCanvas: Restoring selection:', validSelection);
-            engineRef.current.setSelectedItems(validSelection);
-
-            // Update the store selection state
-            setSelection(validSelection);
-
-            // Trigger re-render with selection
-            setPaths([...currentPaths]);
-          }
-        }
       }
-
+      
       return success;
     } catch (error) {
-      console.error('SmoothCanvas: Error loading canvas data:', error);
+      console.error('Error loading canvas data:', error);
       return false;
-    } finally {
-      isLoadingDataRef.current = false;
     }
-  }, [setSelection]);
+  }, []);
 
   // Get current canvas data
   const getCurrentCanvasData = useCallback(() => {
     if (engineRef.current) {
-      const data = engineRef.current.exportAsJSON();
-      console.log('SmoothCanvas: Getting canvas data, length:', data?.length || 0);
-      return data;
+      return engineRef.current.exportAsJSON();
     }
     return null;
   }, []);
 
-  // Clear canvas
+  // Simple clear canvas
   const clearCanvas = useCallback(() => {
     if (engineRef.current) {
-      console.log('SmoothCanvas: Clearing canvas paths');
       engineRef.current.clearPaths();
+      engineRef.current.clearSelection();
       setPaths([]);
       setPathsToErase(new Set());
 
+      // Clear any temporary elements
       const svg = svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       const tempRect = svg?.querySelector('#temp-rectangle');
@@ -156,145 +106,85 @@ const SmoothCanvas = () => {
         rendererRef.current.clearRenderedShapes();
       }
 
-      lastLoadedDataRef.current = null;
+      // Update canvas data immediately
+      const emptyData = getCurrentCanvasData();
+      setCanvasData(emptyData);
+      
       return true;
     }
     return false;
-  }, []);
+  }, [getCurrentCanvasData, setCanvasData]);
+
+  // Update canvas data when content changes
+  const updateCanvasData = useCallback(() => {
+    if (engineRef.current && isInitialized) {
+      const data = getCurrentCanvasData();
+      setCanvasData(data);
+    }
+  }, [getCurrentCanvasData, setCanvasData, isInitialized]);
 
   // Handle pan events
   const handlePan = useCallback((deltaX, deltaY) => {
-    console.log('SmoothCanvas: Handling pan', deltaX, deltaY);
     panCanvas(deltaX, deltaY);
   }, [panCanvas]);
 
   // Handle zoom events
   const handleZoom = useCallback((zoomDelta, center) => {
-    console.log('SmoothCanvas: Handling zoom', zoomDelta);
     const newZoom = Math.max(0.1, Math.min(5, zoomLevel * zoomDelta));
     setZoomLevel(newZoom);
   }, [zoomLevel, setZoomLevel]);
 
-  // FIXED: Selection event handlers with proper logging
+  // Selection event handlers
   const handleSelectionChanged = useCallback((selectedItemIds) => {
-    console.log('SmoothCanvas: Selection changed:', selectedItemIds);
+    setSelection(selectedItemIds);
     
-    // Clear existing timeout
-    if (selectionUpdateTimeoutRef.current) {
-      clearTimeout(selectionUpdateTimeoutRef.current);
+    if (engineRef.current) {
+      engineRef.current.setSelectedItems(selectedItemIds);
     }
     
-    // Debounce selection updates during dragging
-    if (isDraggingSelectionRef.current) {
-      selectionUpdateTimeoutRef.current = setTimeout(() => {
-        setSelection(selectedItemIds);
-        
-        // Sync engine selection with store
-        if (engineRef.current) {
-          engineRef.current.setSelectedItems(selectedItemIds);
-        }
-        
-        // Update paths to trigger re-render with selection state
-        const currentPaths = engineRef.current.getPaths();
-        setPaths([...currentPaths]);
-      }, 16); // ~60fps
-    } else {
-      // Immediate update when not dragging
-      setSelection(selectedItemIds);
-      
-      if (engineRef.current) {
-        engineRef.current.setSelectedItems(selectedItemIds);
-      }
-      
-      const currentPaths = engineRef.current.getPaths();
-      setPaths([...currentPaths]);
-    }
+    const currentPaths = engineRef.current.getPaths();
+    setPaths([...currentPaths]);
   }, [setSelection]);
 
   const handleSelectionMoved = useCallback((selectedItemIds) => {
-    console.log('SmoothCanvas: Selection moved:', selectedItemIds);
-    
-    // Clear existing timeout
-    if (selectionUpdateTimeoutRef.current) {
-      clearTimeout(selectionUpdateTimeoutRef.current);
-    }
-    
-    // Debounce canvas data updates during movement
-    selectionUpdateTimeoutRef.current = setTimeout(() => {
-      const canvasData = engineRef.current.exportAsJSON();
-      setCanvasData(canvasData);
-      
-      // Update paths to trigger re-render
-      const currentPaths = engineRef.current.getPaths();
-      setPaths([...currentPaths]);
-    }, 50); // Slower for canvas data updates
-  }, [setCanvasData]);
+    updateCanvasData();
+    const currentPaths = engineRef.current.getPaths();
+    setPaths([...currentPaths]);
+  }, [updateCanvasData]);
 
   const handleSelectionResized = useCallback((selectedItemIds) => {
-    console.log('SmoothCanvas: Selection resized:', selectedItemIds);
-
-    // Update canvas data to save changes
-    const canvasData = engineRef.current.exportAsJSON();
-    setCanvasData(canvasData);
-
-    // Update paths to trigger re-render
+    updateCanvasData();
     const currentPaths = engineRef.current.getPaths();
     setPaths([...currentPaths]);
-  }, [setCanvasData]);
-
-  const handleSelectionRectChanged = useCallback((rect) => {
-    console.log('SmoothCanvas: Selection rect changed:', rect);
-    // Force re-render of selection overlay
-    const currentPaths = engineRef.current.getPaths();
-    setPaths([...currentPaths]);
-  }, []);
+  }, [updateCanvasData]);
 
   const handleSelectionDragStart = useCallback(() => {
-    console.log('SmoothCanvas: Selection drag started');
     isDraggingSelectionRef.current = true;
   }, []);
   
   const handleSelectionDragEnd = useCallback(() => {
-    console.log('SmoothCanvas: Selection drag ended');
     isDraggingSelectionRef.current = false;
-    
-    // Force final update
-    if (selectionUpdateTimeoutRef.current) {
-      clearTimeout(selectionUpdateTimeoutRef.current);
-    }
-    
-    const canvasData = engineRef.current.exportAsJSON();
-    setCanvasData(canvasData);
-  }, [setCanvasData]);
+    updateCanvasData();
+  }, [updateCanvasData]);
 
-  // FIXED: Watch canvas data with selection preservation
+  // Load canvas data when it changes (but not during selection drag)
   useEffect(() => {
-    if (isInitialized && canvasData && canvasData !== lastLoadedDataRef.current) {
-      // SKIP RELOAD IF WE'RE IN SELECT MODE WITH ACTIVE SELECTION
-      if (currentTool === 'select' && selectedItems.size > 0) {
-        console.log('SmoothCanvas: Skipping reload during active selection');
-        lastLoadedDataRef.current = canvasData;
-        return;
-      }
-
-      console.log('SmoothCanvas: Canvas data changed in store, loading...');
+    if (isInitialized && canvasData && !isDraggingSelectionRef.current) {
       loadCanvasData(canvasData);
     }
-  }, [canvasData, isInitialized, loadCanvasData, currentTool, selectedItems]);
+  }, [canvasData, isInitialized, loadCanvasData]);
 
-  // Watch current page data
+  // Load from page data if available
   useEffect(() => {
     if (isInitialized && currentPageData?.canvasData && !canvasData) {
-      console.log('SmoothCanvas: Page data available but no store data, loading from page...');
       loadCanvasData(currentPageData.canvasData);
     }
   }, [currentPageData?.canvasData, isInitialized, canvasData, loadCanvasData]);
 
-  // Initialize canvas ONCE
+  // Initialize canvas
   useEffect(() => {
     if (!canvasRef.current || !svgRef.current || isInitialized) return;
 
-    console.log('SmoothCanvas: Initializing canvas engine (ONE TIME ONLY)');
     const engine = new CanvasEngine(canvasRef, svgRef, {
       width,
       height,
@@ -322,32 +212,22 @@ const SmoothCanvas = () => {
 
     const renderer = new CanvasRenderer(engine);
 
-    // FIXED: Set callbacks with ALL selection handlers
+    // Set callbacks
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
         const newPaths = [...engine.getPaths()];
         setPaths(newPaths);
-        if (isInitialized) {
-          const canvasData = engine.exportAsJSON();
-          setCanvasData(canvasData);
-        }
+        updateCanvasData();
       },
-      onShapeComplete: (shape) => {
-        console.log('SmoothCanvas: Shape completed:', shape);
+      onShapeComplete: () => {
         const newPaths = [...engine.getPaths()];
         setPaths(newPaths);
-        if (isInitialized) {
-          const canvasData = engine.exportAsJSON();
-          setCanvasData(canvasData);
-        }
+        updateCanvasData();
       },
       onPathsErased: () => {
         const newPaths = [...engine.getPaths()];
         setPaths(newPaths);
-        if (isInitialized) {
-          const canvasData = engine.exportAsJSON();
-          setCanvasData(canvasData);
-        }
+        updateCanvasData();
       },
       onPathsMarkedForErase: (pathsToErase) => {
         setPathsToErase(new Set(pathsToErase));
@@ -360,17 +240,9 @@ const SmoothCanvas = () => {
       },
       onPan: handlePan,
       onZoom: handleZoom,
-      onPanStart: () => {
-        console.log('SmoothCanvas: Pan started');
-      },
-      onPanEnd: () => {
-        console.log('SmoothCanvas: Pan ended');
-      },
-      // FIXED: Add drag state tracking
       onSelectionChanged: handleSelectionChanged,
       onSelectionMoved: handleSelectionMoved,
       onSelectionResized: handleSelectionResized,
-      onSelectionRectChanged: handleSelectionRectChanged,
       onSelectionDragStart: handleSelectionDragStart,
       onSelectionDragEnd: handleSelectionDragEnd
     });
@@ -381,7 +253,7 @@ const SmoothCanvas = () => {
     eventHandlerRef.current = eventHandler;
     rendererRef.current = renderer;
 
-    // FIXED: Register methods with ALL selection methods
+    // Register canvas methods
     registerCanvasMethods({
       clearCanvas: clearCanvas,
       exportImage: async (format = 'png') => {
@@ -396,10 +268,7 @@ const SmoothCanvas = () => {
           if (success) {
             const newPaths = [...engineRef.current.getPaths()];
             setPaths(newPaths);
-            if (isInitialized) {
-              const canvasData = engineRef.current.exportAsJSON();
-              setCanvasData(canvasData);
-            }
+            updateCanvasData();
           }
           return success;
         }
@@ -407,54 +276,35 @@ const SmoothCanvas = () => {
       },
       getCurrentCanvasData: getCurrentCanvasData,
       loadCanvasData: loadCanvasData,
-      // FIXED: Add all selection methods
+      // Selection methods
       findItemsInRect: (rect) => {
-        console.log('SmoothCanvas: findItemsInRect called with:', rect);
         return engineRef.current ? engineRef.current.findItemsInRect(rect) : [];
       },
       getSelectionBounds: (selectedItems) => {
-        console.log('SmoothCanvas: getSelectionBounds called with:', selectedItems);
         return engineRef.current ? engineRef.current.getSelectionBounds(selectedItems) : null;
       },
       moveSelectedItems: (deltaX, deltaY) => {
-        console.log('SmoothCanvas: moveSelectedItems called with:', deltaX, deltaY);
         if (engineRef.current) {
           engineRef.current.moveSelectedItems(deltaX, deltaY);
         }
       },
       resizeSelectedItems: (newBounds) => {
-        console.log('SmoothCanvas: resizeSelectedItems called with:', newBounds);
         if (engineRef.current) {
           engineRef.current.resizeSelectedItems(newBounds);
         }
       },
       deleteSelectedItems: () => {
-        console.log('SmoothCanvas: deleteSelectedItems called');
         if (engineRef.current) {
           engineRef.current.deleteSelectedItems();
           const newPaths = [...engineRef.current.getPaths()];
           setPaths(newPaths);
-          if (isInitialized) {
-            const canvasData = engineRef.current.exportAsJSON();
-            setCanvasData(canvasData);
-          }
+          updateCanvasData();
           clearSelection();
         }
       }
     });
 
     setIsInitialized(true);
-
-    // Add debug verification
-    console.log('=== CANVAS METHODS REGISTERED ===');
-    console.log('Selection methods available:', {
-      findItemsInRect: !!engine.findItemsInRect,
-      getSelectionBounds: !!engine.getSelectionBounds,
-      moveSelectedItems: !!engine.moveSelectedItems,
-      resizeSelectedItems: !!engine.resizeSelectedItems,
-      deleteSelectedItems: !!engine.deleteSelectedItems
-    });
-    console.log('Total paths in engine:', engine.paths?.length || 0);
 
     return () => {
       if (eventHandlerRef.current && canvasRef.current) {
@@ -464,20 +314,18 @@ const SmoothCanvas = () => {
         engineRef.current.destroy?.();
       }
     };
-  }, []); // Empty dependency array - initialize only once
+  }, []); // Initialize only once
 
   // Update canvas dimensions
   useEffect(() => {
-    if (engineRef.current && isInitialized && (width !== engineRef.current.options.width || height !== engineRef.current.options.height)) {
-      console.log('SmoothCanvas: Updating canvas dimensions');
+    if (engineRef.current && isInitialized) {
       engineRef.current.updateOptions({ width, height });
     }
   }, [width, height, isInitialized]);
 
-  // Update tool options including shape properties and maintain selection sync
+  // Update tool options
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
-      // Update engine options
       engineRef.current.updateOptions({
         strokeColor,
         strokeWidth,
@@ -491,7 +339,6 @@ const SmoothCanvas = () => {
         shapeRoundCorners
       });
 
-      // Update event handler options
       eventHandlerRef.current.options = {
         ...eventHandlerRef.current.options,
         currentTool,
@@ -510,7 +357,6 @@ const SmoothCanvas = () => {
         setShowEraser(false);
       }
 
-      // Clear selection when switching away from select tool
       if (currentTool !== 'select' && selectedItems.size > 0) {
         clearSelection();
         if (engineRef.current) {
@@ -522,26 +368,21 @@ const SmoothCanvas = () => {
     shapeColor, shapeBorderSize, shapeFill, shapeFillColor, shapeRoundCorners,
     isInitialized, selectedItems, clearSelection]);
 
-  // FIXED: Sync store selection state with engine
+  // Sync selection state
   useEffect(() => {
-    if (engineRef.current && isInitialized) {
-      // Sync engine selection with store selection
+    if (engineRef.current && isInitialized && !isDraggingSelectionRef.current) {
       const storeSelectedArray = Array.from(selectedItems);
       const engineSelectedArray = engineRef.current.getSelectedItems();
 
-      // Only update if they're different
       if (JSON.stringify(storeSelectedArray.sort()) !== JSON.stringify(engineSelectedArray.sort())) {
-        console.log('Syncing engine selection with store:', storeSelectedArray);
         engineRef.current.setSelectedItems(storeSelectedArray);
-
-        // Force re-render to show selection state
         const currentPaths = engineRef.current.getPaths();
         setPaths([...currentPaths]);
       }
     }
   }, [selectedItems, isInitialized]);
 
-  // Update SVG viewBox when viewBox changes
+  // Update SVG viewBox
   useEffect(() => {
     if (svgRef.current && viewBox) {
       svgRef.current.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
@@ -557,21 +398,14 @@ const SmoothCanvas = () => {
 
   const dpr = window.devicePixelRatio || 1;
 
-  // Get cursor style based on current tool
   const getCursorStyle = () => {
     switch (currentTool) {
-      case 'pan':
-        return 'grab';
-      case 'pen':
-        return 'crosshair';
-      case 'rectangle':
-        return 'crosshair';
-      case 'eraser':
-        return 'none';
-      case 'select':
-        return 'default';
-      default:
-        return 'default';
+      case 'pan': return 'grab';
+      case 'pen': return 'crosshair';
+      case 'rectangle': return 'crosshair';
+      case 'eraser': return 'none';
+      case 'select': return 'default';
+      default: return 'default';
     }
   };
 
@@ -581,7 +415,6 @@ const SmoothCanvas = () => {
       className={`${styles.canvasContainer} ${styles[`${currentTool}Mode`]}`}
       style={{ width, height }}
     >
-      {/* Canvas */}
       <canvas
         ref={canvasRef}
         width={width * dpr}
@@ -600,7 +433,6 @@ const SmoothCanvas = () => {
         }}
       />
 
-      {/* SVG for paths and shapes */}
       <svg
         ref={svgRef}
         width={width}
@@ -615,11 +447,9 @@ const SmoothCanvas = () => {
           zIndex: 1
         }}
       >
-        {/* Render stroke paths */}
         {rendererRef.current?.renderPaths(paths, pathsToErase)}
       </svg>
 
-      {/* Selection overlay SVG */}
       <svg
         width={width}
         height={height}
@@ -632,27 +462,16 @@ const SmoothCanvas = () => {
           zIndex: 3
         }}
       >
-        {/* Render selection overlay */}
         {rendererRef.current?.renderSelectionOverlay()}
       </svg>
 
-      {/* Eraser cursor */}
       {currentTool === 'eraser' && showEraser &&
         rendererRef.current?.renderEraserCursor(showEraser, eraserPosition, eraserWidth / zoomLevel)}
 
-      {/* Zoom indicator */}
       <div className={styles.zoomIndicator}>
         {Math.round(zoomLevel * 100)}%
       </div>
 
-      {/* Loading indicator */}
-      {isLoadingDataRef.current && (
-        <div className={styles.dataLoadingIndicator}>
-          <div className={styles.miniSpinner}></div>
-        </div>
-      )}
-
-      {/* Selection info display */}
       {currentTool === 'select' && selectedItems.size > 0 && (
         <div className={styles.selectionInfo}>
           {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
