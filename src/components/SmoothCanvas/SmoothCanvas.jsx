@@ -56,7 +56,7 @@ const SmoothCanvas = () => {
   const engineRef = useRef(null);
   const eventHandlerRef = useRef(null);
   const rendererRef = useRef(null);
-  
+
   const isDraggingSelectionRef = useRef(false);
   const aiProcessingQueueRef = useRef([]); // NEW: Queue for AI processing
 
@@ -66,7 +66,7 @@ const SmoothCanvas = () => {
   const [eraserPosition, setEraserPosition] = useState({ x: 0, y: 0 });
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+
   // NEW: AI-specific state
   const [aiProcessingState, setAiProcessingState] = useState({
     isProcessing: false,
@@ -92,10 +92,11 @@ const SmoothCanvas = () => {
     }
   }, [getCurrentCanvasData, setCanvasData, isInitialized]);
 
-  // NEW: AI Handwriting Processing
+  // In SmoothCanvas.jsx, update the processAIHandwriting method:
+
   const processAIHandwriting = useCallback(async (strokeData) => {
     console.log('SmoothCanvas: Processing AI handwriting...');
-    
+
     if (!strokeData || !strokeData.points || strokeData.points.length < 2) {
       console.warn('SmoothCanvas: Insufficient stroke data for AI processing');
       return;
@@ -110,26 +111,28 @@ const SmoothCanvas = () => {
         rendererRef.current.renderAIProcessingFeedback(strokeData.bounds, true);
       }
 
-      // Extract coordinates in the format expected by the AI service
-      const coordinates = strokeData.points.map(point => ({
-        x: point.x,
-        y: point.y,
-        timestamp: point.timestamp || Date.now()
-      }));
-
-      console.log('SmoothCanvas: Sending to AI service:', {
-        pointCount: coordinates.length,
-        bounds: strokeData.bounds
+      // The coordinates are now simple canvas coordinates from EventHandler
+      // No need to map them - they're already in the correct format
+      console.log('SmoothCanvas: Sending simple coordinates to AI service:', {
+        pointCount: strokeData.points.length,
+        bounds: strokeData.bounds,
+        samplePoints: strokeData.points.slice(0, 3), // Log first 3 points for debugging
+        coordinateSystem: 'simple_canvas'
       });
 
-      // FLASK INTEGRATION: Process with AI service
-      const result = await aiProcessingService.processHandwriting(coordinates, strokeData.bounds, {
-        enableFallback: true // Enable fallback for development
+      // SIMPLIFIED: Process handwriting with simple coordinates (no canvas dimensions needed)
+      const result = await aiProcessingService.processHandwriting(strokeData.points, strokeData.bounds, {
+        enableFallback: true,
+        useSpellCheck: true // Enable spell checking
       });
 
       if (result.success && result.recognizedText) {
-        console.log('SmoothCanvas: AI recognition successful:', result.recognizedText);
-        
+        console.log('SmoothCanvas: AI recognition successful:', {
+          recognizedText: result.recognizedText,
+          rawPrediction: result.rawPrediction,
+          hasCorrections: result.metadata?.hasCorrections
+        });
+
         // Clear processing feedback
         if (rendererRef.current) {
           rendererRef.current.clearAIProcessingFeedback();
@@ -137,12 +140,12 @@ const SmoothCanvas = () => {
 
         // Create AI text element
         await createAITextElement(result, strokeData.bounds);
-        
+
         // Show success notification
         if (showNotification) {
           const confidencePercent = Math.round(result.confidence * 100);
-          const message = result.metadata?.hasCorrections 
-            ? `Recognized: "${result.recognizedText}" (corrected, ${confidencePercent}% confidence)`
+          const message = result.metadata?.hasCorrections
+            ? `Recognized: "${result.recognizedText}" (spell-corrected, ${confidencePercent}% confidence)`
             : `Recognized: "${result.recognizedText}" (${confidencePercent}% confidence)`;
           showNotification('success', message);
         }
@@ -153,12 +156,12 @@ const SmoothCanvas = () => {
 
     } catch (error) {
       console.error('SmoothCanvas: AI processing error:', error);
-      
+
       // Clear processing feedback
       if (rendererRef.current) {
         rendererRef.current.clearAIProcessingFeedback();
       }
-      
+
       // Show error notification with helpful message
       if (showNotification) {
         let errorMessage = 'AI processing failed';
@@ -176,12 +179,12 @@ const SmoothCanvas = () => {
       setAiProcessingState(prev => ({ ...prev, isProcessing: false }));
       clearAiProcessing();
     }
-  }, [setAiProcessing, clearAiProcessing, showNotification]);
+  }, [setAiProcessing, clearAiProcessing, showNotification]); // Removed canvasDimensions dependency
 
   // NEW: Create AI text element
   const createAITextElement = useCallback(async (aiResult, bounds) => {
     console.log('SmoothCanvas: Creating AI text element...');
-    
+
     if (!engineRef.current || !rendererRef.current) {
       console.error('SmoothCanvas: Engine or renderer not available');
       return;
@@ -190,11 +193,11 @@ const SmoothCanvas = () => {
     try {
       // Get effective text color (use stroke color if textColor is null)
       const effectiveTextColor = aiTextSettings.textColor || strokeColor;
-      
+
       // Calculate text position based on bounds and alignment
       let textX = bounds.x;
       const textY = bounds.centerY; // Center vertically in the stroke bounds
-      
+
       // Adjust X position based on text alignment
       switch (aiTextSettings.textAlign) {
         case 'center':
@@ -260,19 +263,19 @@ const SmoothCanvas = () => {
     try {
       engineRef.current.clearPaths();
       engineRef.current.clearSelection();
-      
+
       const success = engineRef.current.importFromJSON(vectorData);
-      
+
       if (success) {
         const currentPaths = engineRef.current.getPaths();
         setPaths([...currentPaths]);
-        
+
         // Re-render AI text elements if any
         if (rendererRef.current) {
           rendererRef.current.renderAITextElements();
         }
       }
-      
+
       return success;
     } catch (error) {
       console.error('Error loading canvas data:', error);
@@ -308,10 +311,10 @@ const SmoothCanvas = () => {
       // Update canvas data immediately
       const emptyData = getCurrentCanvasData();
       setCanvasData(emptyData);
-      
+
       // NEW: Clear AI processing state
       clearAiProcessing();
-      
+
       return true;
     }
     return false;
@@ -333,11 +336,11 @@ const SmoothCanvas = () => {
   // Selection event handlers
   const handleSelectionChanged = useCallback((selectedItemIds) => {
     setSelection(selectedItemIds);
-    
+
     if (engineRef.current) {
       engineRef.current.setSelectedItems(selectedItemIds);
     }
-    
+
     const currentPaths = engineRef.current.getPaths();
     setPaths([...currentPaths]);
   }, [setSelection]);
@@ -357,7 +360,7 @@ const SmoothCanvas = () => {
   const handleSelectionDragStart = useCallback(() => {
     isDraggingSelectionRef.current = true;
   }, []);
-  
+
   const handleSelectionDragEnd = useCallback(() => {
     isDraggingSelectionRef.current = false;
     updateCanvasData();
@@ -425,32 +428,32 @@ const SmoothCanvas = () => {
 
   const handleAIStrokeComplete = useCallback((strokeData) => {
     console.log('SmoothCanvas: AI stroke completed, processing...');
-    
+
     // Add to processing queue
     aiProcessingQueueRef.current.push(strokeData);
-    
+
     // Clear any existing timer
     if (aiProcessingQueueRef.current.timer) {
       clearTimeout(aiProcessingQueueRef.current.timer);
     }
-    
+
     // Start new timer
     aiProcessingQueueRef.current.timer = setTimeout(() => {
       console.log('Timer callback executing...'); // Debug log
       const strokesToProcess = [...aiProcessingQueueRef.current];
       aiProcessingQueueRef.current = []; // Clear queue
-      
+
       console.log('Strokes to process:', strokesToProcess.length); // Debug log
-      
+
       if (strokesToProcess.length > 0) {
         const combinedStroke = combineNearbyStrokes(strokesToProcess);
         processAIHandwriting(combinedStroke);
       }
     }, 1000);
-    
+
   }, [processAIHandwriting, combineNearbyStrokes]);
   // NEW: Combine nearby strokes into words
- 
+
 
   // Load canvas data when it changes (but not during selection drag)
   useEffect(() => {

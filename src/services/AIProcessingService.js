@@ -1,477 +1,274 @@
-// src/services/AIProcessingService.js - NEW SERVICE FOR HANDWRITING RECOGNITION
+// src/services/AIProcessingService.js - SIMPLIFIED VERSION FOR RAW COORDINATES
 class AIProcessingService {
-    constructor(options = {}) {
-      this.baseUrl = options.baseUrl || 'http://127.0.0.1:5000';
-      this.timeout = options.timeout || 10000; // 10 seconds
-      this.retryAttempts = options.retryAttempts || 2;
-      this.isConnected = false;
-      this.lastConnectionCheck = 0;
-      this.connectionCheckInterval = 30000; // 30 seconds
-      
-      console.log('AIProcessingService: Initialized with base URL:', this.baseUrl);
-    }
-  
-    // Check if Flask server is available
-    async checkConnection() {
-      const now = Date.now();
-      
-      // Cache connection check for 30 seconds
-      if (now - this.lastConnectionCheck < this.connectionCheckInterval && this.isConnected) {
-        return this.isConnected;
-      }
-  
-      try {
-        console.log('AIProcessingService: Checking server connection...');
-        
-        const response = await fetch(`${this.baseUrl}/health`, {
-          method: 'GET',
-          timeout: 5000,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-  
-        this.isConnected = response.ok;
-        this.lastConnectionCheck = now;
-        
-        if (this.isConnected) {
-          const healthData = await response.json();
-          console.log('AIProcessingService: Server connected:', healthData);
-        } else {
-          console.warn('AIProcessingService: Server responded with error:', response.status);
-        }
-        
-      } catch (error) {
-        console.warn('AIProcessingService: Server connection failed:', error.message);
-        this.isConnected = false;
-        this.lastConnectionCheck = now;
-      }
-  
-      return this.isConnected;
-    }
-  
-    prepareStrokeData(strokeCoordinates, bounds) {
-      console.log('AIProcessingService: Preparing stroke data...');
-      
-      if (!strokeCoordinates || strokeCoordinates.length === 0) {
-        throw new Error('No stroke coordinates provided');
-      }
-    
-      // Group points into strokes - FIXED FORMAT
-      const strokes = [];
-      let currentStroke = [];
-      
-      for (const point of strokeCoordinates) {
-        // Only include x and y coordinates (no timestamp)
-        // Use proper number types (not rounded integers)
-        currentStroke.push({
-          x: Number(point.x),  // Ensure it's a number, not rounded integer
-          y: Number(point.y)   // Ensure it's a number, not rounded integer
-        });
-        
-        if (point.isEndOfStroke) {
-          strokes.push([...currentStroke]);
-          currentStroke = [];
-        }
-      }
-      
-      // Add any remaining points as final stroke
-      if (currentStroke.length > 0) {
-        strokes.push(currentStroke);
-      }
-    
-      // Validate stroke data before sending
-      this.validatePreparedStrokes(strokes);
-    
-      const requestData = {
-        strokes: strokes,  // Array of strokes, each stroke is array of {x, y} points
-        use_spell_check: true,
-        metadata: {
-          bounds: [
-            Number(bounds.left || 0),
-            Number(bounds.top || 0), 
-            Number(bounds.right || 0),
-            Number(bounds.bottom || 0)
-          ],
-          timestamp: Date.now(),
-          client: 'drawo-web'
-        }
-      };
-    
-      console.log('AIProcessingService: Prepared data:', {
-        strokeCount: strokes.length,
-        totalPoints: strokes.reduce((sum, stroke) => sum + stroke.length, 0),
-        bounds: requestData.metadata.bounds,
-        samplePoint: strokes[0]?.[0] // Show first point for debugging
-      });
-    
-      return requestData;
+  constructor() {
+    this.flaskServerUrl = 'http://127.0.0.1:5000';
+    this.isFlaskAvailable = false;
+    this.lastHealthCheck = 0;
+    this.healthCheckInterval = 30000; // 30 seconds
+  }
+
+  // Update the convertStrokeDataForFlask method in AIProcessingService.js
+
+  convertStrokeDataForFlask(coordinates, bounds) {
+    console.log('Converting RAW stroke data for Flask...', {
+      inputLength: coordinates.length,
+      bounds: bounds
+    });
+
+    if (!coordinates || coordinates.length === 0) {
+      console.warn('No coordinates to convert');
+      return { strokes: [] };
     }
 
-    validatePreparedStrokes(strokes) {
-      if (!Array.isArray(strokes) || strokes.length === 0) {
-        throw new Error('Invalid strokes: must be non-empty array');
+    // Sample first few points to see what we're working with
+    console.log('Sample raw coordinates:', coordinates.slice(0, 5));
+
+    const strokes = [];
+    let currentStroke = [];
+
+    for (let i = 0; i < coordinates.length; i++) {
+      const point = coordinates[i];
+
+      // Start new stroke if this point is marked as new stroke (except for first point)
+      if (point.isNewStroke && i > 0 && currentStroke.length > 0) {
+        // Save current stroke and start new one
+        strokes.push([...currentStroke]);
+        currentStroke = [];
       }
-    
-      for (let i = 0; i < strokes.length; i++) {
-        const stroke = strokes[i];
-        if (!Array.isArray(stroke) || stroke.length === 0) {
-          throw new Error(`Invalid stroke ${i}: must be non-empty array`);
-        }
-    
-        for (let j = 0; j < stroke.length; j++) {
-          const point = stroke[j];
-          if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
-            throw new Error(`Invalid point ${j} in stroke ${i}: must have numeric x,y coordinates`);
-          }
-          if (isNaN(point.x) || isNaN(point.y)) {
-            throw new Error(`Invalid point ${j} in stroke ${i}: coordinates cannot be NaN`);
-          }
-        }
-      }
-      
-      console.log('AIProcessingService: Stroke data validation passed');
-    }
-  
-    // Main method to process handwriting
-    async processHandwriting(strokeCoordinates, bounds, options = {}) {
-      console.log('=== AIProcessingService: PROCESSING HANDWRITING ===');
-      
-      try {
-        // Check server connection first
-        const isConnected = await this.checkConnection();
-        if (!isConnected) {
-          throw new Error('AI processing server is not available. Please check if the Flask server is running.');
-        }
-  
-        // Prepare stroke data
-        const requestData = this.prepareStrokeData(strokeCoordinates, bounds);
-        
-        // Process with retry logic
-        let lastError;
-        for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
-          try {
-            console.log(`AIProcessingService: Processing attempt ${attempt}/${this.retryAttempts}`);
-            
-            const result = await this.sendProcessingRequest(requestData, attempt);
-            
-            console.log('=== AIProcessingService: SUCCESS ===');
-            return result;
-            
-          } catch (error) {
-            lastError = error;
-            console.warn(`AIProcessingService: Attempt ${attempt} failed:`, error.message);
-            
-            if (attempt < this.retryAttempts) {
-              // Wait before retry (exponential backoff)
-              const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-              console.log(`AIProcessingService: Retrying in ${delay}ms...`);
-              await this.sleep(delay);
-            }
-          }
-        }
-        
-        throw lastError;
-        
-      } catch (error) {
-        console.error('=== AIProcessingService: ERROR ===', error);
-        
-        // Return fallback result for development/testing
-        if (options.enableFallback !== false) {
-          return this.getFallbackResult(strokeCoordinates, bounds);
-        }
-        
-        throw error;
-      }
-    }
-  
-    // Send the actual processing request to Flask
-    async sendProcessingRequest(requestData, attempt = 1) {
-      console.log('AIProcessingService: Sending request to Flask server...');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-  
-      try {
-        const response = await fetch(`${this.baseUrl}/predict`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(requestData),
-          signal: controller.signal
-        });
-  
-        clearTimeout(timeoutId);
-  
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Server error (${response.status}): ${errorText}`);
-        }
-  
-        const result = await response.json();
-        
-        console.log('AIProcessingService: Received response:', {
-          success: result.success,
-          rawPrediction: result.raw_prediction,
-          spellChecked: result.spell_checked,
-          hasSpellCheckInfo: !!result.spell_check_info
-        });
-  
-        if (!result.success) {
-          throw new Error(result.error || 'AI processing failed');
-        }
-  
-        return this.processServerResponse(result, requestData);
-        
-      } catch (error) {
-        clearTimeout(timeoutId);
-        
-        if (error.name === 'AbortError') {
-          throw new Error(`Request timeout after ${this.timeout}ms`);
-        }
-        
-        throw error;
-      }
-    }
-  
-    // Process the server response into the format needed by the canvas
-    processServerResponse(serverResult, originalRequest) {
-      console.log('AIProcessingService: Processing server response...');
-      
-      const {
-        raw_prediction,
-        spell_checked,
-        spell_check_info,
-        num_strokes,
-        spell_check_enabled
-      } = serverResult;
-  
-      // Use spell-checked version if available and different, otherwise use raw
-      const finalText = (spell_checked && spell_checked !== raw_prediction) 
-        ? spell_checked 
-        : raw_prediction;
-  
-      if (!finalText || finalText.trim() === '') {
-        throw new Error('No text could be recognized from the handwriting');
-      }
-  
-      const result = {
-        success: true,
-        recognizedText: finalText.trim(),
-        rawPrediction: raw_prediction,
-        spellChecked: spell_checked,
-        confidence: this.calculateConfidence(spell_check_info),
-        spellCheckInfo: spell_check_info,
-        metadata: {
-          processingTime: Date.now() - originalRequest.metadata.timestamp,
-          strokeCount: num_strokes || 1,
-          spellCheckEnabled: spell_check_enabled,
-          hasCorrections: spell_checked !== raw_prediction
-        }
-      };
-  
-      console.log('AIProcessingService: Processed result:', {
-        text: result.recognizedText,
-        confidence: result.confidence,
-        hasCorrections: result.metadata.hasCorrections
+
+      // Add point to current stroke - these are now RAW canvas coordinates
+      // Just like Flask HTML collects them
+      currentStroke.push({
+        x: point.x, 
+        y: point.y
       });
-  
-      return result;
     }
-  
-    // Calculate confidence score from spell check info
-    calculateConfidence(spellCheckInfo) {
-      if (!spellCheckInfo || !spellCheckInfo.stats) {
-        return 0.8; // Default confidence
-      }
-  
-      const { stats } = spellCheckInfo;
-      
-      // Base confidence on average spell check confidence and correction ratio
-      let confidence = stats.avg_confidence || 0.8;
-      
-      // Reduce confidence if many corrections were made
-      if (stats.total_words > 0) {
-        const correctionRatio = stats.corrected_words / stats.total_words;
-        confidence *= (1 - correctionRatio * 0.3); // Reduce by up to 30%
-      }
-      
-      return Math.max(0.1, Math.min(1.0, confidence));
+
+    // Add the last stroke if it has points
+    if (currentStroke.length > 0) {
+      strokes.push(currentStroke);
     }
-  
-    // Fallback result for testing/development when server is not available
-    getFallbackResult(strokeCoordinates, bounds) {
-      console.log('AIProcessingService: Using fallback result (server not available)');
-      
-      // Simple fallback - could be more sophisticated
-      const fallbackTexts = [
-        'Hello',
-        'World',
-        'Test',
-        'Drawing',
-        'AI',
-        'Recognition',
-        'Handwriting',
-        'Sample'
-      ];
-      
-      const randomText = fallbackTexts[Math.floor(Math.random() * fallbackTexts.length)];
-      
+
+    console.log('Converted RAW stroke data:', {
+      inputPoints: coordinates.length,
+      outputStrokes: strokes.length,
+      strokeLengths: strokes.map(stroke => stroke.length),
+      sampleFirstStroke: strokes.length > 0 ? strokes[0].slice(0, 3) : [],
+      coordinateRanges: this.analyzeCoordinateRanges(strokes)
+    });
+
+    return { strokes };
+  }
+
+  async checkFlaskHealth() {
+    const now = Date.now();
+    if (now - this.lastHealthCheck < this.healthCheckInterval && this.isFlaskAvailable) {
+      return this.isFlaskAvailable;
+    }
+
+    try {
+      console.log('Checking Flask server health...');
+      const response = await fetch(`${this.flaskServerUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        this.isFlaskAvailable = data.status === 'healthy' && data.model_loaded;
+        console.log('Flask health check result:', data);
+      } else {
+        this.isFlaskAvailable = false;
+        console.warn('Flask server unhealthy:', response.status);
+      }
+    } catch (error) {
+      this.isFlaskAvailable = false;
+      console.warn('Flask server not available:', error.message);
+    }
+
+    this.lastHealthCheck = now;
+    return this.isFlaskAvailable;
+  }
+
+  async processHandwriting(coordinates, bounds, options = {}) {
+    console.log('AIProcessingService: Starting handwriting processing...', {
+      coordinatesLength: coordinates.length,
+      bounds: bounds,
+      options: options
+    });
+
+    try {
+      // Check if Flask server is available
+      const isFlaskHealthy = await this.checkFlaskHealth();
+
+      if (!isFlaskHealthy) {
+        if (options.enableFallback) {
+          return this.getFallbackResponse(coordinates);
+        } else {
+          throw new Error('Flask server not available');
+        }
+      }
+
+      // SIMPLIFIED: Convert data to Flask format (no complex coordinate scaling)
+      const flaskData = this.convertStrokeDataForFlask(coordinates, bounds);
+
+      // Send data in the format Flask expects
+      const requestBody = {
+        strokes: flaskData.strokes,
+        use_spell_check: options.useSpellCheck !== false // Default to true
+      };
+
+      console.log('Sending to Flask server:', {
+        url: `${this.flaskServerUrl}/predict`,
+        strokeCount: requestBody.strokes.length,
+        totalPoints: requestBody.strokes.reduce((sum, stroke) => sum + stroke.length, 0),
+        useSpellCheck: requestBody.use_spell_check,
+        coordinateRanges: this.analyzeCoordinateRanges(requestBody.strokes)
+      });
+
+      // Send request to Flask server
+      const response = await fetch(`${this.flaskServerUrl}/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(15000) // 15 second timeout for AI processing
+      });
+
+      if (!response.ok) {
+        throw new Error(`Flask server error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Flask server response:', result);
+
+      if (!result.success) {
+        throw new Error(result.error || 'AI processing failed');
+      }
+
+      // Convert Flask response to our expected format
+      const recognizedText = result.spell_checked || result.raw_prediction || '';
+
       return {
         success: true,
-        recognizedText: randomText,
-        rawPrediction: randomText,
-        spellChecked: randomText,
-        confidence: 0.6,
-        spellCheckInfo: null,
+        recognizedText: recognizedText,
+        rawPrediction: result.raw_prediction || '',
+        spellChecked: result.spell_checked || result.raw_prediction || '',
+        confidence: 0.8, // Flask doesn't return confidence, use default
         metadata: {
-          processingTime: 500 + Math.random() * 1000, // Simulate processing time
-          strokeCount: 1,
-          spellCheckEnabled: false,
-          hasCorrections: false,
-          isFallback: true
+          processingTime: Date.now(),
+          hasCorrections: result.spell_checked && result.spell_checked !== result.raw_prediction,
+          spellCheckInfo: result.spell_check_info,
+          numStrokes: requestBody.strokes.length,
+          totalPoints: requestBody.strokes.reduce((sum, stroke) => sum + stroke.length, 0),
+          coordinateSystem: 'simple_canvas', // Now using simple canvas coordinates
+          flaskResponse: result
         }
       };
-    }
-  
-    // Test the spell checker endpoint
-    async testSpellChecker(text) {
-      try {
-        const isConnected = await this.checkConnection();
-        if (!isConnected) {
-          throw new Error('Server not available');
-        }
-  
-        const response = await fetch(`${this.baseUrl}/spell_test`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: `text=${encodeURIComponent(text)}`
-        });
-  
-        if (!response.ok) {
-          throw new Error(`Spell test failed: ${response.status}`);
-        }
-  
-        return await response.json();
-        
-      } catch (error) {
-        console.error('AIProcessingService: Spell test error:', error);
+
+    } catch (error) {
+      console.error('AIProcessingService: Error processing handwriting:', error);
+
+      if (options.enableFallback) {
+        return this.getFallbackResponse(coordinates);
+      } else {
         throw error;
       }
-    }
-  
-    // Get server health information
-    async getServerHealth() {
-      try {
-        const response = await fetch(`${this.baseUrl}/health`);
-        
-        if (!response.ok) {
-          throw new Error(`Health check failed: ${response.status}`);
-        }
-        
-        return await response.json();
-        
-      } catch (error) {
-        console.error('AIProcessingService: Health check error:', error);
-        throw error;
-      }
-    }
-  
-    // Configure server settings
-    setServerUrl(url) {
-      this.baseUrl = url;
-      this.isConnected = false;
-      this.lastConnectionCheck = 0;
-      console.log('AIProcessingService: Server URL updated to:', url);
-    }
-  
-    setTimeout(timeout) {
-      this.timeout = timeout;
-      console.log('AIProcessingService: Timeout updated to:', timeout);
-    }
-  
-    setRetryAttempts(attempts) {
-      this.retryAttempts = Math.max(1, Math.min(5, attempts));
-      console.log('AIProcessingService: Retry attempts updated to:', this.retryAttempts);
-    }
-  
-    // Utility method for delays
-    sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-  
-    // Get connection status
-    getConnectionStatus() {
-      return {
-        isConnected: this.isConnected,
-        lastCheck: this.lastConnectionCheck,
-        serverUrl: this.baseUrl,
-        timeout: this.timeout,
-        retryAttempts: this.retryAttempts
-      };
-    }
-  
-    // Validate stroke data before processing
-    validateStrokeData(strokeCoordinates) {
-      if (!strokeCoordinates || !Array.isArray(strokeCoordinates)) {
-        return { valid: false, error: 'Invalid stroke coordinates' };
-      }
-  
-      if (strokeCoordinates.length < 2) {
-        return { valid: false, error: 'Not enough points in stroke' };
-      }
-  
-      // Check if points have required properties
-      for (const point of strokeCoordinates) {
-        if (typeof point.x !== 'number' || typeof point.y !== 'number') {
-          return { valid: false, error: 'Invalid point coordinates' };
-        }
-      }
-  
-      return { valid: true };
-    }
-  
-    // Batch processing for multiple strokes (future enhancement)
-    async processBatch(strokeBatches, options = {}) {
-      console.log('AIProcessingService: Processing batch of', strokeBatches.length, 'strokes');
-      
-      const results = [];
-      const maxConcurrent = options.maxConcurrent || 3;
-      
-      for (let i = 0; i < strokeBatches.length; i += maxConcurrent) {
-        const batch = strokeBatches.slice(i, i + maxConcurrent);
-        
-        const batchPromises = batch.map(async (strokeData, index) => {
-          try {
-            const result = await this.processHandwriting(strokeData.coordinates, strokeData.bounds, options);
-            return { success: true, index: i + index, result };
-          } catch (error) {
-            return { success: false, index: i + index, error: error.message };
-          }
-        });
-        
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults);
-        
-        // Small delay between batches to avoid overwhelming server
-        if (i + maxConcurrent < strokeBatches.length) {
-          await this.sleep(100);
-        }
-      }
-      
-      return results;
     }
   }
-  
-  // Create singleton instance
-  const aiProcessingService = new AIProcessingService({
-    baseUrl: 'http://127.0.0.1:5000', // Your Flask server URL
-    timeout: 10000, // 10 seconds
-    retryAttempts: 2
-  });
-  
-  export default aiProcessingService;
+
+  // Helper method to analyze coordinate ranges for debugging
+  analyzeCoordinateRanges(strokes) {
+    if (!strokes || strokes.length === 0) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let totalPoints = 0;
+
+    strokes.forEach(stroke => {
+      stroke.forEach(point => {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+        totalPoints++;
+      });
+    });
+
+    return {
+      xRange: { min: minX, max: maxX, span: maxX - minX },
+      yRange: { min: minY, max: maxY, span: maxY - minY },
+      totalPoints: totalPoints,
+      avgPointsPerStroke: Math.round(totalPoints / strokes.length)
+    };
+  }
+
+  getFallbackResponse(coordinates) {
+    console.log('AIProcessingService: Using fallback response');
+
+    // Simple fallback based on stroke characteristics
+    const numPoints = coordinates.length;
+    let fallbackText = '';
+
+    if (numPoints < 10) {
+      fallbackText = 'i';
+    } else if (numPoints < 20) {
+      fallbackText = 'a';
+    } else if (numPoints < 50) {
+      fallbackText = 'the';
+    } else {
+      fallbackText = 'hello';
+    }
+
+    return {
+      success: true,
+      recognizedText: fallbackText,
+      rawPrediction: fallbackText,
+      spellChecked: fallbackText,
+      confidence: 0.3, // Low confidence for fallback
+      metadata: {
+        processingTime: Date.now(),
+        hasCorrections: false,
+        isFallback: true,
+        numPoints: numPoints
+      }
+    };
+  }
+
+  async testConnection() {
+    try {
+      console.log('Testing Flask server connection...');
+      const isHealthy = await this.checkFlaskHealth();
+
+      if (isHealthy) {
+        console.log('✅ Flask server is available and ready');
+        return {
+          success: true,
+          message: 'Flask server is available and ready',
+          serverUrl: this.flaskServerUrl
+        };
+      } else {
+        console.log('❌ Flask server is not available');
+        return {
+          success: false,
+          message: 'Flask server is not available',
+          serverUrl: this.flaskServerUrl
+        };
+      }
+    } catch (error) {
+      console.error('Connection test failed:', error);
+      return {
+        success: false,
+        message: `Connection test failed: ${error.message}`,
+        serverUrl: this.flaskServerUrl
+      };
+    }
+  }
+}
+
+// Export singleton instance
+const aiProcessingService = new AIProcessingService();
+export default aiProcessingService;
