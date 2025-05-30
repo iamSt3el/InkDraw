@@ -1,4 +1,4 @@
-// src/pages/NotebookInside/Index.jsx - Updated with Shape Panel
+// src/pages/NotebookInside/Index.jsx - FIXED VERSION
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
@@ -6,7 +6,7 @@ import ToolBar from '../../components/ToolBar/Index';
 import NoteBookUi from '../../components/NotebookUi/Index';
 import PageSettingPanel from '../../components/PagePanel/PagePanel';
 import PenSettingPanel from '../../components/PenPanel/PenPanel';
-import ShapePanel from '../../components/ShapePanel/ShapePanel';  // Import Shape Panel
+import ShapePanel from '../../components/ShapePanel/ShapePanel';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
@@ -39,7 +39,7 @@ const NotebookInside = () => {
 
   const { 
     showNotification, 
-    switchPanelForTool,  // Import the smart panel switching
+    switchPanelForTool,
     isPenPanelVisible,
     isShapePanelVisible
   } = useUIStore();
@@ -48,14 +48,13 @@ const NotebookInside = () => {
   const [currentPageNumber, setCurrentPageNumber] = useState(parseInt(pageNumber) || 1);
   const [notebook, setNotebook] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [pendingPageData, setPendingPageData] = useState(null);
   
   // Refs
   const saveTimeoutRef = useRef(null);
   const isInitializedRef = useRef(false);
   const lastSavedPageRef = useRef(null);
 
-  // Memoized page data loader
+  // Simplified page data loader
   const loadPageData = useCallback(async (pageNum) => {
     if (!notebookId || isTransitioning) return null;
     
@@ -64,8 +63,7 @@ const NotebookInside = () => {
       const result = await loadPage(notebookId, pageNum);
       
       if (result.success) {
-        setPendingPageData(result.page);
-        console.log(`Page ${pageNum} data prepared for loading`);
+        console.log(`Page ${pageNum} data loaded successfully`);
         return result.page;
       }
     } catch (error) {
@@ -113,29 +111,33 @@ const NotebookInside = () => {
     }
   }, [getCurrentCanvasData, notebookId, currentPageNumber, pageSettings, savePage]);
 
-  // Fast page transition
+  // FIXED: Simple and reliable page transition
   const transitionToPage = useCallback(async (newPageNumber) => {
     if (newPageNumber === currentPageNumber || isTransitioning) return;
 
-    console.log(`Quick transition from page ${currentPageNumber} to ${newPageNumber}`);
+    console.log(`Transitioning from page ${currentPageNumber} to ${newPageNumber}`);
     setIsTransitioning(true);
 
     try {
-      const savePromise = saveCurrentPage(currentPageNumber);
-      const loadPromise = loadPageData(newPageNumber);
-      const [, newPageData] = await Promise.all([savePromise, loadPromise]);
-
+      // Save current page first
+      await saveCurrentPage(currentPageNumber);
+      
+      // Clear canvas data immediately to prevent old data showing
       clearCanvasData();
+      
+      // Update page number
       setCurrentPageNumber(newPageNumber);
       window.history.replaceState(null, '', `/notebook/${notebookId}/page/${newPageNumber}`);
-
+      
+      // Load new page data
+      const newPageData = await loadPageData(newPageNumber);
+      
+      // Set new page data (or default if none exists)
       if (newPageData?.canvasData) {
         setCanvasData(newPageData.canvasData);
       } else {
         setCanvasData('{"type":"drawing","version":1,"elements":[]}');
       }
-
-      setPendingPageData(null);
       
     } catch (error) {
       console.error('Error transitioning pages:', error);
@@ -167,17 +169,15 @@ const NotebookInside = () => {
   // Load initial page data
   useEffect(() => {
     if (isInitializedRef.current && notebookId && currentPageNumber && !isTransitioning) {
-      loadPageData(currentPageNumber);
+      const loadInitialPage = async () => {
+        const pageData = await loadPageData(currentPageNumber);
+        if (pageData?.canvasData) {
+          setCanvasData(pageData.canvasData);
+        }
+      };
+      loadInitialPage();
     }
-  }, [isInitializedRef.current, notebookId, currentPageNumber, loadPageData, isTransitioning]);
-
-  // Handle pending page data updates
-  useEffect(() => {
-    if (pendingPageData && !isTransitioning) {
-      setCanvasData(pendingPageData.canvasData);
-      setPendingPageData(null);
-    }
-  }, [pendingPageData, isTransitioning, setCanvasData]);
+  }, [isInitializedRef.current, notebookId, currentPageNumber, loadPageData, setCanvasData, isTransitioning]);
 
   // Smart panel switching based on tool changes
   useEffect(() => {

@@ -322,58 +322,58 @@
   }
 }
 
-// Dark mode support
-@media (prefers-color-scheme: dark) {
-  .shapepanel {
-    background-color: #1f2937;
-    border-color: #374151;
+// // Dark mode support
+// @media (prefers-color-scheme: dark) {
+//   .shapepanel {
+//     background-color: #1f2937;
+//     border-color: #374151;
 
-    .section_header h3 {
-      color: #f9fafb;
-    }
+//     .section_header h3 {
+//       color: #f9fafb;
+//     }
 
-    .section_title {
-      color: #e5e7eb;
-    }
+//     .section_title {
+//       color: #e5e7eb;
+//     }
 
-    .shape_tool {
-      background-color: #374151;
-      border-color: #4b5563;
-      color: #e5e7eb;
+//     .shape_tool {
+//       background-color: #374151;
+//       border-color: #4b5563;
+//       color: #e5e7eb;
 
-      &:hover {
-        background-color: #4b5563;
-        border-color: #6b7280;
-      }
+//       &:hover {
+//         background-color: #4b5563;
+//         border-color: #6b7280;
+//       }
 
-      &.active {
-        border-color: #8b5cf6;
-        background-color: rgba(139, 92, 246, 0.2);
-        color: #c4b5fd;
-      }
-    }
+//       &.active {
+//         border-color: #8b5cf6;
+//         background-color: rgba(139, 92, 246, 0.2);
+//         color: #c4b5fd;
+//       }
+//     }
 
-    .checkbox_label {
-      color: #e5e7eb;
+//     .checkbox_label {
+//       color: #e5e7eb;
 
-      .checkbox {
-        border-color: #6b7280;
-        background-color: #374151;
+//       .checkbox {
+//         border-color: #6b7280;
+//         background-color: #374151;
 
-        &:checked {
-          background-color: #8b5cf6;
-          border-color: #8b5cf6;
-        }
-      }
-    }
+//         &:checked {
+//           background-color: #8b5cf6;
+//           border-color: #8b5cf6;
+//         }
+//       }
+//     }
 
-    .info_section {
-      background-color: #1e3a8a;
-      border-color: #3b82f6;
+//     .info_section {
+//       background-color: #1e3a8a;
+//       border-color: #3b82f6;
 
-      .info_text {
-        color: #93c5fd;
-      }
-    }
-  }
-}
+//       .info_text {
+//         color: #93c5fd;
+//       }
+//     }
+//   }
+// }
