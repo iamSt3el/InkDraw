@@ -1,4 +1,4 @@
-// src/components/ToolBar/Index.jsx - Updated with Selection Tool
+// src/components/ToolBar/Index.jsx - UPDATED with AI Handwriting Tool
 import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
@@ -6,7 +6,7 @@ import PageNavigator from '../PageNavigator/PageNavigator';
 import { 
   Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, 
   Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, 
-  Shapes, MousePointer2
+  Shapes, MousePointer2, Brain // ADDED Brain icon for AI tool
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -34,7 +34,8 @@ const ToolBar = ({
     zoomLevel,
     isRoughMode,
     selectedItems,
-    deleteSelection
+    deleteSelection,
+    isAiProcessing // ADDED AI processing state
   } = useDrawingStore();
 
   const {
@@ -43,6 +44,7 @@ const ToolBar = ({
     togglePagePanel,
     togglePenPanel,
     toggleShapePanel,
+    toggleAiTextPanel, // ADDED AI text panel toggle
     setMenuOpen,
     handleExportImage,
     handleExportSVG,
@@ -66,6 +68,11 @@ const ToolBar = ({
 
   const handleSelectClick = () => {
     setTool('select');
+  };
+
+  // ADDED: AI Handwriting tool handler
+  const handleAiHandwritingClick = () => {
+    setTool('aiHandwriting');
   };
 
   const handleClearClick = () => {
@@ -141,6 +148,13 @@ const ToolBar = ({
               onClick={handlePenClick}
               label="Pen Tool (P)"
             />
+            {/* ADDED: AI Handwriting Tool Button */}
+            <Button
+              Icon={Brain}
+              isActive={currentTool === 'aiHandwriting'}
+              onClick={handleAiHandwritingClick}
+              label={`AI Handwriting Tool (A) ${isAiProcessing ? '- Processing...' : ''}`}
+            />
             <Button
               Icon={Eraser}
               isActive={currentTool === 'eraser'}
@@ -167,6 +181,18 @@ const ToolBar = ({
                   <Trash size={16} />
                   <span>Delete ({selectedItems.size})</span>
                 </button>
+              </div>
+            )}
+
+            {/* ADDED: AI-specific tools when AI tool is active */}
+            {currentTool === 'aiHandwriting' && (
+              <div className={styles.ai_tools}>
+                {isAiProcessing && (
+                  <div className={styles.ai_status}>
+                    <div className={styles.ai_spinner}></div>
+                    <span>Converting...</span>
+                  </div>
+                )}
               </div>
             )}
             
@@ -249,6 +275,14 @@ const ToolBar = ({
                   >
                     <Palette size={18} />
                     <span>Pen Settings</span>
+                  </button>
+                  {/* ADDED: AI Text Settings Menu Item */}
+                  <button
+                    className={styles.menu_item}
+                    onClick={() => { toggleAiTextPanel(); setMenuOpen(false); }}
+                  >
+                    <Brain size={18} />
+                    <span>AI Text Settings</span>
                   </button>
                   <button
                     className={styles.menu_item}
@@ -348,25 +382,38 @@ const ToolBar = ({
             <span>{selectedItems.size} selected</span>
           </div>
         )}
+
+        {/* ADDED: AI processing info in zoom toolbar */}
+        {currentTool === 'aiHandwriting' && (
+          <div className={styles.ai_info}>
+            <Brain size={16} />
+            <span>AI Handwriting Mode</span>
+            {isAiProcessing && (
+              <div className={styles.processing_indicator}>
+                <div className={styles.processing_spinner}></div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Keyboard shortcuts overlay for selection
-      {currentTool === 'select' && (
-        <div className={styles.selection_shortcuts}>
-          <div className={styles.shortcuts_panel}>
-            <div className={styles.shortcuts_title}>Selection Shortcuts:</div>
-            <div className={styles.shortcuts_list}>
-              <span>Click: Select item</span>
-              <span>Ctrl+Click: Multi-select</span>
-              <span>Drag: Area select</span>
-              <span>Delete: Delete selected</span>
-              <span>Ctrl+A: Select all</span>
-              <span>Esc: Clear selection</span>
-              <span>Arrow keys: Move selected</span>
+      {/* ADDED: AI Handwriting instructions */}
+      {currentTool === 'aiHandwriting' && (
+        <div className={styles.ai_instructions}>
+          <div className={styles.instructions_panel}>
+            <div className={styles.instructions_title}>
+              <Brain size={16} />
+              AI Handwriting Mode
+            </div>
+            <div className={styles.instructions_list}>
+              <span>• Write naturally with your pen or mouse</span>
+              <span>• Stop writing for 1 second to trigger conversion</span>
+              <span>• Text will appear where your handwriting was</span>
+              <span>• Adjust text styling in the AI Text panel</span>
             </div>
           </div>
         </div>
-      )} */}
+      )}
     </>
   );
 };

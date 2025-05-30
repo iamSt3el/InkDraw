@@ -1,11 +1,12 @@
-// src/stores/uiStore.js - Updated with Shape Panel Support
+// src/stores/uiStore.js - UPDATED with AI Text Panel Support
 import { create } from 'zustand';
 
 export const useUIStore = create((set, get) => ({
-  // Panel visibility
+  // Panel visibility - ADDED isAiTextPanelVisible
   isPenPanelVisible: false,
   isPagePanelVisible: false,
-  isShapePanelVisible: false,  // Add shape panel visibility
+  isShapePanelVisible: false,
+  isAiTextPanelVisible: false, // NEW: AI Text Panel visibility
   isMenuOpen: false,
   
   // Modal states
@@ -28,16 +29,26 @@ export const useUIStore = create((set, get) => ({
   // Actions for panel visibility
   togglePenPanel: () => set(state => ({ 
     isPenPanelVisible: !state.isPenPanelVisible,
-    // Auto-hide shape panel when pen panel is shown
-    isShapePanelVisible: !state.isPenPanelVisible ? false : state.isShapePanelVisible
+    // Auto-hide other drawing panels when pen panel is shown
+    isShapePanelVisible: !state.isPenPanelVisible ? false : state.isShapePanelVisible,
+    isAiTextPanelVisible: !state.isPenPanelVisible ? false : state.isAiTextPanelVisible
   })),
   
   togglePagePanel: () => set(state => ({ isPagePanelVisible: !state.isPagePanelVisible })),
   
   toggleShapePanel: () => set(state => ({ 
     isShapePanelVisible: !state.isShapePanelVisible,
-    // Auto-hide pen panel when shape panel is shown
-    isPenPanelVisible: !state.isShapePanelVisible ? false : state.isPenPanelVisible
+    // Auto-hide other drawing panels when shape panel is shown
+    isPenPanelVisible: !state.isShapePanelVisible ? false : state.isPenPanelVisible,
+    isAiTextPanelVisible: !state.isShapePanelVisible ? false : state.isAiTextPanelVisible
+  })),
+  
+  // NEW: Toggle AI Text Panel
+  toggleAiTextPanel: () => set(state => ({
+    isAiTextPanelVisible: !state.isAiTextPanelVisible,
+    // Auto-hide other drawing panels when AI text panel is shown
+    isPenPanelVisible: !state.isAiTextPanelVisible ? false : state.isPenPanelVisible,
+    isShapePanelVisible: !state.isAiTextPanelVisible ? false : state.isShapePanelVisible
   })),
   
   toggleMenu: () => set(state => ({ isMenuOpen: !state.isMenuOpen })),
@@ -45,16 +56,26 @@ export const useUIStore = create((set, get) => ({
   // Set panel visibility directly
   setPenPanelVisible: (visible) => set({ 
     isPenPanelVisible: visible,
-    // Auto-hide shape panel when pen panel is shown
-    isShapePanelVisible: visible ? false : get().isShapePanelVisible
+    // Auto-hide other drawing panels when pen panel is shown
+    isShapePanelVisible: visible ? false : get().isShapePanelVisible,
+    isAiTextPanelVisible: visible ? false : get().isAiTextPanelVisible
   }),
   
   setPagePanelVisible: (visible) => set({ isPagePanelVisible: visible }),
   
   setShapePanelVisible: (visible) => set({ 
     isShapePanelVisible: visible,
-    // Auto-hide pen panel when shape panel is shown
-    isPenPanelVisible: visible ? false : get().isPenPanelVisible
+    // Auto-hide other drawing panels when shape panel is shown
+    isPenPanelVisible: visible ? false : get().isPenPanelVisible,
+    isAiTextPanelVisible: visible ? false : get().isAiTextPanelVisible
+  }),
+  
+  // NEW: Set AI Text Panel visibility
+  setAiTextPanelVisible: (visible) => set({
+    isAiTextPanelVisible: visible,
+    // Auto-hide other drawing panels when AI text panel is shown
+    isPenPanelVisible: visible ? false : get().isPenPanelVisible,
+    isShapePanelVisible: visible ? false : get().isShapePanelVisible
   }),
   
   setMenuOpen: (open) => set({ isMenuOpen: open }),
@@ -124,13 +145,22 @@ export const useUIStore = create((set, get) => ({
       case 'pen':
         set({ 
           isPenPanelVisible: true, 
-          isShapePanelVisible: false 
+          isShapePanelVisible: false,
+          isAiTextPanelVisible: false
         });
         break;
       case 'shape':
         set({ 
           isShapePanelVisible: true, 
-          isPenPanelVisible: false 
+          isPenPanelVisible: false,
+          isAiTextPanelVisible: false
+        });
+        break;
+      case 'aiText': // NEW: AI Text panel case
+        set({
+          isAiTextPanelVisible: true,
+          isPenPanelVisible: false,
+          isShapePanelVisible: false
         });
         break;
       case 'page':
@@ -147,18 +177,27 @@ export const useUIStore = create((set, get) => ({
     console.log('UIStore: Hiding all drawing panels');
     set({
       isPenPanelVisible: false,
-      isShapePanelVisible: false
+      isShapePanelVisible: false,
+      isAiTextPanelVisible: false // ADDED: Hide AI text panel
     });
   },
 
-  // Smart panel switching based on tool
+  // UPDATED: Smart panel switching based on tool with AI support
   switchPanelForTool: (tool) => {
     console.log('UIStore: Switching panel for tool:', tool);
     switch (tool) {
       case 'pen':
         set({ 
           isPenPanelVisible: true, 
-          isShapePanelVisible: false 
+          isShapePanelVisible: false,
+          isAiTextPanelVisible: false
+        });
+        break;
+      case 'aiHandwriting': // NEW: Auto-show AI text panel for AI tool
+        set({
+          isAiTextPanelVisible: true,
+          isPenPanelVisible: false,
+          isShapePanelVisible: false
         });
         break;
       case 'rectangle':
@@ -167,12 +206,19 @@ export const useUIStore = create((set, get) => ({
       case 'line':
         set({ 
           isShapePanelVisible: true, 
-          isPenPanelVisible: false 
+          isPenPanelVisible: false,
+          isAiTextPanelVisible: false
         });
         break;
       case 'eraser':
       case 'pan':
-        // Don't auto-show panels for these tools
+      case 'select':
+        // Don't auto-show panels for these tools, but hide drawing panels
+        set({
+          isPenPanelVisible: false,
+          isShapePanelVisible: false,
+          isAiTextPanelVisible: false
+        });
         break;
       default:
         break;
@@ -216,11 +262,12 @@ export const useUIStore = create((set, get) => ({
     }
   },
   
-  // Close all panels and modals
+  // Close all panels and modals - UPDATED with AI text panel
   closeAll: () => set({
     isPenPanelVisible: false,
     isPagePanelVisible: false,
     isShapePanelVisible: false,
+    isAiTextPanelVisible: false, // ADDED: Close AI text panel
     isMenuOpen: false,
     isDeleteModalOpen: false,
     isExportModalOpen: false,
@@ -229,11 +276,12 @@ export const useUIStore = create((set, get) => ({
     selectedItemId: null
   }),
   
-  // Reset to default state
+  // Reset to default state - UPDATED with AI text panel
   resetUI: () => set({
     isPenPanelVisible: false,
     isPagePanelVisible: false,
     isShapePanelVisible: false,
+    isAiTextPanelVisible: false, // ADDED: Reset AI text panel
     isMenuOpen: false,
     isDeleteModalOpen: false,
     isExportModalOpen: false,

@@ -1,4 +1,4 @@
-// src/pages/NotebookInside/Index.jsx - FIXED VERSION
+// src/pages/NotebookInside/Index.jsx - UPDATED with AI Text Panel
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
@@ -7,6 +7,7 @@ import NoteBookUi from '../../components/NotebookUi/Index';
 import PageSettingPanel from '../../components/PagePanel/PagePanel';
 import PenSettingPanel from '../../components/PenPanel/PenPanel';
 import ShapePanel from '../../components/ShapePanel/ShapePanel';
+import AiTextPanel from '../../components/AiTextPanel/AiTextPanel'; // NEW: Import AI Text Panel
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
@@ -41,7 +42,8 @@ const NotebookInside = () => {
     showNotification, 
     switchPanelForTool,
     isPenPanelVisible,
-    isShapePanelVisible
+    isShapePanelVisible,
+    isAiTextPanelVisible // NEW: AI text panel visibility state
   } = useUIStore();
 
   // State management
@@ -250,6 +252,14 @@ const NotebookInside = () => {
       if (e.key === 'Escape') {
         handleBackToNotebooks();
       }
+      // NEW: Keyboard shortcut for AI tool
+      if (e.key === 'a' || e.key === 'A') {
+        if (!e.ctrlKey && !e.altKey && !e.shiftKey) {
+          e.preventDefault();
+          const { setTool } = useDrawingStore.getState();
+          setTool('aiHandwriting');
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -290,7 +300,7 @@ const NotebookInside = () => {
 
   return (
     <div className={styles.ni_cover}>
-      {/* Toolbar with shape support */}
+      {/* Toolbar with AI support */}
       <ToolBar 
         notebookInfo={{
           title: notebook.title,
@@ -307,7 +317,7 @@ const NotebookInside = () => {
         isTransitioning={isTransitioning}
       />
 
-      {/* Main content with all panels */}
+      {/* Main content with all panels including AI Text Panel */}
       <div className={styles.ni_content}>
         <div className={styles.ni_canvas_area}>
           {/* Page Settings Panel (Left) */}
@@ -320,20 +330,24 @@ const NotebookInside = () => {
             <NoteBookUi />
           </div>
           
-          {/* Drawing Panels (Right) - Smart switching between pen and shape panels */}
+          {/* Drawing Panels (Right) - Smart switching between pen, shape, and AI text panels */}
           <div className={styles.ni_drawing_settings}>
             {isPenPanelVisible && <PenSettingPanel />}
             {isShapePanelVisible && <ShapePanel />}
+            {/* NEW: AI Text Panel */}
+            {isAiTextPanelVisible && <AiTextPanel />}
           </div>
         </div>
       </div>
 
-      {/* Keyboard shortcuts help */}
+      {/* Enhanced keyboard shortcuts help with AI tool */}
       <div className={styles.shortcutsHelp}>
         <span>Ctrl+S: Save</span>
         <span>Ctrl+←/→: Navigate Pages</span>
+        <span>A: AI Handwriting Tool</span>
         <span>Esc: Back to Notebooks</span>
         {currentTool === 'rectangle' && <span>Drag: Draw Rectangle</span>}
+        {currentTool === 'aiHandwriting' && <span>Write & Wait: AI Conversion</span>}
       </div>
     </div>
   );

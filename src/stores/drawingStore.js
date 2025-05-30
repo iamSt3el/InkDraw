@@ -10,6 +10,21 @@ export const useDrawingStore = create((set, get) => ({
   strokeWidth: 5,
   opacity: 100,
   eraserWidth: 10,
+
+   // AI Handwriting specific settings - NEW
+   aiTextSettings: {
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: 16,
+    fontWeight: 'normal',
+    textColor: null, // null means use stroke color
+    textAlign: 'center'
+  },
+  
+  // AI processing state - NEW
+  isAiProcessing: false,
+  aiProcessingTimer: null,
+  currentAiStrokes: [], // Raw coordinate data for current word
+  aiWordBoundaryThreshold: 40, // pixels
   
   // Selection state
   selectedItems: new Set(), // Set of selected item IDs
@@ -48,18 +63,121 @@ export const useDrawingStore = create((set, get) => ({
   hasUnsavedChanges: false,
   isDataLoading: false,
   
-  // Tool actions
-  setTool: (tool) => {
-    const validTools = ['pen', 'eraser', 'pan', 'rectangle', 'select'];
+   // UPDATED: Tool actions with AI handwriting support
+   setTool: (tool) => {
+    const validTools = ['pen', 'eraser', 'pan', 'rectangle', 'select', 'aiHandwriting']; // ADDED aiHandwriting
     if (validTools.includes(tool)) {
       // Clear selection when switching away from select tool
       if (get().currentTool === 'select' && tool !== 'select') {
         get().clearSelection();
       }
+      
+      // NEW: Clear AI processing when switching away from AI tool
+      if (get().currentTool === 'aiHandwriting' && tool !== 'aiHandwriting') {
+        get().clearAiProcessing();
+      }
+      
       set({ currentTool: tool });
     } else {
       console.warn(`Invalid tool: ${tool}`);
     }
+  },
+
+  // NEW: AI Text Settings Actions
+  setAiFontFamily: (fontFamily) => {
+    set(state => ({
+      aiTextSettings: { ...state.aiTextSettings, fontFamily }
+    }));
+  },
+  
+  setAiFontSize: (fontSize) => {
+    const validSize = Math.max(8, Math.min(72, fontSize));
+    set(state => ({
+      aiTextSettings: { ...state.aiTextSettings, fontSize: validSize }
+    }));
+  },
+  
+  setAiFontWeight: (fontWeight) => {
+    const validWeights = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+    if (validWeights.includes(fontWeight)) {
+      set(state => ({
+        aiTextSettings: { ...state.aiTextSettings, fontWeight }
+      }));
+    }
+  },
+  
+  setAiTextColor: (textColor) => {
+    set(state => ({
+      aiTextSettings: { ...state.aiTextSettings, textColor }
+    }));
+  },
+  
+  setAiTextAlign: (textAlign) => {
+    const validAlignments = ['left', 'center', 'right'];
+    if (validAlignments.includes(textAlign)) {
+      set(state => ({
+        aiTextSettings: { ...state.aiTextSettings, textAlign }
+      }));
+    }
+  },
+  
+  // NEW: AI Processing Actions
+  setAiProcessing: (isProcessing) => {
+    set({ isAiProcessing: isProcessing });
+  },
+  
+  addAiStroke: (strokeCoordinates) => {
+    set(state => ({
+      currentAiStrokes: [...state.currentAiStrokes, strokeCoordinates]
+    }));
+  },
+  
+  clearAiProcessing: () => {
+    const state = get();
+    if (state.aiProcessingTimer) {
+      clearTimeout(state.aiProcessingTimer);
+    }
+    set({
+      isAiProcessing: false,
+      aiProcessingTimer: null,
+      currentAiStrokes: []
+    });
+  },
+  
+  startAiProcessingTimer: (callback) => {
+    const state = get();
+    
+    // Clear existing timer
+    if (state.aiProcessingTimer) {
+      clearTimeout(state.aiProcessingTimer);
+    }
+    
+    // Start new 1-second timer
+    const timer = setTimeout(() => {
+      if (state.currentAiStrokes.length > 0) {
+        callback(state.currentAiStrokes);
+      }
+    }, 1000);
+    
+    set({ aiProcessingTimer: timer });
+  },
+  
+  // NEW: Word boundary detection
+  shouldStartNewWord: (newStrokeStart) => {
+    const state = get();
+    if (state.currentAiStrokes.length === 0) return false;
+    
+    // Get last point of last stroke
+    const lastStroke = state.currentAiStrokes[state.currentAiStrokes.length - 1];
+    if (!lastStroke || lastStroke.length === 0) return false;
+    
+    const lastPoint = lastStroke[lastStroke.length - 1];
+    const distance = Math.sqrt(
+      Math.pow(newStrokeStart.x - lastPoint.x, 2) + 
+      Math.pow(newStrokeStart.y - lastPoint.y, 2)
+    );
+    
+    return distance > state.aiWordBoundaryThreshold;
   },
   
   // FIXED: Selection actions with proper method connections

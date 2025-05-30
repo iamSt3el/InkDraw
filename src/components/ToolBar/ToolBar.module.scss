@@ -1001,121 +1001,303 @@
   }
 }
 
-// // Dark mode support
-// @media (prefers-color-scheme: dark) {
-//   .tb_cover {
-//     background-color: #1f2937;
-//     border-bottom-color: #374151;
-//     color: #f9fafb;
+// Add these new styles to your existing ToolBar.module.scss file
 
-//     .tb_left {
-//       .backButton {
-//         background-color: #374151;
-//         border-color: #4b5563;
-//         color: #e5e7eb;
+// AI-specific tool styles - ADD to existing .tb_center section
+.ai_tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid #e5e7eb;
+  animation: slideInRight 0.3s ease-out;
 
-//         &:hover {
-//           background-color: #4b5563;
-//         }
-//       }
+  .ai_status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b5cf6;
+    white-space: nowrap;
 
-//       .notebookInfo {
-//         .notebookTitle {
-//           color: #f9fafb;
-//         }
+    .ai_spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(139, 92, 246, 0.3);
+      border-top: 2px solid #8b5cf6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
+}
 
-//         .notebookDescription {
-//           color: #9ca3af;
-//         }
-//       }
-//     }
+// AI info in zoom toolbar - ADD to existing .zoom_toolbar section
+.ai_info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(139, 92, 246, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  padding: 8px 16px;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.2);
+  animation: slideInUp 0.3s ease-out;
+  
+  span {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+  }
 
-//     .tb_center {
-//       .drawing_tools {
-//         background-color: #374151;
-//         border-color: #4b5563;
-//       }
+  svg {
+    color: white;
+    flex-shrink: 0;
+  }
 
-//       .selection_tools {
-//         border-left-color: #4b5563;
-//       }
-//     }
+  .processing_indicator {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
 
-//     .tb_right {
-//       .saveStatus {
-//         .switching {
-//           color: #60a5fa;
-//         }
+    .processing_spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
+}
 
-//         .saving {
-//           color: #fbbf24;
-//         }
+// AI instructions panel - ADD as new section
+.ai_instructions {
+  position: fixed;
+  bottom: 80px;
+  left: 20px;
+  z-index: 150;
+  max-width: 320px;
+  animation: slideInLeft 0.3s ease-out;
 
-//         .ready {
-//           color: #34d399;
-//         }
-//       }
+  .instructions_panel {
+    background-color: rgba(139, 92, 246, 0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 
-//       .tb_menu {
-//         .quick_menu {
-//           .menu_toggle {
-//             background-color: #374151;
-//             border-color: #4b5563;
+    .instructions_title {
+      color: white;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
 
-//             &:hover {
-//               background-color: #4b5563;
-//             }
-//           }
+      svg {
+        color: white;
+      }
+    }
 
-//           .menu_content {
-//             background-color: #1f2937;
-//             border-color: #374151;
+    .instructions_list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
 
-//             .menu_item {
-//               color: #e5e7eb;
+      span {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.75rem;
+        line-height: 1.4;
+        display: flex;
+        align-items: flex-start;
+        
+        &::before {
+          content: '';
+          width: 4px;
+          height: 4px;
+          background-color: rgba(255, 255, 255, 0.7);
+          border-radius: 50%;
+          margin-right: 8px;
+          margin-top: 6px;
+          flex-shrink: 0;
+        }
+      }
+    }
+  }
+}
 
-//               &:hover {
-//                 background-color: #374151;
-//               }
-//             }
+// Additional animations - ADD to existing animations section
+@keyframes slideInLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
-//             .menu_divider {
-//               background-color: #374151;
-//             }
-//           }
-//         }
-//       }
-//     }
-//   }
+// Brain icon specific styling for buttons - ADD to existing button styles
+.drawing_tools {
+  // Add brain icon specific styling
+  button[title*="AI Handwriting"] {
+    position: relative;
+    
+    &.active {
+      .icon {
+        color: #8b5cf6 !important;
+      }
+    }
+    
+    // Add processing indicator overlay for AI tool
+    &[title*="Processing"] {
+      &::after {
+        content: '';
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        width: 8px;
+        height: 8px;
+        background-color: #f59e0b;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+    }
+  }
+}
 
-//   .zoom_toolbar {
-//     .zoom_controls {
-//       background-color: rgba(31, 41, 59, 0.95);
-//       border-color: #374151;
+// Responsive updates for AI components - ADD to existing mobile section
+@media (max-width: 992px) {
+  .ai_tools {
+    margin-left: 6px;
+    padding-left: 6px;
+    gap: 4px;
 
-//       .zoom_label {
-//         color: #9ca3af;
-//       }
+    .ai_status {
+      padding: 4px 8px;
+      font-size: 10px;
+      gap: 4px;
 
-//       .zoom_buttons {
-//         .zoom_button {
-//           color: #d1d5db;
+      .ai_spinner {
+        width: 10px;
+        height: 10px;
+        border-width: 1.5px;
+      }
+    }
+  }
 
-//           &:hover {
-//             background-color: #374151;
-//             color: #f9fafb;
-//           }
+  .ai_instructions {
+    max-width: 280px;
+    bottom: 70px;
+    left: 15px;
 
-//           &[data-active="true"] {
-//             background-color: #8b5cf6;
-//             color: white;
-//           }
-//         }
+    .instructions_panel {
+      padding: 12px;
 
-//         .zoom_level {
-//           color: #d1d5db;
-//         }
-//       }
-//     }
-//   }
-// }
+      .instructions_title {
+        font-size: 0.8rem;
+        margin-bottom: 10px;
+      }
+
+      .instructions_list {
+        gap: 4px;
+
+        span {
+          font-size: 0.7rem;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .ai_tools {
+    margin-left: 4px;
+    padding-left: 4px;
+
+    .ai_status {
+      padding: 3px 6px;
+      font-size: 9px;
+
+      span {
+        display: none; // Hide text on mobile
+      }
+
+      .ai_spinner {
+        width: 8px;
+        height: 8px;
+        border-width: 1px;
+      }
+    }
+  }
+
+  .ai_info {
+    padding: 6px 12px;
+
+    span {
+      font-size: 0.75rem;
+    }
+
+    .processing_indicator {
+      margin-left: 6px;
+
+      .processing_spinner {
+        width: 12px;
+        height: 12px;
+        border-width: 1.5px;
+      }
+    }
+  }
+
+  .ai_instructions {
+    display: none; // Hide instructions on mobile to save space
+  }
+}
+
+// Special indicator for AI tool when active
+.tb_center .drawing_tools button[title*="AI Handwriting"].active {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 6px;
+    height: 6px;
+    background: linear-gradient(45deg, #8b5cf6, #a855f7);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+    animation: aiGlow 2s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes aiGlow {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+// Processing state for the entire toolbar when AI is active
+.tb_cover.ai_processing {
+  .tb_center .drawing_tools {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+}
