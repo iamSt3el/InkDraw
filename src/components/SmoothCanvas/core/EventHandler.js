@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - FIXED WITH DUAL COORDINATE COLLECTION
+// src/components/SmoothCanvas/core/EventHandler.js - FIXED AI TOOL BUGS
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -20,12 +20,13 @@ export class EventHandler {
     this.resizeHandle = null;
     this.originalBounds = null;
 
-    // AI Handwriting state - ENHANCED
+    // AI Handwriting state - FIXED
     this.isCapturingAI = false;
     this.currentAIStroke = [];
     this.aiProcessingTimer = null;
     this.lastAIPoint = null;
     this.aiStartTime = null;
+    this.aiStrokeCount = 0; // NEW: Track stroke count for unique IDs
 
     // FIXED: Add throttling and optimization variables
     this.dragThrottleTimeout = null;
@@ -48,7 +49,7 @@ export class EventHandler {
     this.callbacks = { ...this.callbacks, ...callbacks };
   }
 
-  // NEW: Get simple canvas coordinates for AI (like Flask HTML)
+  // Get simple canvas coordinates for AI (like Flask HTML)
   getSimpleCanvasCoordinates(e) {
     if (!this.engine.canvasRef.current) return null;
 
@@ -77,10 +78,15 @@ export class EventHandler {
   }
 
   // ===========================================
-  // AI HANDWRITING METHODS - FIXED WITH RAW COORDINATES
+  // AI HANDWRITING METHODS - FIXED ALL BUGS
   // ===========================================
 
   startAICapture(e) {
+    console.log('AI Tool: Starting NEW capture session');
+    
+    // FIXED: Clear any existing timer immediately
+    this.clearAITimer();
+    
     // Get raw canvas coordinates (like Flask HTML)
     const canvas = this.engine.canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -90,6 +96,7 @@ export class EventHandler {
 
     console.log('AI Tool: Starting capture with raw coordinates:', { rawX, rawY });
 
+    // FIXED: Reset all AI state properly
     this.isCapturingAI = true;
     this.currentAIStroke = [{
       x: rawX,
@@ -99,20 +106,49 @@ export class EventHandler {
     }];
     this.lastAIPoint = { x: rawX, y: rawY };
     this.aiStartTime = Date.now();
+    this.aiStrokeCount = 1; // NEW: Start stroke counting
 
-    // Clear any existing timer
-    if (this.aiProcessingTimer) {
-      clearTimeout(this.aiProcessingTimer);
-      this.aiProcessingTimer = null;
-    }
+    // FIXED: Clear any existing visual feedback before creating new
+    this.clearAllTempAIPaths();
 
     // Create visual feedback using complex coordinates
     const complexPoint = this.engine.getPointFromEvent(e);
-    this.createTempAIPath(complexPoint);
+    this.createTempAIPath(complexPoint, this.aiStrokeCount);
 
     // Notify start
     if (this.callbacks.onAIStrokeStart) {
       this.callbacks.onAIStrokeStart({ x: rawX, y: rawY });
+    }
+  }
+
+  continueAICapture(e) {
+    console.log('AI Tool: Continuing existing capture session');
+    
+    // FIXED: Clear any pending timer since user is still writing
+    this.clearAITimer();
+
+    // Get simple coordinates for AI data
+    const simpleCoords = this.getSimpleCanvasCoordinates(e);
+    if (simpleCoords) {
+      // FIXED: Increment stroke count for new stroke
+      this.aiStrokeCount++;
+      
+      // Add a stroke separator with proper marking
+      this.currentAIStroke.push({
+        x: simpleCoords.x,
+        y: simpleCoords.y,
+        timestamp: Date.now(),
+        isNewStroke: true,
+        strokeId: this.aiStrokeCount // NEW: Add unique stroke ID
+      });
+      
+      this.lastAIPoint = { x: simpleCoords.x, y: simpleCoords.y };
+
+      console.log('AI Tool: Added new stroke separator, total strokes:', this.aiStrokeCount);
+
+      // FIXED: Create separate visual path for new stroke
+      const complexPoint = this.engine.getPointFromEvent(e);
+      this.createTempAIPath(complexPoint, this.aiStrokeCount);
     }
   }
 
@@ -126,18 +162,21 @@ export class EventHandler {
     const rawX = e.clientX - rect.left;
     const rawY = e.clientY - rect.top;
     
-    // FIXED: Don't use coalesced events for AI - just the main event
-    // This keeps point density similar to Flask's natural mouse events
+    // FIXED: Only add points if they're significantly different (reduce noise)
     const lastPoint = this.lastAIPoint;
-    if (Math.abs(rawX - lastPoint.x) > 1 || Math.abs(rawY - lastPoint.y) > 1) {
+    const distance = Math.sqrt(Math.pow(rawX - lastPoint.x, 2) + Math.pow(rawY - lastPoint.y, 2));
+    
+    if (distance > 1) { // Minimum distance threshold
       this.currentAIStroke.push({
         x: rawX,
         y: rawY,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        strokeId: this.aiStrokeCount // NEW: Track which stroke this point belongs to
       });
       this.lastAIPoint = { x: rawX, y: rawY };
       
-      this.updateTempAIPath();
+      // FIXED: Update only the current stroke's visual path
+      this.updateTempAIPath(this.aiStrokeCount);
     }
   }
 
@@ -148,9 +187,9 @@ export class EventHandler {
       return;
     }
 
-    console.log('AI Tool: Finishing capture with', this.currentAIStroke.length, 'raw points');
+    console.log('AI Tool: Finishing capture with', this.currentAIStroke.length, 'raw points across', this.aiStrokeCount, 'strokes');
 
-    // Calculate bounds using raw coordinates
+    // FIXED: Calculate bounds using raw coordinates properly
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     this.currentAIStroke.forEach(point => {
@@ -171,192 +210,156 @@ export class EventHandler {
 
     console.log('AI Tool: Raw bounds:', bounds);
 
-    // Prepare stroke data with raw coordinates
+    // FIXED: Prepare stroke data with proper stroke separation
     const strokeData = {
       points: this.currentAIStroke,
       bounds: bounds,
       duration: Date.now() - this.aiStartTime,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      strokeCount: this.aiStrokeCount
     };
 
-    // Clear visual feedback
-    this.clearTempAIPath();
+    // FIXED: Clear all visual feedback properly
+    this.clearAllTempAIPaths();
 
     // Send raw data to AI processing
     if (this.callbacks.onAIStrokeComplete) {
       this.callbacks.onAIStrokeComplete(strokeData);
     }
 
-    // Reset state
-    this.isCapturingAI = false;
-    this.currentAIStroke = [];
-    this.aiProcessingTimer = null;
-    this.lastAIPoint = null;
-    this.aiStartTime = null;
+    // FIXED: Reset ALL AI state
+    this.resetAIState();
   }
 
   cancelAICapture() {
     console.log('EventHandler: Cancelling AI capture');
 
+    // FIXED: Clear timer and visual feedback
+    this.clearAITimer();
+    this.clearAllTempAIPaths();
+
+    // FIXED: Reset all AI state
+    this.resetAIState();
+  }
+
+  // FIXED: Proper timer management
+  clearAITimer() {
     if (this.aiProcessingTimer) {
       clearTimeout(this.aiProcessingTimer);
       this.aiProcessingTimer = null;
+      console.log('AI Tool: Cleared existing timer');
     }
+  }
 
-    this.clearTempAIPath();
-
+  // FIXED: Complete AI state reset
+  resetAIState() {
     this.isCapturingAI = false;
     this.currentAIStroke = [];
     this.lastAIPoint = null;
     this.aiStartTime = null;
+    this.aiStrokeCount = 0;
+    this.aiProcessingTimer = null;
   }
 
-  // FIXED: Visual feedback still uses complex coordinates for display
-  createTempAIPath(point) {
+  // FIXED: Create separate visual path for each stroke
+  createTempAIPath(point, strokeId) {
     const svg = this.engine.svgRef.current;
     if (!svg) return;
 
-    // Remove existing temp AI path
-    const existingPath = svg.querySelector('#temp-ai-path');
+    // FIXED: Create unique ID for each stroke
+    const pathId = `temp-ai-path-${strokeId}`;
+    
+    // Remove existing path with same ID (shouldn't happen, but safety)
+    const existingPath = svg.querySelector(`#${pathId}`);
     if (existingPath) {
       existingPath.remove();
     }
 
     const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    tempPath.id = 'temp-ai-path';
+    tempPath.id = pathId;
     tempPath.setAttribute('fill', 'none');
     tempPath.setAttribute('stroke', '#8b5cf6'); // Purple color for AI
     tempPath.setAttribute('stroke-width', '3');
     tempPath.setAttribute('stroke-dasharray', '5,5');
     tempPath.setAttribute('opacity', '0.8');
+    tempPath.setAttribute('data-stroke-id', strokeId); // NEW: Track stroke ID
 
     const pathData = `M ${point[0]},${point[1]}`;
     tempPath.setAttribute('d', pathData);
 
     svg.appendChild(tempPath);
+    
+    console.log('AI Tool: Created visual path for stroke', strokeId);
   }
 
-  // updateTempAIPath() {
-  //   const svg = this.engine.svgRef.current;
-  //   const tempPath = svg?.querySelector('#temp-ai-path');
-
-  //   if (tempPath && this.currentAIStroke.length > 1) {
-  //     // Convert AI stroke points (simple coords) to SVG path for visual feedback
-  //     let pathData = '';
-
-  //     // Transform simple AI coordinates to viewBox coordinates for display
-  //     const viewBox = this.options.viewBox || this.engine.options.viewBox || 
-  //       { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
-
-  //     for (let i = 0; i < this.currentAIStroke.length; i++) {
-  //       const point = this.currentAIStroke[i];
-
-  //       // Convert simple canvas coordinates to viewBox coordinates for display
-  //       const svgX = viewBox.x + (point.x / this.engine.options.width) * viewBox.width;
-  //       const svgY = viewBox.y + (point.y / this.engine.options.height) * viewBox.height;
-
-  //       if (point.isNewStroke && i > 0) {
-  //         pathData += ` M ${svgX},${svgY}`;
-  //       } else if (i === 0) {
-  //         pathData = `M ${svgX},${svgY}`;
-  //       } else {
-  //         pathData += ` L ${svgX},${svgY}`;
-  //       }
-  //     }
-
-  //     tempPath.setAttribute('d', pathData);
-  //   }
-  // }
-
-  updateTempAIPath() {
-    const svg = this.engine.svgRef.current;
-    const tempPath = svg?.querySelector('#temp-ai-path');
-
-    if (tempPath && this.currentAIStroke.length > 1) {
-      // Convert raw AI coordinates to SVG coordinates for visual display
-      const viewBox = this.options.viewBox || this.engine.options.viewBox ||
-        { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
-
-      let pathData = '';
-
-      for (let i = 0; i < this.currentAIStroke.length; i++) {
-        const point = this.currentAIStroke[i];
-
-        // Convert raw canvas coordinates to viewBox coordinates for display
-        const svgX = viewBox.x + (point.x / this.engine.options.width) * viewBox.width;
-        const svgY = viewBox.y + (point.y / this.engine.options.height) * viewBox.height;
-
-        if (point.isNewStroke && i > 0) {
-          pathData += ` M ${svgX},${svgY}`;
-        } else if (i === 0) {
-          pathData = `M ${svgX},${svgY}`;
-        } else {
-          pathData += ` L ${svgX},${svgY}`;
-        }
-      }
-
-      tempPath.setAttribute('d', pathData);
-    }
-  }
-
-  clearTempAIPath() {
+  // FIXED: Update only specific stroke's visual path - CORRECT APPROACH
+  updateTempAIPath(strokeId) {
     const svg = this.engine.svgRef.current;
     if (!svg) return;
 
-    const tempPath = svg.querySelector('#temp-ai-path');
-    if (tempPath) {
-      tempPath.remove();
+    const pathId = `temp-ai-path-${strokeId}`;
+    const tempPath = svg.querySelector(`#${pathId}`);
+
+    if (tempPath && this.currentAIStroke.length > 1) {
+      // FIXED: Get only points from the CURRENT strokeId, maintain stroke separation
+      let currentStrokePoints = [];
+      let startIndex = -1;
+      
+      // Find where this stroke starts
+      for (let i = 0; i < this.currentAIStroke.length; i++) {
+        const point = this.currentAIStroke[i];
+        if (point.strokeId === strokeId) {
+          if (startIndex === -1) startIndex = i;
+          currentStrokePoints.push(point);
+        } else if (startIndex !== -1) {
+          // Found end of this stroke
+          break;
+        }
+      }
+
+      if (currentStrokePoints.length > 0) {
+        const viewBox = this.options.viewBox || this.engine.options.viewBox ||
+          { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
+
+        let pathData = '';
+
+        for (let i = 0; i < currentStrokePoints.length; i++) {
+          const point = currentStrokePoints[i];
+
+          // Convert raw canvas coordinates to viewBox coordinates for display
+          const svgX = viewBox.x + (point.x / this.engine.options.width) * viewBox.width;
+          const svgY = viewBox.y + (point.y / this.engine.options.height) * viewBox.height;
+
+          if (i === 0) {
+            // Start new path segment
+            pathData = `M ${svgX},${svgY}`;
+          } else {
+            // Continue current path
+            pathData += ` L ${svgX},${svgY}`;
+          }
+        }
+
+        tempPath.setAttribute('d', pathData);
+      }
     }
   }
 
-  // Calculate bounds using simple coordinates
-  calculateSimpleStrokeBounds(stroke) {
-    if (stroke.length === 0) return null;
+  // FIXED: Clear all AI visual paths
+  clearAllTempAIPaths() {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-    for (const point of stroke) {
-      minX = Math.min(minX, point.x);
-      minY = Math.min(minY, point.y);
-      maxX = Math.max(maxX, point.x);
-      maxY = Math.max(maxY, point.y);
-    }
-
-    return {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      centerX: (minX + maxX) / 2,
-      centerY: (minY + maxY) / 2
-    };
-  }
-
-  // Keep the original complex bounds calculation for visual elements
-  calculateStrokeBounds(stroke) {
-    if (stroke.length === 0) return null;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-    for (const point of stroke) {
-      minX = Math.min(minX, point.x);
-      minY = Math.min(minY, point.y);
-      maxX = Math.max(maxX, point.x);
-      maxY = Math.max(maxY, point.y);
-    }
-
-    return {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      centerX: (minX + maxX) / 2,
-      centerY: (minY + maxY) / 2
-    };
+    // FIXED: Remove all AI temp paths (multiple strokes)
+    const tempPaths = svg.querySelectorAll('[id^="temp-ai-path-"]');
+    tempPaths.forEach(path => {
+      path.remove();
+    });
+    
+    console.log('AI Tool: Cleared all visual feedback paths');
   }
 
   // ===========================================
-  // MAIN EVENT HANDLERS - ENHANCED WITH AI SUPPORT
+  // MAIN EVENT HANDLERS - FIXED AI HANDLING
   // ===========================================
 
   handlePointerDown(e) {
@@ -371,37 +374,20 @@ export class EventHandler {
       isCapturingAI: this.isCapturingAI
     });
 
-    // Handle AI handwriting tool - FIXED WITH SIMPLE COORDINATES
+    // FIXED: Handle AI handwriting tool with proper state management
     if (this.options.currentTool === 'aiHandwriting') {
       console.log('AI Tool: Pointer down detected');
 
-      // Check if we're starting a new stroke while already capturing (multi-stroke word)
+      // FIXED: Proper multi-stroke handling
       if (this.isCapturingAI) {
         console.log('AI Tool: Adding new stroke to existing capture');
-
-        // Clear any pending timer since user is still writing
-        if (this.aiProcessingTimer) {
-          clearTimeout(this.aiProcessingTimer);
-          this.aiProcessingTimer = null;
-        }
-
-        // Get simple coordinates for AI data
-        const simpleCoords = this.getSimpleCanvasCoordinates(e);
-        if (simpleCoords) {
-          // Add a stroke separator
-          this.currentAIStroke.push({
-            x: simpleCoords.x,
-            y: simpleCoords.y,
-            timestamp: Date.now(),
-            isNewStroke: true // Mark as start of new stroke
-          });
-        }
+        this.continueAICapture(e);
       } else {
         console.log('AI Tool: Starting new capture session');
         this.startAICapture(e);
       }
 
-      // Set the active pointer and capture
+      // FIXED: Proper pointer management
       this.engine.activePointer = e.pointerId;
       this.engine.isDrawing = true;
 
@@ -457,11 +443,10 @@ export class EventHandler {
     const point = this.engine.getPointFromEvent(e);
     const worldPoint = { x: point[0], y: point[1] };
 
-    // Handle AI handwriting tool movement - FIXED WITH SIMPLE COORDINATES
+    // FIXED: Handle AI handwriting tool movement with proper checks
     if (this.options.currentTool === 'aiHandwriting') {
-      // Only update if we're actively capturing AND this is the active pointer
-      if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
-        console.log('AI Tool: Pointer move, updating capture with simple coordinates');
+      // FIXED: Only update if we're actively capturing AND this is the active pointer
+      if (this.isCapturingAI && this.engine.isDrawing && e.pointerId === this.engine.activePointer) {
         this.updateAICapture(e);
         e.preventDefault();
       }
@@ -554,43 +539,44 @@ export class EventHandler {
       activePointer: this.engine.activePointer
     });
 
-    // Handle AI handwriting tool end - FIXED
+    // FIXED: Handle AI handwriting tool end with proper timer management
     if (this.options.currentTool === 'aiHandwriting') {
       console.log('AI Tool: Pointer up detected');
 
-      // Only handle if this is the active pointer and we're capturing
+      // FIXED: Only handle if this is the active pointer and we're capturing
       if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
         console.log('AI Tool: Handling pointer up for active capture');
 
-        // Release pointer capture
+        // FIXED: Proper cleanup of pointer capture and engine state
         if (this.engine.canvasRef.current?.releasePointerCapture) {
-          this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+          try {
+            this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+          } catch (err) {
+            console.log('AI Tool: Pointer already released');
+          }
         }
 
         // Reset engine state
         this.engine.isDrawing = false;
         this.engine.activePointer = null;
 
-        // NOW start/reset the timer when user stops drawing
-        if (this.currentAIStroke.length >= 2) {
-          // Clear any existing timer
-          if (this.aiProcessingTimer) {
-            clearTimeout(this.aiProcessingTimer);
-          }
+        // FIXED: Proper timer management - clear existing timer first
+        this.clearAITimer();
 
-          // Start new 1-second timer
+        // Start new timer only if we have enough points
+        if (this.currentAIStroke.length >= 2) {
           console.log('AI Tool: Starting 1-second processing timer');
           this.aiProcessingTimer = setTimeout(() => {
             console.log('AI Tool: Timer expired, finishing capture');
             this.finishAICapture();
           }, 1000);
         } else {
-          // Not enough points, cancel
+          // Not enough points, cancel immediately
+          console.log('AI Tool: Not enough points, cancelling capture');
           this.cancelAICapture();
         }
 
-        console.log('AI Tool: Timer set, ready for next stroke or processing');
-
+        console.log('AI Tool: Pointer up handling complete');
         e.preventDefault();
         return;
       }
@@ -632,8 +618,132 @@ export class EventHandler {
     this.engine.lastPoint = null;
   }
 
-  // ... (keeping all other existing methods unchanged - selection, pan, drawing, etc.)
-  // For brevity, I'll only include the method signatures here, but the full implementation remains the same
+  // FIXED: Enhanced mouse leave handling for AI tool
+  handleMouseLeave() {
+    this.engine.showEraser = false;
+    if (this.callbacks.onEraserShow) {
+      this.callbacks.onEraserShow(false);
+    }
+
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.engine.cancelRectangle();
+    }
+
+    if (this.options.currentTool === 'select' && this.isSelecting) {
+      this.engine.clearSelection();
+      this.isSelecting = false;
+    }
+
+    // FIXED: Handle AI capture when mouse leaves with proper timer management
+    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
+      console.log('AI Tool: Mouse left canvas during capture');
+      
+      // FIXED: Don't finish immediately, let the timer handle it
+      // This prevents accidental triggers when mouse briefly leaves canvas
+      if (this.currentAIStroke.length >= 2) {
+        console.log('AI Tool: Starting expedited timer on mouse leave');
+        this.clearAITimer();
+        this.aiProcessingTimer = setTimeout(() => {
+          this.finishAICapture();
+        }, 500); // Shorter timer on mouse leave
+      } else {
+        this.cancelAICapture();
+      }
+    }
+  }
+
+  // FIXED: Keyboard event handler with AI tool support
+  handleKeyDown(e) {
+    // FIXED: Handle AI tool keyboard shortcuts
+    if (this.options.currentTool === 'aiHandwriting') {
+      switch (e.key) {
+        case 'Escape':
+          if (this.isCapturingAI) {
+            e.preventDefault();
+            console.log('AI Tool: Escape pressed, cancelling capture');
+            this.cancelAICapture();
+          }
+          break;
+        case 'Enter':
+          if (this.isCapturingAI && this.currentAIStroke.length >= 2) {
+            e.preventDefault();
+            console.log('AI Tool: Enter pressed, finishing capture immediately');
+            this.clearAITimer();
+            this.finishAICapture();
+          }
+          break;
+      }
+      return;
+    }
+
+    if (this.options.currentTool !== 'select') return;
+
+    switch (e.key) {
+      case 'Delete':
+      case 'Backspace':
+        if (this.engine.selectedItems.size > 0) {
+          e.preventDefault();
+          this.engine.deleteSelectedItems();
+          if (this.callbacks.onSelectionChanged) {
+            this.callbacks.onSelectionChanged([]);
+          }
+        }
+        break;
+
+      case 'a':
+      case 'A':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          const allItems = this.engine.getPaths().map(item => item.id);
+          this.engine.setSelectedItems(allItems);
+          if (this.callbacks.onSelectionChanged) {
+            this.callbacks.onSelectionChanged(allItems);
+          }
+        }
+        break;
+
+      case 'Escape':
+        if (this.engine.selectedItems.size > 0) {
+          e.preventDefault();
+          this.engine.clearSelection();
+          if (this.callbacks.onSelectionChanged) {
+            this.callbacks.onSelectionChanged([]);
+          }
+        }
+        break;
+
+      case 'ArrowUp':
+      case 'ArrowDown':
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (this.engine.selectedItems.size > 0) {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          let deltaX = 0, deltaY = 0;
+
+          switch (e.key) {
+            case 'ArrowUp': deltaY = -step; break;
+            case 'ArrowDown': deltaY = step; break;
+            case 'ArrowLeft': deltaX = -step; break;
+            case 'ArrowRight': deltaX = step; break;
+          }
+
+          console.log('FIXED: Moving selection by keyboard:', { deltaX, deltaY });
+
+          this.engine.moveSelectedItems(deltaX, deltaY);
+          this.engine.selectionBounds = this.engine.getSelectionBounds(this.engine.selectedItems);
+
+          if (this.callbacks.onSelectionMoved) {
+            this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+          }
+        }
+        break;
+    }
+  }
+
+  // ===========================================
+  // SELECTION METHODS (UNCHANGED)
+  // ===========================================
 
   // FIXED: Throttled drag update method
   throttledDragUpdate = () => {
@@ -970,88 +1080,8 @@ export class EventHandler {
     }
   }
 
-  // FIXED: Keyboard event handler with proper arrow key movement and AI tool support
-  handleKeyDown(e) {
-    // NEW: Handle AI tool keyboard shortcuts
-    if (this.options.currentTool === 'aiHandwriting') {
-      switch (e.key) {
-        case 'Escape':
-          if (this.isCapturingAI) {
-            e.preventDefault();
-            this.cancelAICapture();
-          }
-          break;
-      }
-      return;
-    }
-
-    if (this.options.currentTool !== 'select') return;
-
-    switch (e.key) {
-      case 'Delete':
-      case 'Backspace':
-        if (this.engine.selectedItems.size > 0) {
-          e.preventDefault();
-          this.engine.deleteSelectedItems();
-          if (this.callbacks.onSelectionChanged) {
-            this.callbacks.onSelectionChanged([]);
-          }
-        }
-        break;
-
-      case 'a':
-      case 'A':
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          const allItems = this.engine.getPaths().map(item => item.id);
-          this.engine.setSelectedItems(allItems);
-          if (this.callbacks.onSelectionChanged) {
-            this.callbacks.onSelectionChanged(allItems);
-          }
-        }
-        break;
-
-      case 'Escape':
-        if (this.engine.selectedItems.size > 0) {
-          e.preventDefault();
-          this.engine.clearSelection();
-          if (this.callbacks.onSelectionChanged) {
-            this.callbacks.onSelectionChanged([]);
-          }
-        }
-        break;
-
-      case 'ArrowUp':
-      case 'ArrowDown':
-      case 'ArrowLeft':
-      case 'ArrowRight':
-        if (this.engine.selectedItems.size > 0) {
-          e.preventDefault();
-          const step = e.shiftKey ? 10 : 1;
-          let deltaX = 0, deltaY = 0;
-
-          switch (e.key) {
-            case 'ArrowUp': deltaY = -step; break;
-            case 'ArrowDown': deltaY = step; break;
-            case 'ArrowLeft': deltaX = -step; break;
-            case 'ArrowRight': deltaX = step; break;
-          }
-
-          console.log('FIXED: Moving selection by keyboard:', { deltaX, deltaY });
-
-          this.engine.moveSelectedItems(deltaX, deltaY);
-          this.engine.selectionBounds = this.engine.getSelectionBounds(this.engine.selectedItems);
-
-          if (this.callbacks.onSelectionMoved) {
-            this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
-          }
-        }
-        break;
-    }
-  }
-
   // ===========================================
-  // RECTANGLE DRAWING METHODS - EXISTING
+  // RECTANGLE DRAWING METHODS
   // ===========================================
 
   startRectangleDrawing(e) {
@@ -1094,7 +1124,7 @@ export class EventHandler {
   }
 
   // ===========================================
-  // PAN TOOL METHODS - EXISTING
+  // PAN TOOL METHODS
   // ===========================================
 
   startPanning(e) {
@@ -1210,7 +1240,7 @@ export class EventHandler {
   }
 
   // ===========================================
-  // WHEEL ZOOM SUPPORT - EXISTING
+  // WHEEL ZOOM SUPPORT
   // ===========================================
 
   handleWheel(e) {
@@ -1226,7 +1256,7 @@ export class EventHandler {
   }
 
   // ===========================================
-  // MOUSE ENTER/LEAVE HANDLERS - ENHANCED WITH AI SUPPORT
+  // MOUSE ENTER/LEAVE HANDLERS
   // ===========================================
 
   handleMouseEnter() {
@@ -1238,34 +1268,8 @@ export class EventHandler {
     }
   }
 
-  handleMouseLeave() {
-    this.engine.showEraser = false;
-    if (this.callbacks.onEraserShow) {
-      this.callbacks.onEraserShow(false);
-    }
-
-    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
-      this.engine.cancelRectangle();
-    }
-
-    if (this.options.currentTool === 'select' && this.isSelecting) {
-      this.engine.clearSelection();
-      this.isSelecting = false;
-    }
-
-    // NEW: Handle AI capture when mouse leaves - FIXED
-    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
-      console.log('AI Tool: Mouse left canvas during capture, finishing');
-      if (this.currentAIStroke.length >= 2) {
-        this.finishAICapture();
-      } else {
-        this.cancelAICapture();
-      }
-    }
-  }
-
   // ===========================================
-  // DRAWING METHODS - EXISTING (PEN/ERASER)
+  // DRAWING METHODS (PEN/ERASER)
   // ===========================================
 
   createTempPath(point) {
@@ -1444,33 +1448,27 @@ export class EventHandler {
   }
 
   // ===========================================
-  // CLEANUP AND LIFECYCLE - ENHANCED WITH AI CLEANUP
+  // CLEANUP AND LIFECYCLE
   // ===========================================
 
   cleanup() {
-    console.log('EventHandler: Cleaning up');
+    console.log('EventHandler: Cleaning up with AI state reset');
 
     if (this.dragThrottleTimeout) {
       cancelAnimationFrame(this.dragThrottleTimeout);
       this.dragThrottleTimeout = null;
     }
 
-    if (this.aiProcessingTimer) {
-      clearTimeout(this.aiProcessingTimer);
-      this.aiProcessingTimer = null;
-    }
-    this.clearTempAIPath();
+    // FIXED: Proper AI cleanup
+    this.clearAITimer();
+    this.clearAllTempAIPaths();
+    this.resetAIState();
 
     this.isThrottling = false;
     this.isDraggingSelection = false;
     this.isSelecting = false;
     this.isResizingSelection = false;
     this.isPanning = false;
-
-    this.isCapturingAI = false;
-    this.currentAIStroke = [];
-    this.lastAIPoint = null;
-    this.aiStartTime = null;
 
     this.accumulatedDelta = { x: 0, y: 0 };
     this.selectionDragStart = null;
