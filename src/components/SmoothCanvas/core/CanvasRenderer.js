@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasRenderer.js - Updated with Selection Visuals
+// src/components/SmoothCanvas/core/CanvasRenderer.js - ENHANCED WITH AI TEXT RENDERING
 import React from 'react';
 import rough from 'roughjs';
 
@@ -9,6 +9,7 @@ export class CanvasRenderer {
     this.roughSvg = null;
     this.renderedShapeIds = new Set();
     this.shapeElements = new Map();
+    this.textElements = new Map(); // NEW: Track AI text elements
   }
 
   initializeRoughSvg() {
@@ -18,7 +19,254 @@ export class CanvasRenderer {
     }
   }
 
-  // Render shapes with selection state
+  // NEW: AI Text Rendering Methods
+  renderAITextElement(textData) {
+    console.log('CanvasRenderer: Rendering AI text element:', textData);
+    
+    const { id, text, x, y, fontFamily, fontSize, fontWeight, color, textAlign, bounds } = textData;
+    
+    // Remove existing text element if it exists
+    const existingElement = this.textElements.get(id);
+    if (existingElement && existingElement.parentNode) {
+      existingElement.parentNode.removeChild(existingElement);
+    }
+    
+    // Create text element
+    const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textElement.id = `ai-text-${id}`;
+    textElement.setAttribute('class', 'ai-generated-text');
+    
+    // Position based on bounds and alignment
+    let textX = x;
+    if (bounds) {
+      switch (textAlign) {
+        case 'center':
+          textX = bounds.centerX;
+          break;
+        case 'right':
+          textX = bounds.x + bounds.width;
+          break;
+        case 'left':
+        default:
+          textX = bounds.x;
+          break;
+      }
+    }
+    
+    // Set text properties
+    textElement.setAttribute('x', textX);
+    textElement.setAttribute('y', y);
+    textElement.setAttribute('font-family', fontFamily || 'Arial, sans-serif');
+    textElement.setAttribute('font-size', fontSize || 16);
+    textElement.setAttribute('font-weight', fontWeight || 'normal');
+    textElement.setAttribute('fill', color || '#000000');
+    textElement.setAttribute('text-anchor', this.getTextAnchor(textAlign));
+    textElement.setAttribute('dominant-baseline', 'middle');
+    
+    // Add smooth transition
+    textElement.style.transition = 'all 0.3s ease';
+    textElement.style.opacity = '0';
+    
+    // Set text content
+    textElement.textContent = text;
+    
+    // Add to SVG
+    this.engine.svgRef.current.appendChild(textElement);
+    
+    // Store reference
+    this.textElements.set(id, textElement);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      textElement.style.opacity = '1';
+      textElement.style.transform = 'scale(1)';
+    });
+    
+    console.log('CanvasRenderer: AI text element rendered successfully');
+    
+    return textElement;
+  }
+
+  getTextAnchor(textAlign) {
+    switch (textAlign) {
+      case 'center': return 'middle';
+      case 'right': return 'end';
+      case 'left':
+      default: return 'start';
+    }
+  }
+
+  // NEW: Remove AI text element
+  removeAITextElement(id) {
+    console.log('CanvasRenderer: Removing AI text element:', id);
+    
+    const element = this.textElements.get(id);
+    if (element && element.parentNode) {
+      // Animate out
+      element.style.transition = 'all 0.3s ease';
+      element.style.opacity = '0';
+      element.style.transform = 'scale(0.8)';
+      
+      setTimeout(() => {
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      }, 300);
+      
+      this.textElements.delete(id);
+    }
+  }
+
+  // NEW: Update AI text element
+  updateAITextElement(id, updates) {
+    console.log('CanvasRenderer: Updating AI text element:', id, updates);
+    
+    const element = this.textElements.get(id);
+    if (!element) return;
+    
+    // Update properties
+    if (updates.text !== undefined) {
+      element.textContent = updates.text;
+    }
+    if (updates.x !== undefined) {
+      element.setAttribute('x', updates.x);
+    }
+    if (updates.y !== undefined) {
+      element.setAttribute('y', updates.y);
+    }
+    if (updates.fontFamily !== undefined) {
+      element.setAttribute('font-family', updates.fontFamily);
+    }
+    if (updates.fontSize !== undefined) {
+      element.setAttribute('font-size', updates.fontSize);
+    }
+    if (updates.fontWeight !== undefined) {
+      element.setAttribute('font-weight', updates.fontWeight);
+    }
+    if (updates.color !== undefined) {
+      element.setAttribute('fill', updates.color);
+    }
+    if (updates.textAlign !== undefined) {
+      element.setAttribute('text-anchor', this.getTextAnchor(updates.textAlign));
+    }
+  }
+
+  // NEW: Clear all AI text elements
+  clearAITextElements() {
+    console.log('CanvasRenderer: Clearing all AI text elements');
+    
+    for (const [id, element] of this.textElements.entries()) {
+      if (element && element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
+    }
+    
+    this.textElements.clear();
+  }
+
+  // NEW: Get all AI text elements for selection
+  getAITextElements() {
+    return Array.from(this.textElements.entries()).map(([id, element]) => ({
+      id,
+      element,
+      bounds: this.getTextElementBounds(element)
+    }));
+  }
+
+  // NEW: Get bounds of text element
+  getTextElementBounds(element) {
+    try {
+      const bbox = element.getBBox();
+      return {
+        x: bbox.x,
+        y: bbox.y,
+        width: bbox.width,
+        height: bbox.height,
+        centerX: bbox.x + bbox.width / 2,
+        centerY: bbox.y + bbox.height / 2
+      };
+    } catch (error) {
+      console.warn('CanvasRenderer: Could not get text bounds:', error);
+      return null;
+    }
+  }
+
+  // NEW: AI Processing Visual Feedback
+  renderAIProcessingFeedback(strokeBounds, isProcessing = false) {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    // Remove existing processing feedback
+    const existingFeedback = svg.querySelector('#ai-processing-feedback');
+    if (existingFeedback) {
+      existingFeedback.remove();
+    }
+
+    if (!isProcessing || !strokeBounds) return;
+
+    // Create processing feedback group
+    const feedbackGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    feedbackGroup.id = 'ai-processing-feedback';
+    
+    // Background rectangle
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', strokeBounds.x - 5);
+    bg.setAttribute('y', strokeBounds.y - 5);
+    bg.setAttribute('width', strokeBounds.width + 10);
+    bg.setAttribute('height', strokeBounds.height + 10);
+    bg.setAttribute('fill', 'rgba(139, 92, 246, 0.1)');
+    bg.setAttribute('stroke', '#8b5cf6');
+    bg.setAttribute('stroke-width', '1');
+    bg.setAttribute('stroke-dasharray', '3,3');
+    bg.setAttribute('rx', '5');
+    
+    // Processing spinner
+    const spinner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    spinner.setAttribute('cx', strokeBounds.centerX);
+    spinner.setAttribute('cy', strokeBounds.y - 15);
+    spinner.setAttribute('r', '6');
+    spinner.setAttribute('fill', 'none');
+    spinner.setAttribute('stroke', '#8b5cf6');
+    spinner.setAttribute('stroke-width', '2');
+    spinner.setAttribute('stroke-dasharray', '6 6');
+    spinner.style.animation = 'spin 1s linear infinite';
+    
+    // Processing text
+    const processingText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    processingText.setAttribute('x', strokeBounds.centerX + 15);
+    processingText.setAttribute('y', strokeBounds.y - 10);
+    processingText.setAttribute('font-family', 'Arial, sans-serif');
+    processingText.setAttribute('font-size', '12');
+    processingText.setAttribute('fill', '#8b5cf6');
+    processingText.setAttribute('font-weight', '500');
+    processingText.textContent = 'Converting...';
+    
+    feedbackGroup.appendChild(bg);
+    feedbackGroup.appendChild(spinner);
+    feedbackGroup.appendChild(processingText);
+    
+    svg.appendChild(feedbackGroup);
+    
+    // Auto-remove after timeout (fallback)
+    setTimeout(() => {
+      if (feedbackGroup.parentNode) {
+        feedbackGroup.parentNode.removeChild(feedbackGroup);
+      }
+    }, 10000);
+  }
+
+  // NEW: Clear AI processing feedback
+  clearAIProcessingFeedback() {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const feedback = svg.querySelector('#ai-processing-feedback');
+    if (feedback) {
+      feedback.remove();
+    }
+  }
+
+  // ENHANCED: Render shapes with selection state and AI text support
   renderShapesToSVG() {
     this.initializeRoughSvg();
     
@@ -145,20 +393,23 @@ export class CanvasRenderer {
     }
   }
 
-  // MAIN RENDER METHOD - called by React for stroke paths
+  // ENHANCED: Main render method with AI text support
   renderPaths() {
     const paths = this.engine.getPaths();
     const pathsToErase = this.engine.getPathsToErase();
     const selectedItems = this.engine.selectedItems;
 
-    console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape').length);
+    console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape' && p.type !== 'aiText').length);
 
     // Render shapes to SVG with selection state
     this.renderShapesToSVG();
 
-    // Return React elements for stroke paths only
+    // NEW: Render AI text elements
+    this.renderAITextElements();
+
+    // Return React elements for stroke paths only (not shapes or AI text)
     const strokePaths = paths
-      .filter(pathObj => pathObj.type !== 'shape')
+      .filter(pathObj => pathObj.type !== 'shape' && pathObj.type !== 'aiText')
       .map((pathObj) => {
         const isSelected = selectedItems.has(pathObj.id);
         const isMarkedForErase = pathsToErase.has(pathObj.id);
@@ -188,6 +439,56 @@ export class CanvasRenderer {
       });
 
     return strokePaths;
+  }
+
+  // NEW: Render AI text elements to SVG
+  renderAITextElements() {
+    const paths = this.engine.getPaths();
+    const aiTextPaths = paths.filter(path => path.type === 'aiText');
+    const selectedItems = this.engine.selectedItems;
+
+    console.log('CanvasRenderer: Rendering AI text elements, count:', aiTextPaths.length);
+
+    // Track current AI text IDs
+    const currentAITextIds = new Set(aiTextPaths.map(t => t.id));
+
+    // Remove AI text elements that no longer exist
+    for (const [textId, element] of this.textElements.entries()) {
+      if (!currentAITextIds.has(textId)) {
+        this.removeAITextElement(textId);
+      }
+    }
+
+    // Render or update AI text elements
+    aiTextPaths.forEach(textPath => {
+      const isSelected = selectedItems.has(textPath.id);
+      const existingElement = this.textElements.get(textPath.id);
+
+      if (!existingElement) {
+        // Create new AI text element
+        this.renderAITextElement({
+          id: textPath.id,
+          text: textPath.text,
+          x: textPath.x,
+          y: textPath.y,
+          fontFamily: textPath.fontFamily,
+          fontSize: textPath.fontSize,
+          fontWeight: textPath.fontWeight,
+          color: textPath.color,
+          textAlign: textPath.textAlign,
+          bounds: textPath.bounds
+        });
+      } else {
+        // Update selection state
+        if (isSelected) {
+          existingElement.classList.add('selected-ai-text');
+          existingElement.style.filter = 'drop-shadow(0 0 3px rgba(139, 92, 246, 0.5))';
+        } else {
+          existingElement.classList.remove('selected-ai-text');
+          existingElement.style.filter = 'none';
+        }
+      }
+    });
   }
 
   // Render selection overlay (called from SmoothCanvas component)
@@ -261,7 +562,7 @@ export class CanvasRenderer {
   getHandleCursor(handleName) {
     const cursors = {
       'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
-      'e': 'e-resize', 'se': 'se-resize', 's': 's-resolve',
+      'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
       'sw': 'sw-resize', 'w': 'w-resize'
     };
     return cursors[handleName] || 'default';
@@ -287,6 +588,38 @@ export class CanvasRenderer {
           transform: 'translateZ(0)',
         }}
       />
+    );
+  }
+
+  // NEW: AI Tool Cursor for visual feedback
+  renderAIToolCursor(showCursor, position) {
+    if (!showCursor || !position) return null;
+
+    return (
+      <div
+        className="ai-tool-cursor"
+        style={{
+          width: '24px',
+          height: '24px',
+          left: position.x - 12,
+          top: position.y - 12,
+          position: 'absolute',
+          border: '2px solid #8b5cf6',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          zIndex: 100,
+          transform: 'translateZ(0)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          color: '#8b5cf6',
+          fontWeight: 'bold'
+        }}
+      >
+        AI
+      </div>
     );
   }
 

@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - FIXED VERSION
+// src/components/SmoothCanvas/core/EventHandler.js - ENHANCED VERSION WITH AI SUPPORT
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -19,6 +19,13 @@ export class EventHandler {
     this.selectionDragStart = null;
     this.resizeHandle = null;
     this.originalBounds = null;
+
+    // AI Handwriting state - NEW
+    this.isCapturingAI = false;
+    this.currentAIStroke = [];
+    this.aiProcessingTimer = null;
+    this.lastAIPoint = null;
+    this.aiStartTime = null;
 
     // FIXED: Add throttling and optimization variables
     this.dragThrottleTimeout = null;
@@ -41,44 +48,195 @@ export class EventHandler {
     this.callbacks = { ...this.callbacks, ...callbacks };
   }
 
-  // FIXED: Throttled drag update method
-  throttledDragUpdate = () => {
-    if (!this.isThrottling || !this.isDraggingSelection) {
+  // NEW: AI Handwriting Methods
+  startAICapture(point) {
+    console.log('EventHandler: Starting AI capture at point:', point);
+    this.isCapturingAI = true;
+    this.currentAIStroke = [{
+      x: point[0],
+      y: point[1],
+      timestamp: Date.now()
+    }];
+    this.lastAIPoint = point;
+    this.aiStartTime = Date.now();
+    
+    // Clear any existing timer
+    if (this.aiProcessingTimer) {
+      clearTimeout(this.aiProcessingTimer);
+      this.aiProcessingTimer = null;
+    }
+    
+    // Create temporary visual feedback path
+    this.createTempAIPath(point);
+    
+    // Notify start of AI capture
+    if (this.callbacks.onAIStrokeStart) {
+      this.callbacks.onAIStrokeStart(point);
+    }
+  }
+
+  updateAICapture(point) {
+    if (!this.isCapturingAI) return;
+    
+    // Add point to current stroke with timestamp
+    const aiPoint = {
+      x: point[0],
+      y: point[1],
+      timestamp: Date.now()
+    };
+    
+    this.currentAIStroke.push(aiPoint);
+    this.lastAIPoint = point;
+    
+    // Update visual feedback
+    this.updateTempAIPath();
+    
+    // Reset processing timer
+    if (this.aiProcessingTimer) {
+      clearTimeout(this.aiProcessingTimer);
+    }
+    
+    // Set new timer for 1 second
+    this.aiProcessingTimer = setTimeout(() => {
+      this.finishAICapture();
+    }, 1000);
+  }
+
+  finishAICapture() {
+    if (!this.isCapturingAI || this.currentAIStroke.length < 2) {
+      this.cancelAICapture();
       return;
     }
+    
+    console.log('EventHandler: Finishing AI capture with', this.currentAIStroke.length, 'points');
+    
+    // Calculate stroke bounds for positioning
+    const bounds = this.calculateStrokeBounds(this.currentAIStroke);
+    
+    // Prepare stroke data for AI processing
+    const strokeData = {
+      points: this.currentAIStroke,
+      bounds: bounds,
+      duration: Date.now() - this.aiStartTime,
+      timestamp: Date.now()
+    };
+    
+    // Clear visual feedback
+    this.clearTempAIPath();
+    
+    // Send to AI processing
+    if (this.callbacks.onAIStrokeComplete) {
+      this.callbacks.onAIStrokeComplete(strokeData);
+    }
+    
+    // Reset state
+    this.isCapturingAI = false;
+    this.currentAIStroke = [];
+    this.aiProcessingTimer = null;
+    this.lastAIPoint = null;
+    this.aiStartTime = null;
+  }
 
-    const now = Date.now();
-    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
-      const { x, y } = this.accumulatedDelta;
+  cancelAICapture() {
+    console.log('EventHandler: Cancelling AI capture');
+    
+    if (this.aiProcessingTimer) {
+      clearTimeout(this.aiProcessingTimer);
+      this.aiProcessingTimer = null;
+    }
+    
+    this.clearTempAIPath();
+    
+    this.isCapturingAI = false;
+    this.currentAIStroke = [];
+    this.lastAIPoint = null;
+    this.aiStartTime = null;
+  }
+
+  createTempAIPath(point) {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    // Remove existing temp AI path
+    const existingPath = svg.querySelector('#temp-ai-path');
+    if (existingPath) {
+      existingPath.remove();
+    }
+
+    const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tempPath.id = 'temp-ai-path';
+    tempPath.setAttribute('fill', 'none');
+    tempPath.setAttribute('stroke', '#8b5cf6'); // Purple color for AI
+    tempPath.setAttribute('stroke-width', '3');
+    tempPath.setAttribute('stroke-dasharray', '5,5');
+    tempPath.setAttribute('opacity', '0.8');
+
+    const pathData = `M ${point[0]},${point[1]}`;
+    tempPath.setAttribute('d', pathData);
+
+    svg.appendChild(tempPath);
+  }
+
+  updateTempAIPath() {
+    const svg = this.engine.svgRef.current;
+    const tempPath = svg?.querySelector('#temp-ai-path');
+    
+    if (tempPath && this.currentAIStroke.length > 1) {
+      let pathData = `M ${this.currentAIStroke[0].x},${this.currentAIStroke[0].y}`;
       
-      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-        // Apply the accumulated movement
-        this.engine.moveSelectedItems(x, y);
-        
-        // Reset accumulator
-        this.accumulatedDelta = { x: 0, y: 0 };
-        this.lastDragUpdate = now;
-
-        // FIXED: Only call callback once per throttle interval
-        if (this.callbacks.onSelectionMoved) {
-          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
-        }
+      for (let i = 1; i < this.currentAIStroke.length; i++) {
+        pathData += ` L ${this.currentAIStroke[i].x},${this.currentAIStroke[i].y}`;
       }
+      
+      tempPath.setAttribute('d', pathData);
     }
+  }
 
-    // Continue throttling if still dragging
-    if (this.isDraggingSelection) {
-      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
-    } else {
-      this.isThrottling = false;
+  clearTempAIPath() {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const tempPath = svg.querySelector('#temp-ai-path');
+    if (tempPath) {
+      tempPath.remove();
     }
-  };
+  }
 
+  calculateStrokeBounds(stroke) {
+    if (stroke.length === 0) return null;
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    for (const point of stroke) {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2
+    };
+  }
+
+  // EXISTING METHODS - Updated to handle AI tool
   handlePointerDown(e) {
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
 
     const point = this.engine.getPointFromEvent(e);
     const worldPoint = { x: point[0], y: point[1] };
+
+    // Handle AI handwriting tool - NEW
+    if (this.options.currentTool === 'aiHandwriting') {
+      this.startAICapture(point);
+      e.preventDefault();
+      return;
+    }
 
     // Handle pan tool
     if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
@@ -117,6 +275,176 @@ export class EventHandler {
       this.createTempPath(point);
     }
   }
+
+  handlePointerMove(e) {
+    if (!this.engine.canvasRef.current) return;
+
+    const point = this.engine.getPointFromEvent(e);
+    const worldPoint = { x: point[0], y: point[1] };
+
+    // Handle AI handwriting tool movement - NEW
+    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
+      this.updateAICapture(point);
+      e.preventDefault();
+      return;
+    }
+
+    // Handle panning
+    if (this.isPanning) {
+      this.continuePanning(e);
+      return;
+    }
+
+    // FIXED: Optimized selection dragging
+    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
+      e.preventDefault();
+
+      // FIXED: Accumulate movement instead of applying immediately
+      const deltaX = worldPoint.x - this.selectionDragStart.x;
+      const deltaY = worldPoint.y - this.selectionDragStart.y;
+
+      // Only accumulate if movement is significant
+      if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
+        this.accumulatedDelta.x += deltaX;
+        this.accumulatedDelta.y += deltaY;
+        this.selectionDragStart = worldPoint;
+      }
+
+      // The actual movement is handled by throttledDragUpdate
+      return;
+    }
+
+    // Handle selection tool interactions
+    if (this.options.currentTool === 'select') {
+      this.handleSelectionPointerMove(e, worldPoint);
+      return;
+    }
+
+    // Handle rectangle drawing
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.updateRectangleDrawing(e);
+      return;
+    }
+
+    // Handle pan tool hover (show grab cursor)
+    if (this.options.currentTool === 'pan' && !this.engine.isDrawing) {
+      return;
+    }
+
+    // Update eraser position
+    if (this.options.currentTool === 'eraser') {
+      this.engine.eraserPosition = { x: point[0], y: point[1] };
+      this.engine.showEraser = true;
+
+      if (this.callbacks.onEraserMove) {
+        this.callbacks.onEraserMove(this.engine.eraserPosition);
+      }
+    }
+
+    if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
+    e.preventDefault();
+
+    if (this.engine.isErasing) {
+      this.handleErase(point[0], point[1]);
+    } else {
+      // Get coalesced events for smoother drawing
+      let points = [];
+      if (e.getCoalescedEvents && typeof e.getCoalescedEvents === 'function') {
+        const coalescedEvents = e.getCoalescedEvents();
+        for (const coalescedEvent of coalescedEvents) {
+          points.push(this.engine.getPointFromEvent(coalescedEvent));
+        }
+      } else {
+        points.push(this.engine.getPointFromEvent(e));
+      }
+
+      // Process all points
+      for (const point of points) {
+        this.updateDrawing(point);
+      }
+    }
+
+    this.engine.lastPoint = this.engine.getPointFromEvent(e);
+  }
+
+  handlePointerUp(e) {
+    // Handle AI handwriting tool end - NEW
+    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
+      // Don't immediately finish, let the timer handle it
+      e.preventDefault();
+      return;
+    }
+
+    // Handle pan end
+    if (this.isPanning) {
+      this.endPanning(e);
+      return;
+    }
+
+    // Handle selection tool interactions
+    if (this.options.currentTool === 'select') {
+      this.handleSelectionPointerUp(e);
+      return;
+    }
+
+    // Handle rectangle drawing end
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.finishRectangleDrawing(e);
+      return;
+    }
+
+    if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
+
+    this.engine.isDrawing = false;
+    this.engine.activePointer = null;
+
+    if (this.engine.canvasRef.current?.releasePointerCapture) {
+      this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    if (this.engine.isErasing) {
+      this.finalizeErase();
+    } else {
+      this.finalizeStroke(e);
+    }
+
+    this.engine.lastPoint = null;
+  }
+
+  // FIXED: Throttled drag update method
+  throttledDragUpdate = () => {
+    if (!this.isThrottling || !this.isDraggingSelection) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
+      const { x, y } = this.accumulatedDelta;
+      
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        // Apply the accumulated movement
+        this.engine.moveSelectedItems(x, y);
+        
+        // Reset accumulator
+        this.accumulatedDelta = { x: 0, y: 0 };
+        this.lastDragUpdate = now;
+
+        // FIXED: Only call callback once per throttle interval
+        if (this.callbacks.onSelectionMoved) {
+          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+        }
+      }
+    }
+
+    // Continue throttling if still dragging
+    if (this.isDraggingSelection) {
+      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+    } else {
+      this.isThrottling = false;
+    }
+  };
+
+  // [Rest of the existing methods remain the same - handleSelectionPointerDown, handleSelectionPointerMove, etc.]
 
   handleSelectionPointerDown(e, worldPoint) {
     e.preventDefault();
@@ -242,90 +570,6 @@ export class EventHandler {
       'sw': 'sw-resize', 'w': 'w-resize'
     };
     this.engine.canvasRef.current.style.cursor = cursors[handle] || 'default';
-  }
-
-  handlePointerMove(e) {
-    if (!this.engine.canvasRef.current) return;
-
-    const point = this.engine.getPointFromEvent(e);
-    const worldPoint = { x: point[0], y: point[1] };
-
-    // Handle panning
-    if (this.isPanning) {
-      this.continuePanning(e);
-      return;
-    }
-
-    // FIXED: Optimized selection dragging
-    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
-      e.preventDefault();
-
-      // FIXED: Accumulate movement instead of applying immediately
-      const deltaX = worldPoint.x - this.selectionDragStart.x;
-      const deltaY = worldPoint.y - this.selectionDragStart.y;
-
-      // Only accumulate if movement is significant
-      if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
-        this.accumulatedDelta.x += deltaX;
-        this.accumulatedDelta.y += deltaY;
-        this.selectionDragStart = worldPoint;
-      }
-
-      // The actual movement is handled by throttledDragUpdate
-      return;
-    }
-
-    // Handle selection tool interactions
-    if (this.options.currentTool === 'select') {
-      this.handleSelectionPointerMove(e, worldPoint);
-      return;
-    }
-
-    // Handle rectangle drawing
-    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
-      this.updateRectangleDrawing(e);
-      return;
-    }
-
-    // Handle pan tool hover (show grab cursor)
-    if (this.options.currentTool === 'pan' && !this.engine.isDrawing) {
-      return;
-    }
-
-    // Update eraser position
-    if (this.options.currentTool === 'eraser') {
-      this.engine.eraserPosition = { x: point[0], y: point[1] };
-      this.engine.showEraser = true;
-
-      if (this.callbacks.onEraserMove) {
-        this.callbacks.onEraserMove(this.engine.eraserPosition);
-      }
-    }
-
-    if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
-    e.preventDefault();
-
-    if (this.engine.isErasing) {
-      this.handleErase(point[0], point[1]);
-    } else {
-      // Get coalesced events for smoother drawing
-      let points = [];
-      if (e.getCoalescedEvents && typeof e.getCoalescedEvents === 'function') {
-        const coalescedEvents = e.getCoalescedEvents();
-        for (const coalescedEvent of coalescedEvents) {
-          points.push(this.engine.getPointFromEvent(coalescedEvent));
-        }
-      } else {
-        points.push(this.engine.getPointFromEvent(e));
-      }
-
-      // Process all points
-      for (const point of points) {
-        this.updateDrawing(point);
-      }
-    }
-
-    this.engine.lastPoint = this.engine.getPointFromEvent(e);
   }
 
   handleSelectionPointerMove(e, worldPoint) {
@@ -457,43 +701,6 @@ export class EventHandler {
     this.engine.canvasRef.current.style.cursor = cursor;
   }
 
-  handlePointerUp(e) {
-    // Handle pan end
-    if (this.isPanning) {
-      this.endPanning(e);
-      return;
-    }
-
-    // Handle selection tool interactions
-    if (this.options.currentTool === 'select') {
-      this.handleSelectionPointerUp(e);
-      return;
-    }
-
-    // Handle rectangle drawing end
-    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
-      this.finishRectangleDrawing(e);
-      return;
-    }
-
-    if (!this.engine.isDrawing || e.pointerId !== this.engine.activePointer) return;
-
-    this.engine.isDrawing = false;
-    this.engine.activePointer = null;
-
-    if (this.engine.canvasRef.current?.releasePointerCapture) {
-      this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
-    }
-
-    if (this.engine.isErasing) {
-      this.finalizeErase();
-    } else {
-      this.finalizeStroke(e);
-    }
-
-    this.engine.lastPoint = null;
-  }
-
   handleSelectionPointerUp(e) {
     e.preventDefault();
     console.log('Selection pointer up');
@@ -571,8 +778,22 @@ export class EventHandler {
     }
   }
 
-  // FIXED: Keyboard event handler with proper arrow key movement
+  // FIXED: Keyboard event handler with proper arrow key movement and AI tool support
   handleKeyDown(e) {
+    // NEW: Handle AI tool keyboard shortcuts
+    if (this.options.currentTool === 'aiHandwriting') {
+      switch (e.key) {
+        case 'Escape':
+          // Cancel current AI capture
+          if (this.isCapturingAI) {
+            e.preventDefault();
+            this.cancelAICapture();
+          }
+          break;
+      }
+      return;
+    }
+
     if (this.options.currentTool !== 'select') return;
 
     switch (e.key) {
@@ -645,7 +866,7 @@ export class EventHandler {
   }
 
   // Rest of the existing methods remain the same...
-  // [Previous methods like startRectangleDrawing, updateRectangleDrawing, etc. remain unchanged]
+  // [Rectangle drawing methods, pan tool methods, wheel zoom, drawing methods, etc.]
 
   // Rectangle drawing methods
   startRectangleDrawing(e) {
@@ -784,6 +1005,9 @@ export class EventHandler {
         case 'select':
           canvas.style.cursor = 'default';
           break;
+        case 'aiHandwriting':
+          canvas.style.cursor = 'crosshair';
+          break;
         default:
           canvas.style.cursor = 'default';
           break;
@@ -834,6 +1058,11 @@ export class EventHandler {
       // Optionally cancel area selection
       this.engine.clearSelection();
       this.isSelecting = false;
+    }
+
+    // NEW: Cancel AI capture if mouse leaves
+    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
+      this.cancelAICapture();
     }
   }
 
@@ -1011,7 +1240,7 @@ export class EventHandler {
     }
   }
 
-  // FIXED: Cleanup method to prevent memory leaks
+  // FIXED: Cleanup method to prevent memory leaks - UPDATED with AI cleanup
   cleanup() {
     console.log('EventHandler: Cleaning up');
     
@@ -1021,12 +1250,25 @@ export class EventHandler {
       this.dragThrottleTimeout = null;
     }
 
+    // NEW: Clean up AI processing
+    if (this.aiProcessingTimer) {
+      clearTimeout(this.aiProcessingTimer);
+      this.aiProcessingTimer = null;
+    }
+    this.clearTempAIPath();
+
     // Reset all state
     this.isThrottling = false;
     this.isDraggingSelection = false;
     this.isSelecting = false;
     this.isResizingSelection = false;
     this.isPanning = false;
+    
+    // NEW: Reset AI state
+    this.isCapturingAI = false;
+    this.currentAIStroke = [];
+    this.lastAIPoint = null;
+    this.aiStartTime = null;
     
     // Clear references
     this.accumulatedDelta = { x: 0, y: 0 };
