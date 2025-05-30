@@ -50,40 +50,87 @@ class AIProcessingService {
       return this.isConnected;
     }
   
-    // Convert stroke coordinates to the format expected by Flask
     prepareStrokeData(strokeCoordinates, bounds) {
       console.log('AIProcessingService: Preparing stroke data...');
       
       if (!strokeCoordinates || strokeCoordinates.length === 0) {
         throw new Error('No stroke coordinates provided');
       }
-  
-      // Convert stroke points to the format expected by your Flask model
-      const strokes = [{
-        points: strokeCoordinates.map(point => ({
-          x: Math.round(point.x),
-          y: Math.round(point.y),
-          timestamp: point.timestamp || Date.now()
-        }))
-      }];
-  
+    
+      // Group points into strokes - FIXED FORMAT
+      const strokes = [];
+      let currentStroke = [];
+      
+      for (const point of strokeCoordinates) {
+        // Only include x and y coordinates (no timestamp)
+        // Use proper number types (not rounded integers)
+        currentStroke.push({
+          x: Number(point.x),  // Ensure it's a number, not rounded integer
+          y: Number(point.y)   // Ensure it's a number, not rounded integer
+        });
+        
+        if (point.isEndOfStroke) {
+          strokes.push([...currentStroke]);
+          currentStroke = [];
+        }
+      }
+      
+      // Add any remaining points as final stroke
+      if (currentStroke.length > 0) {
+        strokes.push(currentStroke);
+      }
+    
+      // Validate stroke data before sending
+      this.validatePreparedStrokes(strokes);
+    
       const requestData = {
-        strokes: strokes,
+        strokes: strokes,  // Array of strokes, each stroke is array of {x, y} points
         use_spell_check: true,
         metadata: {
-          bounds: bounds,
+          bounds: [
+            Number(bounds.left || 0),
+            Number(bounds.top || 0), 
+            Number(bounds.right || 0),
+            Number(bounds.bottom || 0)
+          ],
           timestamp: Date.now(),
           client: 'drawo-web'
         }
       };
-  
+    
       console.log('AIProcessingService: Prepared data:', {
         strokeCount: strokes.length,
-        pointCount: strokes[0].points.length,
-        bounds: bounds
+        totalPoints: strokes.reduce((sum, stroke) => sum + stroke.length, 0),
+        bounds: requestData.metadata.bounds,
+        samplePoint: strokes[0]?.[0] // Show first point for debugging
       });
-  
+    
       return requestData;
+    }
+
+    validatePreparedStrokes(strokes) {
+      if (!Array.isArray(strokes) || strokes.length === 0) {
+        throw new Error('Invalid strokes: must be non-empty array');
+      }
+    
+      for (let i = 0; i < strokes.length; i++) {
+        const stroke = strokes[i];
+        if (!Array.isArray(stroke) || stroke.length === 0) {
+          throw new Error(`Invalid stroke ${i}: must be non-empty array`);
+        }
+    
+        for (let j = 0; j < stroke.length; j++) {
+          const point = stroke[j];
+          if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') {
+            throw new Error(`Invalid point ${j} in stroke ${i}: must have numeric x,y coordinates`);
+          }
+          if (isNaN(point.x) || isNaN(point.y)) {
+            throw new Error(`Invalid point ${j} in stroke ${i}: coordinates cannot be NaN`);
+          }
+        }
+      }
+      
+      console.log('AIProcessingService: Stroke data validation passed');
     }
   
     // Main method to process handwriting

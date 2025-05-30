@@ -15,13 +15,13 @@ export class CanvasRenderer {
   initializeRoughSvg() {
     if (!this.roughSvg && this.engine.svgRef.current) {
       this.roughSvg = rough.svg(this.engine.svgRef.current);
-      console.log('CanvasRenderer: Rough.js SVG initialized');
+      // console.log('CanvasRenderer: Rough.js SVG initialized');
     }
   }
 
   // NEW: AI Text Rendering Methods
   renderAITextElement(textData) {
-    console.log('CanvasRenderer: Rendering AI text element:', textData);
+    // console.log('CanvasRenderer: Rendering AI text element:', textData);
     
     const { id, text, x, y, fontFamily, fontSize, fontWeight, color, textAlign, bounds } = textData;
     
@@ -119,7 +119,7 @@ export class CanvasRenderer {
 
   // NEW: Update AI text element
   updateAITextElement(id, updates) {
-    console.log('CanvasRenderer: Updating AI text element:', id, updates);
+    // console.log('CanvasRenderer: Updating AI text element:', id, updates);
     
     const element = this.textElements.get(id);
     if (!element) return;
@@ -280,7 +280,7 @@ export class CanvasRenderer {
     const shapes = paths.filter(path => path.type === 'shape');
     const pathsToErase = this.engine.getPathsToErase();
 
-    console.log('CanvasRenderer: Rendering', shapes.length, 'shapes to SVG');
+    // console.log('CanvasRenderer: Rendering', shapes.length, 'shapes to SVG');
 
     const currentShapeIds = new Set(shapes.map(s => s.id));
     
@@ -302,7 +302,7 @@ export class CanvasRenderer {
       const existingElement = this.shapeElements.get(shape.id);
       
       if (!existingElement) {
-        console.log(`CanvasRenderer: Creating new shape ${shape.id}:`, shape.shapeType);
+        // console.log(`CanvasRenderer: Creating new shape ${shape.id}:`, shape.shapeType);
         this.createNewShape(shape, isMarkedForErase, isSelected);
       } else {
         // Update opacity and selection state
@@ -338,7 +338,7 @@ export class CanvasRenderer {
         fillWeight: (shape.borderSize || 2) * 0.5,
       };
 
-      console.log('CanvasRenderer: Creating shape with options:', shapeOptions);
+      // console.log('CanvasRenderer: Creating shape with options:', shapeOptions);
 
       switch (shape.shapeType) {
         case 'rectangle':
@@ -363,7 +363,7 @@ export class CanvasRenderer {
 
         this.engine.svgRef.current.appendChild(shapeNode);
         
-        console.log('CanvasRenderer: Successfully created and stored shape element');
+        // console.log('CanvasRenderer: Successfully created and stored shape element');
       }
 
     } catch (error) {
@@ -382,7 +382,7 @@ export class CanvasRenderer {
       this.shapeElements.clear();
       this.renderedShapeIds.clear();
       
-      console.log('CanvasRenderer: Cleared all rendered shapes');
+      // console.log('CanvasRenderer: Cleared all rendered shapes');
     }
   }
 
@@ -399,7 +399,7 @@ export class CanvasRenderer {
     const pathsToErase = this.engine.getPathsToErase();
     const selectedItems = this.engine.selectedItems;
 
-    console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape' && p.type !== 'aiText').length);
+    // console.log('CanvasRenderer: Rendering React stroke paths, count:', paths.filter(p => p.type !== 'shape' && p.type !== 'aiText').length);
 
     // Render shapes to SVG with selection state
     this.renderShapesToSVG();
@@ -447,7 +447,7 @@ export class CanvasRenderer {
     const aiTextPaths = paths.filter(path => path.type === 'aiText');
     const selectedItems = this.engine.selectedItems;
 
-    console.log('CanvasRenderer: Rendering AI text elements, count:', aiTextPaths.length);
+    // console.log('CanvasRenderer: Rendering AI text elements, count:', aiTextPaths.length);
 
     // Track current AI text IDs
     const currentAITextIds = new Set(aiTextPaths.map(t => t.id));

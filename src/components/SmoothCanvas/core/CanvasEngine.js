@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js - Updated with Selection Support
+// src/components/SmoothCanvas/core/CanvasEngine.js - COMPLETE VERSION WITH AI INTEGRATION
 import rough from 'roughjs';
 
 export class CanvasEngine {
@@ -52,6 +52,11 @@ export class CanvasEngine {
     this.rectangleStart = null;
     this.currentRectangle = null;
 
+    // NEW: AI-specific properties
+    this.aiTextElements = new Map(); // Store AI text elements separately for quick access
+    this.isAIMode = false;
+    this.currentAIStroke = null;
+
     // Rough.js instances
     this.roughCanvas = null;
     this.roughSvg = null;
@@ -85,19 +90,295 @@ export class CanvasEngine {
     }
   }
 
-  // SELECTION METHODS
+  // ===========================================
+  // AI TEXT ELEMENT METHODS - NEW
+  // ===========================================
 
-  // Hit testing for individual items
+  // Add AI text element to the canvas
+  addAITextElement(textData) {
+    const {
+      text, x, y, fontFamily, fontSize, fontWeight, color, textAlign,
+      bounds, confidence, metadata
+    } = textData;
+
+    const id = this.generatePathId();
+
+    const aiTextElement = {
+      id,
+      type: 'aiText',
+      text: text.trim(),
+      x: x || 0,
+      y: y || 0,
+      fontFamily: fontFamily || 'Arial, sans-serif',
+      fontSize: fontSize || 16,
+      fontWeight: fontWeight || 'normal',
+      color: this.normalizeColor(color || '#000000'),
+      textAlign: textAlign || 'left',
+      bounds: bounds || null,
+      confidence: confidence || 0.8,
+      timestamp: Date.now(),
+      metadata: metadata || {},
+      // Text-specific transform properties
+      transform: {
+        translateX: 0,
+        translateY: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0
+      }
+    };
+
+    // Calculate bounding box for the text element
+    const textBounds = this.calculateTextBounds(aiTextElement);
+    if (textBounds) {
+      this.pathBBoxes.set(aiTextElement.id, textBounds);
+    }
+
+    this.paths.push(aiTextElement);
+    this.aiTextElements.set(id, aiTextElement);
+
+    console.log('CanvasEngine: Added AI text element:', {
+      id: aiTextElement.id,
+      text: aiTextElement.text,
+      confidence: aiTextElement.confidence
+    });
+
+    return aiTextElement;
+  }
+
+  // Calculate bounding box for text elements
+  calculateTextBounds(textElement) {
+    // Approximate text bounds calculation
+    // In a real implementation, you might want to measure actual rendered text
+    const { text, fontSize, x, y } = textElement;
+    
+    // Rough estimation: each character is about 0.6 * fontSize wide
+    const charWidth = fontSize * 0.6;
+    const width = text.length * charWidth;
+    const height = fontSize * 1.2; // Include line height
+    
+    // Adjust based on text alignment
+    let adjustedX = x;
+    switch (textElement.textAlign) {
+      case 'center':
+        adjustedX = x - width / 2;
+        break;
+      case 'right':
+        adjustedX = x - width;
+        break;
+      case 'left':
+      default:
+        adjustedX = x;
+        break;
+    }
+    
+    return {
+      x: adjustedX,
+      y: y - height * 0.8, // Adjust for baseline
+      width: width,
+      height: height
+    };
+  }
+
+  // Update AI text element
+  updateAITextElement(id, updates) {
+    const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'aiText');
+    
+    if (elementIndex === -1) {
+      console.warn('CanvasEngine: AI text element not found:', id);
+      return false;
+    }
+    
+    // Update the element
+    this.paths[elementIndex] = {
+      ...this.paths[elementIndex],
+      ...updates,
+      lastModified: Date.now()
+    };
+    
+    // Update the quick access map
+    this.aiTextElements.set(id, this.paths[elementIndex]);
+    
+    // Recalculate bounds if position or text changed
+    if (updates.text || updates.x || updates.y || updates.fontSize || updates.fontFamily) {
+      const newBounds = this.calculateTextBounds(this.paths[elementIndex]);
+      if (newBounds) {
+        this.pathBBoxes.set(id, newBounds);
+      }
+    }
+    
+    console.log('CanvasEngine: Updated AI text element:', id);
+    return true;
+  }
+
+  // Delete AI text element
+  deleteAITextElement(id) {
+    const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'aiText');
+    
+    if (elementIndex === -1) {
+      console.warn('CanvasEngine: AI text element not found for deletion:', id);
+      return false;
+    }
+    
+    // Remove from paths
+    this.paths.splice(elementIndex, 1);
+    
+    // Remove from quick access map
+    this.aiTextElements.delete(id);
+    
+    // Clean up bounding box
+    this.pathBBoxes.delete(id);
+    
+    // Remove from selection if selected
+    this.removeFromSelection(id);
+    
+    console.log('CanvasEngine: Deleted AI text element:', id);
+    return true;
+  }
+
+  // Get all AI text elements
+  getAITextElements() {
+    return this.paths.filter(p => p.type === 'aiText');
+  }
+
+  // Find AI text element at point
+  findAITextAtPoint(point) {
+    const aiTexts = this.getAITextElements();
+    const tolerance = 15 / (this.options.viewBox ? 
+      this.options.width / this.options.viewBox.width : 1);
+    
+    // Check from top to bottom (reverse order)
+    for (let i = aiTexts.length - 1; i >= 0; i--) {
+      const textElement = aiTexts[i];
+      const bounds = this.pathBBoxes.get(textElement.id);
+      
+      if (bounds && this.pointInBounds(point, bounds, tolerance)) {
+        return textElement;
+      }
+    }
+    
+    return null;
+  }
+
+  // Check if point is within bounds (with tolerance)
+  pointInBounds(point, bounds, tolerance = 0) {
+    return point.x >= bounds.x - tolerance &&
+           point.x <= bounds.x + bounds.width + tolerance &&
+           point.y >= bounds.y - tolerance &&
+           point.y <= bounds.y + bounds.height + tolerance;
+  }
+
+  // Move AI text element
+  moveAITextElement(id, deltaX, deltaY) {
+    const element = this.paths.find(p => p.id === id && p.type === 'aiText');
+    
+    if (!element) {
+      console.warn('CanvasEngine: AI text element not found for move:', id);
+      return false;
+    }
+    
+    // Update position
+    element.x += deltaX;
+    element.y += deltaY;
+    element.lastModified = Date.now();
+    
+    // Update transform if it exists
+    if (!element.transform) {
+      element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    }
+    element.transform.translateX += deltaX;
+    element.transform.translateY += deltaY;
+    
+    // Update bounding box
+    const newBounds = this.calculateTextBounds(element);
+    if (newBounds) {
+      this.pathBBoxes.set(id, newBounds);
+    }
+    
+    // Update quick access map
+    this.aiTextElements.set(id, element);
+    
+    console.log('CanvasEngine: Moved AI text element:', id, { deltaX, deltaY });
+    return true;
+  }
+
+  // Scale AI text element
+  scaleAITextElement(id, scaleX, scaleY, origin) {
+    const element = this.paths.find(p => p.id === id && p.type === 'aiText');
+    
+    if (!element) {
+      console.warn('CanvasEngine: AI text element not found for scale:', id);
+      return false;
+    }
+    
+    // Update font size based on scale
+    const newFontSize = Math.max(8, Math.min(72, element.fontSize * Math.abs(scaleY)));
+    element.fontSize = newFontSize;
+    element.lastModified = Date.now();
+    
+    // Update transform
+    if (!element.transform) {
+      element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    }
+    element.transform.scaleX *= scaleX;
+    element.transform.scaleY *= scaleY;
+    
+    // Update position if origin is specified
+    if (origin) {
+      const offsetX = (element.x - origin.x) * (scaleX - 1);
+      const offsetY = (element.y - origin.y) * (scaleY - 1);
+      element.x += offsetX;
+      element.y += offsetY;
+    }
+    
+    // Update bounding box
+    const newBounds = this.calculateTextBounds(element);
+    if (newBounds) {
+      this.pathBBoxes.set(id, newBounds);
+    }
+    
+    // Update quick access map
+    this.aiTextElements.set(id, element);
+    
+    console.log('CanvasEngine: Scaled AI text element:', id, { scaleX, scaleY });
+    return true;
+  }
+
+  // Hit test for AI text elements
+  hitTestAIText(point, textElement, bounds) {
+    const tolerance = 15 / (this.options.viewBox ?
+      this.options.width / this.options.viewBox.width : 1);
+
+    console.log('Hit testing AI text:', {
+      id: textElement.id,
+      point: point,
+      bounds: bounds,
+      tolerance: tolerance
+    });
+
+    const hit = this.pointInBounds(point, bounds, tolerance);
+    console.log('AI text hit test result:', hit);
+    return hit;
+  }
+
+  // ===========================================
+  // SELECTION METHODS (ENHANCED WITH AI SUPPORT)
+  // ===========================================
+
+  // Hit testing for individual items (ENHANCED)
   hitTest(point, item) {
     const tolerance = 15 / (this.options.viewBox ?
       this.options.width / this.options.viewBox.width : 1);
 
-    console.log('Hit testing item:', item.id, 'at point:', point, 'tolerance:', tolerance);
+    console.log('Hit testing item:', item.id, item.type);
 
     if (item.type === 'stroke') {
       return this.hitTestStroke(point, item, tolerance);
     } else if (item.type === 'shape') {
       return this.hitTestShape(point, item, tolerance);
+    } else if (item.type === 'aiText') {
+      const bounds = this.pathBBoxes.get(item.id);
+      return bounds ? this.hitTestAIText(point, item, bounds) : false;
     }
     return false;
   }
@@ -158,7 +439,7 @@ export class CanvasEngine {
     return false;
   }
 
-  // Find the topmost item at a point
+  // Find the topmost item at a point (ENHANCED WITH AI SUPPORT)
   findItemAtPoint(point) {
     console.log('Finding item at point:', point, 'total paths:', this.paths.length);
 
@@ -210,6 +491,14 @@ export class CanvasEngine {
       }
     } else if (item.type === 'shape') {
       itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+    } else if (item.type === 'aiText') {
+      itemBounds = this.pathBBoxes.get(item.id);
+      if (!itemBounds) {
+        itemBounds = this.calculateTextBounds(item);
+        if (itemBounds) {
+          this.pathBBoxes.set(item.id, itemBounds);
+        }
+      }
     }
 
     if (!itemBounds) return false;
@@ -224,9 +513,9 @@ export class CanvasEngine {
     return intersects;
   }
 
-  // Calculate bounding box for selected items
+  // Calculate bounding box for selected items (ENHANCED)
   getSelectionBounds(selectedItemIds) {
-    // FIX 1: Handle both Set and Array inputs
+    // Handle both Set and Array inputs
     let itemIds;
     if (selectedItemIds instanceof Set) {
       itemIds = Array.from(selectedItemIds);
@@ -256,7 +545,6 @@ export class CanvasEngine {
       
       let itemBounds;
       if (item.type === 'stroke') {
-        // FIX 2: Improved stroke bounds calculation
         itemBounds = this.pathBBoxes.get(item.id);
         if (!itemBounds) {
           console.log('getSelectionBounds: Calculating bounds for stroke:', item.id);
@@ -272,6 +560,14 @@ export class CanvasEngine {
         }
       } else if (item.type === 'shape') {
         itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+      } else if (item.type === 'aiText') {
+        itemBounds = this.pathBBoxes.get(item.id);
+        if (!itemBounds) {
+          itemBounds = this.calculateTextBounds(item);
+          if (itemBounds) {
+            this.pathBBoxes.set(item.id, itemBounds);
+          }
+        }
       }
       
       if (itemBounds && itemBounds.width > 0 && itemBounds.height > 0) {
@@ -333,7 +629,7 @@ export class CanvasEngine {
     };
   }
 
-  // TRANSFORMATION METHODS
+  // TRANSFORMATION METHODS (ENHANCED WITH AI SUPPORT)
 
   moveSelectedItems(deltaX, deltaY) {
     for (const itemId of this.selectedItems) {
@@ -344,6 +640,8 @@ export class CanvasEngine {
         this.moveStroke(item, deltaX, deltaY);
       } else if (item.type === 'shape') {
         this.moveShape(item, deltaX, deltaY);
+      } else if (item.type === 'aiText') {
+        this.moveAITextElement(itemId, deltaX, deltaY);
       }
     }
 
@@ -379,6 +677,8 @@ export class CanvasEngine {
 
       if (item.type === 'shape') {
         this.resizeShape(item, oldBounds, newBounds, scaleX, scaleY);
+      } else if (item.type === 'aiText') {
+        this.scaleAITextElement(itemId, scaleX, scaleY, { x: oldBounds.x, y: oldBounds.y });
       }
       // Note: Stroke resizing is more complex and would require path transformation
     }
@@ -407,9 +707,10 @@ export class CanvasEngine {
     // Remove items from paths array
     this.paths = this.paths.filter(item => !itemsToDelete.includes(item.id));
 
-    // Clean up bounding boxes
+    // Clean up AI text elements map
     for (const itemId of itemsToDelete) {
       this.pathBBoxes.delete(itemId);
+      this.aiTextElements.delete(itemId);
     }
 
     // Clear selection
@@ -431,6 +732,11 @@ export class CanvasEngine {
       } else if (item.type === 'shape') {
         const bbox = { x: item.x, y: item.y, width: item.width, height: item.height };
         this.pathBBoxes.set(item.id, bbox);
+      } else if (item.type === 'aiText') {
+        const bbox = this.calculateTextBounds(item);
+        if (bbox) {
+          this.pathBBoxes.set(item.id, bbox);
+        }
       }
     }
   }
@@ -505,7 +811,9 @@ export class CanvasEngine {
     return Array.from(this.selectedItems);
   }
 
-  // EXISTING METHODS (keeping all the original functionality)
+  // ===========================================
+  // EXISTING METHODS (PEN, ERASER, SHAPES, ETC.)
+  // ===========================================
 
   getStrokeOptions(inputType, strokeWidth) {
     const zoomLevel = this.options.viewBox ?
@@ -856,6 +1164,7 @@ export class CanvasEngine {
     this.nextPathId = 0;
     this.clearSelection(); // Clear selection when clearing paths
     this.cancelRectangle();
+    this.aiTextElements.clear(); // NEW: Clear AI text elements
   }
 
   undo() {
@@ -866,16 +1175,39 @@ export class CanvasEngine {
       this.pathBBoxes.delete(lastPath.id);
       // Remove from selection if it was selected
       this.removeFromSelection(lastPath.id);
+      // NEW: Remove from AI text elements if it's an AI text
+      if (lastPath.type === 'aiText') {
+        this.aiTextElements.delete(lastPath.id);
+      }
     }
     return true;
   }
 
+  // ENHANCED EXPORT/IMPORT WITH AI TEXT SUPPORT
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
       version: 1,
       elements: this.paths.map(path => {
-        if (path.type === 'shape') {
+        if (path.type === 'aiText') {
+          return {
+            id: path.id,
+            type: 'aiText',
+            text: path.text,
+            x: path.x,
+            y: path.y,
+            fontFamily: path.fontFamily,
+            fontSize: path.fontSize,
+            fontWeight: path.fontWeight,
+            color: path.color,
+            textAlign: path.textAlign,
+            bounds: path.bounds,
+            confidence: path.confidence,
+            timestamp: path.timestamp,
+            metadata: path.metadata,
+            transform: path.transform
+          };
+        } else if (path.type === 'shape') {
           return {
             id: path.id,
             type: 'shape',
@@ -954,7 +1286,38 @@ export class CanvasEngine {
       this.clearPaths();
 
       data.elements.forEach((element) => {
-        if (element.type === 'stroke' && element.pathData) {
+        if (element.type === 'aiText') {
+          // Import AI text element
+          const aiTextElement = {
+            id: this.generatePathId(),
+            type: 'aiText',
+            text: element.text || '',
+            x: element.x || 0,
+            y: element.y || 0,
+            fontFamily: element.fontFamily || 'Arial, sans-serif',
+            fontSize: element.fontSize || 16,
+            fontWeight: element.fontWeight || 'normal',
+            color: element.color || '#000000',
+            textAlign: element.textAlign || 'left',
+            bounds: element.bounds || null,
+            confidence: element.confidence || 0.8,
+            timestamp: element.timestamp || Date.now(),
+            metadata: element.metadata || {},
+            transform: element.transform || {
+              translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0
+            }
+          };
+
+          const bbox = this.calculateTextBounds(aiTextElement);
+          if (bbox) {
+            this.pathBBoxes.set(aiTextElement.id, bbox);
+          }
+
+          this.paths.push(aiTextElement);
+          this.aiTextElements.set(aiTextElement.id, aiTextElement);
+          console.log('CanvasEngine: Imported AI text element:', aiTextElement.id);
+        }
+        else if (element.type === 'stroke' && element.pathData) {
           const newPath = {
             id: this.generatePathId(),
             pathData: element.pathData,
@@ -1111,6 +1474,7 @@ export class CanvasEngine {
       cancelAnimationFrame(this.frameRequest);
     }
     this.pathBBoxes.clear();
+    this.aiTextElements.clear(); // NEW: Clear AI text elements
     this.cancelRectangle();
     this.clearSelection();
   }

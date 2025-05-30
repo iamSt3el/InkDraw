@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - ENHANCED VERSION WITH AI SUPPORT
+// src/components/SmoothCanvas/core/EventHandler.js - COMPLETE VERSION WITH AI INTEGRATION
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -48,14 +48,18 @@ export class EventHandler {
     this.callbacks = { ...this.callbacks, ...callbacks };
   }
 
-  // NEW: AI Handwriting Methods
+  // ===========================================
+  // AI HANDWRITING METHODS - NEW
+  // ===========================================
+
   startAICapture(point) {
     console.log('EventHandler: Starting AI capture at point:', point);
     this.isCapturingAI = true;
     this.currentAIStroke = [{
       x: point[0],
       y: point[1],
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isNewStroke: true // Mark as start of stroke
     }];
     this.lastAIPoint = point;
     this.aiStartTime = Date.now();
@@ -76,7 +80,12 @@ export class EventHandler {
   }
 
   updateAICapture(point) {
-    if (!this.isCapturingAI) return;
+    if (!this.isCapturingAI) {
+      console.log('AI Tool: Not capturing, ignoring move');
+      return;
+    }
+    
+    console.log('AI Tool: Updating capture with point:', point);
     
     // Add point to current stroke with timestamp
     const aiPoint = {
@@ -91,19 +100,13 @@ export class EventHandler {
     // Update visual feedback
     this.updateTempAIPath();
     
-    // Reset processing timer
-    if (this.aiProcessingTimer) {
-      clearTimeout(this.aiProcessingTimer);
-    }
-    
-    // Set new timer for 1 second
-    this.aiProcessingTimer = setTimeout(() => {
-      this.finishAICapture();
-    }, 1000);
+    // DON'T reset timer here - only reset it when user stops drawing (pointer up)
+    // This prevents premature processing while user is actively drawing
   }
 
   finishAICapture() {
     if (!this.isCapturingAI || this.currentAIStroke.length < 2) {
+      console.log('AI Tool: Cannot finish capture - not capturing or insufficient points');
       this.cancelAICapture();
       return;
     }
@@ -135,6 +138,8 @@ export class EventHandler {
     this.aiProcessingTimer = null;
     this.lastAIPoint = null;
     this.aiStartTime = null;
+    
+    console.log('AI Tool: Capture finished and reset');
   }
 
   cancelAICapture() {
@@ -182,13 +187,25 @@ export class EventHandler {
     const tempPath = svg?.querySelector('#temp-ai-path');
     
     if (tempPath && this.currentAIStroke.length > 1) {
-      let pathData = `M ${this.currentAIStroke[0].x},${this.currentAIStroke[0].y}`;
+      let pathData = '';
+      let currentStrokePath = '';
       
-      for (let i = 1; i < this.currentAIStroke.length; i++) {
-        pathData += ` L ${this.currentAIStroke[i].x},${this.currentAIStroke[i].y}`;
+      for (let i = 0; i < this.currentAIStroke.length; i++) {
+        const point = this.currentAIStroke[i];
+        
+        if (point.isNewStroke && i > 0) {
+          // End current stroke and start new one
+          currentStrokePath += ` M ${point.x},${point.y}`;
+        } else if (i === 0) {
+          // Start first stroke
+          currentStrokePath = `M ${point.x},${point.y}`;
+        } else {
+          // Continue current stroke
+          currentStrokePath += ` L ${point.x},${point.y}`;
+        }
       }
       
-      tempPath.setAttribute('d', pathData);
+      tempPath.setAttribute('d', currentStrokePath);
     }
   }
 
@@ -224,16 +241,57 @@ export class EventHandler {
     };
   }
 
-  // EXISTING METHODS - Updated to handle AI tool
+  // ===========================================
+  // MAIN EVENT HANDLERS - ENHANCED WITH AI SUPPORT
+  // ===========================================
+
   handlePointerDown(e) {
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
 
     const point = this.engine.getPointFromEvent(e);
     const worldPoint = { x: point[0], y: point[1] };
 
-    // Handle AI handwriting tool - NEW
+    console.log('Pointer down:', {
+      tool: this.options.currentTool,
+      point: worldPoint,
+      isCapturingAI: this.isCapturingAI
+    });
+
+    // Handle AI handwriting tool - ENHANCED FOR MULTI-STROKE
     if (this.options.currentTool === 'aiHandwriting') {
-      this.startAICapture(point);
+      console.log('AI Tool: Pointer down detected');
+      
+      // Check if we're starting a new stroke while already capturing (multi-stroke word)
+      if (this.isCapturingAI) {
+        console.log('AI Tool: Adding new stroke to existing capture');
+        
+        // Clear any pending timer since user is still writing
+        if (this.aiProcessingTimer) {
+          clearTimeout(this.aiProcessingTimer);
+          this.aiProcessingTimer = null;
+        }
+        
+        // Add a stroke separator or start new stroke data
+        // We'll add a small gap in the stroke data to indicate new stroke
+        this.currentAIStroke.push({ 
+          x: point[0], 
+          y: point[1], 
+          timestamp: Date.now(),
+          isNewStroke: true // Mark as start of new stroke
+        });
+      } else {
+        console.log('AI Tool: Starting new capture session');
+        this.startAICapture(point);
+      }
+      
+      // CRITICAL: Set the active pointer and capture
+      this.engine.activePointer = e.pointerId;
+      this.engine.isDrawing = true; // Set drawing state for AI tool
+      
+      if (this.engine.canvasRef.current.setPointerCapture) {
+        this.engine.canvasRef.current.setPointerCapture(e.pointerId);
+      }
+      
       e.preventDefault();
       return;
     }
@@ -282,10 +340,14 @@ export class EventHandler {
     const point = this.engine.getPointFromEvent(e);
     const worldPoint = { x: point[0], y: point[1] };
 
-    // Handle AI handwriting tool movement - NEW
-    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
-      this.updateAICapture(point);
-      e.preventDefault();
+    // Handle AI handwriting tool movement - FIXED
+    if (this.options.currentTool === 'aiHandwriting') {
+      // Only update if we're actively capturing AND this is the active pointer
+      if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
+        console.log('AI Tool: Pointer move, updating capture');
+        this.updateAICapture(point);
+        e.preventDefault();
+      }
       return;
     }
 
@@ -368,11 +430,53 @@ export class EventHandler {
   }
 
   handlePointerUp(e) {
-    // Handle AI handwriting tool end - NEW
-    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
-      // Don't immediately finish, let the timer handle it
-      e.preventDefault();
-      return;
+    console.log('Pointer up event:', {
+      tool: this.options.currentTool,
+      isCapturingAI: this.isCapturingAI,
+      pointerId: e.pointerId,
+      activePointer: this.engine.activePointer
+    });
+
+    // Handle AI handwriting tool end - FIXED
+    if (this.options.currentTool === 'aiHandwriting') {
+      console.log('AI Tool: Pointer up detected');
+      
+      // Only handle if this is the active pointer and we're capturing
+      if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
+        console.log('AI Tool: Handling pointer up for active capture');
+        
+        // Release pointer capture
+        if (this.engine.canvasRef.current?.releasePointerCapture) {
+          this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+        }
+        
+        // Reset engine state
+        this.engine.isDrawing = false;
+        this.engine.activePointer = null;
+        
+        // NOW start/reset the timer when user stops drawing
+        if (this.currentAIStroke.length >= 2) {
+          // Clear any existing timer
+          if (this.aiProcessingTimer) {
+            clearTimeout(this.aiProcessingTimer);
+          }
+          
+          // Start new 1-second timer
+          console.log('AI Tool: Starting 1-second processing timer');
+          this.aiProcessingTimer = setTimeout(() => {
+            console.log('AI Tool: Timer expired, finishing capture');
+            this.finishAICapture();
+          }, 1000);
+        } else {
+          // Not enough points, cancel
+          this.cancelAICapture();
+        }
+        
+        console.log('AI Tool: Timer set, ready for next stroke or processing');
+        
+        e.preventDefault();
+        return;
+      }
     }
 
     // Handle pan end
@@ -411,6 +515,10 @@ export class EventHandler {
     this.engine.lastPoint = null;
   }
 
+  // ===========================================
+  // SELECTION METHODS - EXISTING
+  // ===========================================
+
   // FIXED: Throttled drag update method
   throttledDragUpdate = () => {
     if (!this.isThrottling || !this.isDraggingSelection) {
@@ -443,8 +551,6 @@ export class EventHandler {
       this.isThrottling = false;
     }
   };
-
-  // [Rest of the existing methods remain the same - handleSelectionPointerDown, handleSelectionPointerMove, etc.]
 
   handleSelectionPointerDown(e, worldPoint) {
     e.preventDefault();
@@ -865,10 +971,10 @@ export class EventHandler {
     }
   }
 
-  // Rest of the existing methods remain the same...
-  // [Rectangle drawing methods, pan tool methods, wheel zoom, drawing methods, etc.]
+  // ===========================================
+  // RECTANGLE DRAWING METHODS - EXISTING
+  // ===========================================
 
-  // Rectangle drawing methods
   startRectangleDrawing(e) {
     console.log('Starting rectangle drawing');
     e.preventDefault();
@@ -908,7 +1014,10 @@ export class EventHandler {
     }
   }
 
-  // Pan tool methods
+  // ===========================================
+  // PAN TOOL METHODS - EXISTING
+  // ===========================================
+
   startPanning(e) {
     console.log('EventHandler: Starting pan');
     this.isPanning = true;
@@ -1021,7 +1130,10 @@ export class EventHandler {
     e.preventDefault();
   }
 
-  // Wheel zoom support
+  // ===========================================
+  // WHEEL ZOOM SUPPORT - EXISTING
+  // ===========================================
+
   handleWheel(e) {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -1033,6 +1145,10 @@ export class EventHandler {
       }
     }
   }
+
+  // ===========================================
+  // MOUSE ENTER/LEAVE HANDLERS - ENHANCED WITH AI SUPPORT
+  // ===========================================
 
   handleMouseEnter() {
     if (this.options.currentTool === 'eraser') {
@@ -1060,13 +1176,22 @@ export class EventHandler {
       this.isSelecting = false;
     }
 
-    // NEW: Cancel AI capture if mouse leaves
+    // NEW: Handle AI capture when mouse leaves - FIXED
     if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
-      this.cancelAICapture();
+      console.log('AI Tool: Mouse left canvas during capture, finishing');
+      // Finish the current capture when mouse leaves
+      if (this.currentAIStroke.length >= 2) {
+        this.finishAICapture();
+      } else {
+        this.cancelAICapture();
+      }
     }
   }
 
-  // Drawing methods (existing)
+  // ===========================================
+  // DRAWING METHODS - EXISTING (PEN/ERASER)
+  // ===========================================
+
   createTempPath(point) {
     const svg = this.engine.svgRef.current;
     if (!svg) return;
@@ -1133,6 +1258,8 @@ export class EventHandler {
           bbox = this.engine.calculateBoundingBox(pathObj.pathData);
         } else if (pathObj.type === 'shape') {
           bbox = this.engine.calculateBoundingBox(pathObj);
+        } else if (pathObj.type === 'aiText') {
+          bbox = this.engine.calculateTextBounds(pathObj);
         }
         if (bbox) {
           this.engine.pathBBoxes.set(pathObj.id, bbox);
@@ -1164,6 +1291,8 @@ export class EventHandler {
           this.engine.pathBBoxes.delete(pathId);
           // Remove from selection if erased
           this.engine.removeFromSelection(pathId);
+          // NEW: Remove from AI text elements if it's AI text
+          this.engine.aiTextElements.delete(pathId);
         });
 
         if (this.callbacks.onPathsErased) {
@@ -1239,6 +1368,10 @@ export class EventHandler {
       this.engine.setCurrentPath([]);
     }
   }
+
+  // ===========================================
+  // CLEANUP AND LIFECYCLE - ENHANCED WITH AI CLEANUP
+  // ===========================================
 
   // FIXED: Cleanup method to prevent memory leaks - UPDATED with AI cleanup
   cleanup() {
