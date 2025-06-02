@@ -71,7 +71,7 @@ export const usePageStore = create(
               version: 1,
               elements: [],
               appState: {
-                width: 870,
+                width: 1600,
                 height: 870,
                 opacity: 100
               }
@@ -207,7 +207,7 @@ export const usePageStore = create(
                 version: 1,
                 elements: [],
                 appState: {
-                  width: 870,
+                  width: 1600,
                   height: 870,
                   opacity: 100
                 }

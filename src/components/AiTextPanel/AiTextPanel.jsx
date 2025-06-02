@@ -241,33 +241,6 @@ const AiTextPanel = () => {
             ))}
           </div>
         </div>
-
-        {/* Preview Section */}
-        <div className={styles.section}>
-          <div className={styles.section_title}>Preview</div>
-          <div className={styles.text_preview}>
-            <div 
-              className={styles.preview_text}
-              style={{
-                fontFamily: currentFontFamily,
-                fontSize: `${currentFontSize}px`,
-                fontWeight: currentFontWeight,
-                color: effectiveTextColor,
-                textAlign: currentTextAlign
-              }}
-            >
-              Sample AI Text
-            </div>
-          </div>
-        </div>
-
-        {/* Info Section */}
-        <div className={styles.info_section}>
-          <div className={styles.info_text}>
-            <strong>How it works:</strong> Write with the AI tool, then wait 1 second for automatic text conversion. Text will appear where your handwriting was.
-          </div>
-        </div>
-
       </div>
     </div>
   );

@@ -322,7 +322,7 @@ const ToolBar = ({
 
       {/* BOTTOM ZOOM CONTROLS */}
       <div className={styles.zoom_toolbar}>
-        <div className={styles.zoom_controls}>
+        {/* <div className={styles.zoom_controls}>
           <span className={styles.zoom_label}>Zoom:</span>
           <div className={styles.zoom_buttons}>
             <button 
@@ -374,14 +374,14 @@ const ToolBar = ({
               <RotateCcw size={16} />
             </button>
           </div>
-        </div>
+        </div> */}
 
-        {/* Selection info in zoom toolbar */}
+        {/* Selection info in zoom toolbar
         {currentTool === 'select' && selectedItems.size > 0 && (
           <div className={styles.selection_info}>
             <span>{selectedItems.size} selected</span>
           </div>
-        )}
+        )} */}
 
         {/* ADDED: AI processing info in zoom toolbar */}
         {currentTool === 'aiHandwriting' && (

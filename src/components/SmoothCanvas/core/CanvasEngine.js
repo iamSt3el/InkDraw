@@ -6,8 +6,8 @@ export class CanvasEngine {
     this.canvasRef = canvasRef;
     this.svgRef = svgRef;
     this.options = {
-      width: 900,
-      height: 700,
+      width: 1600,
+      height: 870,
       strokeColor: '#000000',
       strokeWidth: 5,
       opacity: 100,

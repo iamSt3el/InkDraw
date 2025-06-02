@@ -42,13 +42,13 @@ export const useDrawingStore = create((set, get) => ({
   
   // Canvas dimensions
   canvasDimensions: {
-    width: 870,
+    width: 1600,
     height: 870
   },
   
   // Zoom and Pan state
   zoomLevel: 1,
-  viewBox: { x: 0, y: 0, width: 870, height: 870 },
+  viewBox: { x: 0, y: 0, width: 1600, height: 870 },
   
   // Page settings
   pageSettings: {
