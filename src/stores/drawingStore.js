@@ -14,7 +14,7 @@ export const useDrawingStore = create((set, get) => ({
    // AI Handwriting specific settings - NEW
    aiTextSettings: {
     fontFamily: 'Arial, Helvetica, sans-serif',
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: 'normal',
     textColor: null, // null means use stroke color
     textAlign: 'center'

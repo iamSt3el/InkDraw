@@ -26,7 +26,8 @@ export class EventHandler {
     this.aiProcessingTimer = null;
     this.lastAIPoint = null;
     this.aiStartTime = null;
-    this.aiStrokeCount = 0; // NEW: Track stroke count for unique IDs
+    this.aiStrokeCount = 0;
+    this.currentStrokePoints = []; // NEW: Track current stroke points separately
 
     // FIXED: Add throttling and optimization variables
     this.dragThrottleTimeout = null;
@@ -78,7 +79,7 @@ export class EventHandler {
   }
 
   // ===========================================
-  // AI HANDWRITING METHODS - FIXED ALL BUGS
+  // AI HANDWRITING METHODS - FIXED VISUAL FEEDBACK
   // ===========================================
 
   startAICapture(e) {
@@ -106,7 +107,9 @@ export class EventHandler {
     }];
     this.lastAIPoint = { x: rawX, y: rawY };
     this.aiStartTime = Date.now();
-    this.aiStrokeCount = 1; // NEW: Start stroke counting
+    this.aiStrokeCount = 1;
+    // NEW: Reset current stroke points for visual feedback
+    this.currentStrokePoints = [];
 
     // FIXED: Clear any existing visual feedback before creating new
     this.clearAllTempAIPaths();
@@ -114,6 +117,9 @@ export class EventHandler {
     // Create visual feedback using complex coordinates
     const complexPoint = this.engine.getPointFromEvent(e);
     this.createTempAIPath(complexPoint, this.aiStrokeCount);
+    
+    // NEW: Add first point to current stroke for visual feedback
+    this.currentStrokePoints = [complexPoint];
 
     // Notify start
     if (this.callbacks.onAIStrokeStart) {
@@ -139,23 +145,26 @@ export class EventHandler {
         y: simpleCoords.y,
         timestamp: Date.now(),
         isNewStroke: true,
-        strokeId: this.aiStrokeCount // NEW: Add unique stroke ID
+        strokeId: this.aiStrokeCount
       });
       
       this.lastAIPoint = { x: simpleCoords.x, y: simpleCoords.y };
 
       console.log('AI Tool: Added new stroke separator, total strokes:', this.aiStrokeCount);
 
-      // FIXED: Create separate visual path for new stroke
+      // FIXED: Create separate visual path for new stroke AND reset current stroke points
       const complexPoint = this.engine.getPointFromEvent(e);
       this.createTempAIPath(complexPoint, this.aiStrokeCount);
+      
+      // NEW: Reset current stroke points for new stroke
+      this.currentStrokePoints = [complexPoint];
     }
   }
 
   updateAICapture(e) {
     if (!this.isCapturingAI) return;
     
-    // Get raw canvas coordinates
+    // Get raw canvas coordinates for data
     const canvas = this.engine.canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     
@@ -167,16 +176,56 @@ export class EventHandler {
     const distance = Math.sqrt(Math.pow(rawX - lastPoint.x, 2) + Math.pow(rawY - lastPoint.y, 2));
     
     if (distance > 1) { // Minimum distance threshold
+      // Add to AI data collection
       this.currentAIStroke.push({
         x: rawX,
         y: rawY,
         timestamp: Date.now(),
-        strokeId: this.aiStrokeCount // NEW: Track which stroke this point belongs to
+        strokeId: this.aiStrokeCount
       });
       this.lastAIPoint = { x: rawX, y: rawY };
       
-      // FIXED: Update only the current stroke's visual path
-      this.updateTempAIPath(this.aiStrokeCount);
+      // NEW: Add to current stroke points for visual feedback
+      const complexPoint = this.engine.getPointFromEvent(e);
+      this.currentStrokePoints.push(complexPoint);
+      
+      // FIXED: Update visual feedback with only current stroke points
+      this.updateTempAIPathFixed(this.aiStrokeCount);
+    }
+  }
+
+  // NEW: Fixed visual path update method
+  updateTempAIPathFixed(strokeId) {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const pathId = `temp-ai-path-${strokeId}`;
+    const tempPath = svg.querySelector(`#${pathId}`);
+
+    if (tempPath && this.currentStrokePoints.length > 1) {
+      const viewBox = this.options.viewBox || this.engine.options.viewBox ||
+        { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
+
+      // FIXED: Create path data from ONLY current stroke points (no stroke mixing)
+      let pathData = '';
+
+      for (let i = 0; i < this.currentStrokePoints.length; i++) {
+        const point = this.currentStrokePoints[i];
+
+        // Convert to viewBox coordinates for display
+        const svgX = viewBox.x + (point[0] / this.engine.options.width) * viewBox.width;
+        const svgY = viewBox.y + (point[1] / this.engine.options.height) * viewBox.height;
+
+        if (i === 0) {
+          // Start new path
+          pathData = `M ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
+        } else {
+          // Continue current path - no stroke breaks within same stroke
+          pathData += ` L ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
+        }
+      }
+
+      tempPath.setAttribute('d', pathData);
     }
   }
 
@@ -259,6 +308,7 @@ export class EventHandler {
     this.aiStartTime = null;
     this.aiStrokeCount = 0;
     this.aiProcessingTimer = null;
+    this.currentStrokePoints = []; // NEW: Clear visual feedback points
   }
 
   // FIXED: Create separate visual path for each stroke
@@ -282,66 +332,16 @@ export class EventHandler {
     tempPath.setAttribute('stroke-width', '3');
     tempPath.setAttribute('stroke-dasharray', '5,5');
     tempPath.setAttribute('opacity', '0.8');
-    tempPath.setAttribute('data-stroke-id', strokeId); // NEW: Track stroke ID
+    tempPath.setAttribute('data-stroke-id', strokeId);
+    tempPath.setAttribute('stroke-linecap', 'round'); // NEW: Smoother line caps
+    tempPath.setAttribute('stroke-linejoin', 'round'); // NEW: Smoother line joins
 
-    const pathData = `M ${point[0]},${point[1]}`;
+    const pathData = `M ${point[0].toFixed(2)},${point[1].toFixed(2)}`;
     tempPath.setAttribute('d', pathData);
 
     svg.appendChild(tempPath);
     
     console.log('AI Tool: Created visual path for stroke', strokeId);
-  }
-
-  // FIXED: Update only specific stroke's visual path - CORRECT APPROACH
-  updateTempAIPath(strokeId) {
-    const svg = this.engine.svgRef.current;
-    if (!svg) return;
-
-    const pathId = `temp-ai-path-${strokeId}`;
-    const tempPath = svg.querySelector(`#${pathId}`);
-
-    if (tempPath && this.currentAIStroke.length > 1) {
-      // FIXED: Get only points from the CURRENT strokeId, maintain stroke separation
-      let currentStrokePoints = [];
-      let startIndex = -1;
-      
-      // Find where this stroke starts
-      for (let i = 0; i < this.currentAIStroke.length; i++) {
-        const point = this.currentAIStroke[i];
-        if (point.strokeId === strokeId) {
-          if (startIndex === -1) startIndex = i;
-          currentStrokePoints.push(point);
-        } else if (startIndex !== -1) {
-          // Found end of this stroke
-          break;
-        }
-      }
-
-      if (currentStrokePoints.length > 0) {
-        const viewBox = this.options.viewBox || this.engine.options.viewBox ||
-          { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
-
-        let pathData = '';
-
-        for (let i = 0; i < currentStrokePoints.length; i++) {
-          const point = currentStrokePoints[i];
-
-          // Convert raw canvas coordinates to viewBox coordinates for display
-          const svgX = viewBox.x + (point.x / this.engine.options.width) * viewBox.width;
-          const svgY = viewBox.y + (point.y / this.engine.options.height) * viewBox.height;
-
-          if (i === 0) {
-            // Start new path segment
-            pathData = `M ${svgX},${svgY}`;
-          } else {
-            // Continue current path
-            pathData += ` L ${svgX},${svgY}`;
-          }
-        }
-
-        tempPath.setAttribute('d', pathData);
-      }
-    }
   }
 
   // FIXED: Clear all AI visual paths
@@ -740,6 +740,38 @@ export class EventHandler {
         break;
     }
   }
+
+  // ===========================================
+  // SELECTION METHODS (UNCHANGED - Rest of the code remains the same)
+  // ===========================================
+
+  // FIXED: Throttled drag update method
+  throttledDragUpdate = () => {
+    if (!this.isThrottling || !this.isDraggingSelection) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
+      const { x, y } = this.accumulatedDelta;
+
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        this.engine.moveSelectedItems(x, y);
+        this.accumulatedDelta = { x: 0, y: 0 };
+        this.lastDragUpdate = now;
+
+        if (this.callbacks.onSelectionMoved) {
+          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+        }
+      }
+    }
+
+    if (this.isDraggingSelection) {
+      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+    } else {
+      this.isThrottling = false;
+    }
+  };
 
   // ===========================================
   // SELECTION METHODS (UNCHANGED)
