@@ -3,9 +3,9 @@ import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
 import PageNavigator from '../PageNavigator/PageNavigator';
-import { 
-  Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, 
-  Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, 
+import {
+  Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3,
+  Settings, Square, ArrowLeft, Save,
   Shapes, MousePointer2, Brain, ImageIcon // ADDED ImageIcon for image tool
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
@@ -31,7 +31,6 @@ const ToolBar = ({
     setTool,
     clearCanvas,
     undoCanvas,
-    zoomLevel,
     isRoughMode,
     selectedItems,
     deleteSelection,
@@ -397,82 +396,6 @@ const ToolBar = ({
         </div>
       </div>
 
-      {/* BOTTOM ZOOM CONTROLS */}
-      <div className={styles.zoom_toolbar}>
-        <div className={styles.zoom_controls}>
-          <span className={styles.zoom_label}>Zoom:</span>
-          <div className={styles.zoom_buttons}>
-            <button 
-              className={styles.zoom_button}
-              onClick={() => {
-                const { zoomOut } = useDrawingStore.getState();
-                zoomOut();
-              }}
-              title="Zoom Out"
-            >
-              <ZoomOut size={16} />
-            </button>
-            
-            <div className={styles.zoom_level}>
-              {Math.round(zoomLevel * 100)}%
-            </div>
-            
-            <button 
-              className={styles.zoom_button}
-              onClick={() => {
-                const { zoomIn } = useDrawingStore.getState();
-                zoomIn();
-              }}
-              title="Zoom In"
-            >
-              <ZoomIn size={16} />
-            </button>
-            
-            <button 
-              className={styles.zoom_button}
-              onClick={() => {
-                const { setTool } = useDrawingStore.getState();
-                setTool(currentTool === 'pan' ? 'pen' : 'pan');
-              }}
-              title="Pan Tool (H)"
-              data-active={currentTool === 'pan'}
-            >
-              <Move size={16} />
-            </button>
-            
-            <button 
-              className={styles.zoom_button}
-              onClick={() => {
-                const { resetZoom } = useDrawingStore.getState();
-                resetZoom();
-              }}
-              title="Reset Zoom"
-            >
-              <RotateCcw size={16} />
-            </button>
-          </div>
-        </div>
-
-        Selection info in zoom toolbar
-        {currentTool === 'select' && selectedItems.size > 0 && (
-          <div className={styles.selection_info}>
-            <span>{selectedItems.size} selected</span>
-          </div>
-        )}
-
-        {/* ADDED: AI processing info in zoom toolbar */}
-        {currentTool === 'aiHandwriting' && (
-          <div className={styles.ai_info}>
-            <Brain size={16} />
-            <span>AI Handwriting Mode</span>
-            {isAiProcessing && (
-              <div className={styles.processing_indicator}>
-                <div className={styles.processing_spinner}></div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* ADDED: AI Handwriting instructions */}
       {currentTool === 'aiHandwriting' && (
