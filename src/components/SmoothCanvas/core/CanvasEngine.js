@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js - COMPLETE VERSION WITH AI INTEGRATION
+// src/components/SmoothCanvas/core/CanvasEngine.js - FIXED SELECTION ISSUES
 import rough from 'roughjs';
 
 export class CanvasEngine {
@@ -52,10 +52,14 @@ export class CanvasEngine {
     this.rectangleStart = null;
     this.currentRectangle = null;
 
-    // NEW: AI-specific properties
+    // AI-specific properties
     this.aiTextElements = new Map(); // Store AI text elements separately for quick access
     this.isAIMode = false;
     this.currentAIStroke = null;
+
+    // Image properties
+    this.imageElements = new Map(); // Store image elements separately for quick access
+    this.loadedImages = new Map(); // Cache for loaded image objects
 
     // Rough.js instances
     this.roughCanvas = null;
@@ -66,7 +70,7 @@ export class CanvasEngine {
     this.initializeRough();
   }
 
-  // Existing methods (initializeCanvas, initializeRough, etc.)...
+  // FIXED: Initialize canvas with proper scaling
   initializeCanvas() {
     if (!this.canvasRef.current) return;
 
@@ -91,7 +95,590 @@ export class CanvasEngine {
   }
 
   // ===========================================
-  // AI TEXT ELEMENT METHODS - NEW
+  // FIXED SELECTION METHODS
+  // ===========================================
+
+  // FIXED: Improved hit testing with better tolerance calculation
+  hitTest(point, item) {
+    // FIXED: Use zoom-aware tolerance calculation
+    const baseSize = Math.max(this.options.width, this.options.height);
+    const baseTolerance = baseSize * 0.008; // 0.8% of canvas size
+
+    const viewBox = this.options.viewBox;
+    const zoomLevel = viewBox ? this.options.width / viewBox.width : 1;
+    const tolerance = baseTolerance / zoomLevel;
+
+    console.log('Hit testing item:', {
+      itemId: item.id,
+      itemType: item.type,
+      point: point,
+      tolerance: tolerance,
+      zoomLevel: zoomLevel
+    });
+
+    if (item.type === 'stroke') {
+      return this.hitTestStroke(point, item, tolerance);
+    } else if (item.type === 'shape') {
+      return this.hitTestShape(point, item, tolerance);
+    } else if (item.type === 'aiText') {
+      const bounds = this.pathBBoxes.get(item.id);
+      return bounds ? this.hitTestAIText(point, item, bounds) : false;
+    } else if (item.type === 'image') {
+      return this.hitTestImage(point, item);
+    }
+    return false;
+  }
+
+  // FIXED: More accurate stroke hit testing
+  hitTestStroke(point, stroke, tolerance) {
+    // Get or calculate bounding box
+    let bbox = this.pathBBoxes.get(stroke.id);
+    if (!bbox) {
+      bbox = this.calculateBoundingBox(stroke.pathData);
+      if (bbox) {
+        // Apply transform if it exists
+        if (stroke.transform) {
+          bbox.x += stroke.transform.translateX || 0;
+          bbox.y += stroke.transform.translateY || 0;
+        }
+        this.pathBBoxes.set(stroke.id, bbox);
+      }
+    }
+
+    if (!bbox) {
+      console.log('No bounding box for stroke:', stroke.id);
+      return false;
+    }
+
+    // FIXED: Use stroke width for better tolerance
+    const strokeWidth = stroke.strokeWidth || 5;
+    const adjustedTolerance = Math.max(tolerance, strokeWidth);
+
+    console.log('Stroke hit test:', {
+      id: stroke.id,
+      point: point,
+      bbox: bbox,
+      strokeWidth: strokeWidth,
+      tolerance: adjustedTolerance
+    });
+
+    // Expanded bounding box test
+    const hit = point.x >= bbox.x - adjustedTolerance &&
+      point.x <= bbox.x + bbox.width + adjustedTolerance &&
+      point.y >= bbox.y - adjustedTolerance &&
+      point.y <= bbox.y + bbox.height + adjustedTolerance;
+
+    console.log('Stroke hit result:', hit);
+    return hit;
+  }
+
+  // FIXED: Better shape hit testing
+  hitTestShape(point, shape, tolerance) {
+    console.log('Shape hit test:', {
+      id: shape.id,
+      point: point,
+      shape: { x: shape.x, y: shape.y, width: shape.width, height: shape.height },
+      tolerance: tolerance
+    });
+
+    if (shape.shapeType === 'rectangle') {
+      const hit = point.x >= shape.x - tolerance &&
+        point.x <= shape.x + shape.width + tolerance &&
+        point.y >= shape.y - tolerance &&
+        point.y <= shape.y + shape.height + tolerance;
+
+      console.log('Rectangle hit result:', hit);
+      return hit;
+    }
+    return false;
+  }
+
+  // FIXED: Improved AI text hit testing
+  hitTestAIText(point, textElement, bounds) {
+    const baseSize = Math.max(this.options.width, this.options.height);
+    const baseTolerance = baseSize * 0.01; // 1% of canvas size for text
+
+    const viewBox = this.options.viewBox;
+    const zoomLevel = viewBox ? this.options.width / viewBox.width : 1;
+    const tolerance = baseTolerance / zoomLevel;
+
+    console.log('AI text hit test:', {
+      id: textElement.id,
+      point: point,
+      bounds: bounds,
+      tolerance: tolerance
+    });
+
+    const hit = this.pointInBounds(point, bounds, tolerance);
+    console.log('AI text hit result:', hit);
+    return hit;
+  }
+
+  // FIXED: Find item at point with better debugging
+  findItemAtPoint(point) {
+    console.log('=== FINDING ITEM AT POINT ===');
+    console.log('Point:', point);
+    console.log('Total paths:', this.paths.length);
+    console.log('ViewBox:', this.options.viewBox);
+
+    // Search from top to bottom (reverse order since later items are on top)
+    for (let i = this.paths.length - 1; i >= 0; i--) {
+      const item = this.paths[i];
+      console.log(`Testing item ${i}:`, {
+        id: item.id,
+        type: item.type,
+        hasTransform: !!item.transform
+      });
+
+      if (this.hitTest(point, item)) {
+        console.log('*** FOUND ITEM ***:', item.id);
+        return item;
+      }
+    }
+
+    console.log('No item found at point');
+    return null;
+  }
+
+  // FIXED: Better bounding box calculation for strokes
+  calculateBoundingBox(pathData) {
+    if (typeof pathData === 'string') {
+      // Extract coordinates from SVG path data
+      const coords = pathData.match(/(-?\d+(?:\.\d+)?)/g);
+      if (!coords || coords.length < 4) return null;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+      for (let i = 0; i < coords.length - 1; i += 2) {
+        const x = parseFloat(coords[i]);
+        const y = parseFloat(coords[i + 1]);
+
+        if (!isNaN(x) && !isNaN(y)) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+
+      if (minX === Infinity || minY === Infinity) return null;
+
+      return {
+        x: minX,
+        y: minY,
+        width: Math.max(1, maxX - minX), // Ensure minimum width
+        height: Math.max(1, maxY - minY)  // Ensure minimum height
+      };
+    }
+    else if (typeof pathData === 'object') {
+      const shape = pathData;
+
+      if (shape.type === 'line') {
+        const x = Math.min(shape.x1, shape.x2);
+        const y = Math.min(shape.y1, shape.y2);
+        const width = Math.max(1, Math.abs(shape.x2 - shape.x1));
+        const height = Math.max(1, Math.abs(shape.y2 - shape.y1));
+        return { x, y, width, height };
+      }
+      else {
+        return {
+          x: shape.x,
+          y: shape.y,
+          width: Math.max(1, shape.width),
+          height: Math.max(1, shape.height)
+        };
+      }
+    }
+
+    return null;
+  }
+
+  // FIXED: Better selection bounds calculation
+  getSelectionBounds(selectedItemIds) {
+    // Handle both Set and Array inputs
+    let itemIds;
+    if (selectedItemIds instanceof Set) {
+      itemIds = Array.from(selectedItemIds);
+    } else if (Array.isArray(selectedItemIds)) {
+      itemIds = selectedItemIds;
+    } else {
+      console.error('getSelectionBounds: Invalid input type:', typeof selectedItemIds);
+      return null;
+    }
+
+    if (itemIds.length === 0) {
+      console.log('getSelectionBounds: No items selected');
+      return null;
+    }
+
+    console.log('getSelectionBounds: Processing items:', itemIds);
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let validItems = 0;
+
+    for (const itemId of itemIds) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) {
+        console.log('getSelectionBounds: Item not found:', itemId);
+        continue;
+      }
+
+      let itemBounds;
+      if (item.type === 'stroke') {
+        itemBounds = this.pathBBoxes.get(item.id);
+        if (!itemBounds) {
+          console.log('getSelectionBounds: Calculating bounds for stroke:', item.id);
+          itemBounds = this.calculateBoundingBox(item.pathData);
+          if (itemBounds) {
+            // Apply transform if it exists
+            if (item.transform) {
+              itemBounds.x += item.transform.translateX || 0;
+              itemBounds.y += item.transform.translateY || 0;
+            }
+            this.pathBBoxes.set(item.id, itemBounds);
+          }
+        }
+      } else if (item.type === 'shape') {
+        itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+      } else if (item.type === 'aiText') {
+        itemBounds = this.pathBBoxes.get(item.id);
+        if (!itemBounds) {
+          itemBounds = this.calculateTextBounds(item);
+          if (itemBounds) {
+            this.pathBBoxes.set(item.id, itemBounds);
+          }
+        }
+      } else if (item.type === 'image') {
+        itemBounds = this.pathBBoxes.get(item.id);
+        if (!itemBounds) {
+          itemBounds = this.calculateImageBounds(item);
+          if (itemBounds) {
+            this.pathBBoxes.set(item.id, itemBounds);
+          }
+        }
+      }
+
+      if (itemBounds && itemBounds.width > 0 && itemBounds.height > 0) {
+        console.log('getSelectionBounds: Valid bounds for', item.id, ':', itemBounds);
+        minX = Math.min(minX, itemBounds.x);
+        minY = Math.min(minY, itemBounds.y);
+        maxX = Math.max(maxX, itemBounds.x + itemBounds.width);
+        maxY = Math.max(maxY, itemBounds.y + itemBounds.height);
+        validItems++;
+      } else {
+        console.log('getSelectionBounds: Invalid bounds for', item.id, ':', itemBounds);
+      }
+    }
+
+    if (validItems === 0 || minX === Infinity) {
+      console.log('getSelectionBounds: No valid bounds found');
+      return null;
+    }
+
+    const bounds = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+
+    console.log('getSelectionBounds: Final bounds:', bounds);
+    return bounds;
+  }
+
+  // FIXED: Find items in rectangle with better intersection testing
+  findItemsInRect(rect) {
+    console.log('Finding items in rect:', rect);
+    const itemsInRect = [];
+
+    for (const item of this.paths) {
+      if (this.itemIntersectsRect(item, rect)) {
+        itemsInRect.push(item.id);
+        console.log('Item in rect:', item.id);
+      }
+    }
+
+    console.log('Found items in rect:', itemsInRect);
+    return itemsInRect;
+  }
+
+  // FIXED: Better rectangle intersection testing
+  itemIntersectsRect(item, rect) {
+    let itemBounds;
+
+    if (item.type === 'stroke') {
+      itemBounds = this.pathBBoxes.get(item.id);
+      if (!itemBounds) {
+        itemBounds = this.calculateBoundingBox(item.pathData);
+        if (itemBounds && item.transform) {
+          itemBounds.x += item.transform.translateX || 0;
+          itemBounds.y += item.transform.translateY || 0;
+        }
+        if (itemBounds) {
+          this.pathBBoxes.set(item.id, itemBounds);
+        }
+      }
+    } else if (item.type === 'shape') {
+      itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+    } else if (item.type === 'aiText') {
+      itemBounds = this.pathBBoxes.get(item.id);
+      if (!itemBounds) {
+        itemBounds = this.calculateTextBounds(item);
+        if (itemBounds) {
+          this.pathBBoxes.set(item.id, itemBounds);
+        }
+      }
+    } else if (item.type === 'image') {
+      itemBounds = this.pathBBoxes.get(item.id);
+      if (!itemBounds) {
+        itemBounds = this.calculateImageBounds(item);
+        if (itemBounds) {
+          this.pathBBoxes.set(item.id, itemBounds);
+        }
+      }
+    }
+
+    if (!itemBounds) return false;
+
+    // FIXED: More precise intersection test
+    const intersects = !(rect.x > itemBounds.x + itemBounds.width ||
+      rect.x + rect.width < itemBounds.x ||
+      rect.y > itemBounds.y + itemBounds.height ||
+      rect.y + rect.height < itemBounds.y);
+
+    console.log('Item intersects rect:', {
+      itemId: item.id,
+      intersects: intersects,
+      itemBounds: itemBounds,
+      rect: rect
+    });
+    return intersects;
+  }
+
+  // ===========================================
+  // IMAGE ELEMENT METHODS
+  // ===========================================
+
+  // Add image element to the canvas
+  async addImageElement(imageData) {
+    const {
+      url, x, y, width, height, originalWidth, originalHeight, name
+    } = imageData;
+
+    const id = this.generatePathId();
+
+    try {
+      // Load and cache the image
+      const img = await this.loadImage(url);
+      this.loadedImages.set(id, img);
+
+      const imageElement = {
+        id,
+        type: 'image',
+        url,
+        x: x || 0,
+        y: y || 0,
+        width: width || img.naturalWidth,
+        height: height || img.naturalHeight,
+        originalWidth: originalWidth || img.naturalWidth,
+        originalHeight: originalHeight || img.naturalHeight,
+        name: name || 'image',
+        timestamp: Date.now(),
+        // Image-specific transform properties
+        transform: {
+          translateX: 0,
+          translateY: 0,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0
+        }
+      };
+
+      // Calculate bounding box for the image element
+      const imageBounds = this.calculateImageBounds(imageElement);
+      if (imageBounds) {
+        this.pathBBoxes.set(imageElement.id, imageBounds);
+      }
+
+      this.paths.push(imageElement);
+      this.imageElements.set(id, imageElement);
+
+      console.log('CanvasEngine: Added image element:', {
+        id: imageElement.id,
+        name: imageElement.name,
+        dimensions: `${imageElement.width}x${imageElement.height}`
+      });
+
+      return imageElement;
+    } catch (error) {
+      console.error('CanvasEngine: Failed to add image element:', error);
+      throw error;
+    }
+  }
+
+  // Load image from URL
+  loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = url;
+    });
+  }
+
+  // Calculate bounding box for image elements
+  calculateImageBounds(imageElement) {
+    const { x, y, width, height, transform } = imageElement;
+    
+    let bounds = {
+      x: x,
+      y: y,
+      width: width,
+      height: height
+    };
+
+    // Apply transform if it exists
+    if (transform) {
+      bounds.x += transform.translateX || 0;
+      bounds.y += transform.translateY || 0;
+      bounds.width *= transform.scaleX || 1;
+      bounds.height *= transform.scaleY || 1;
+    }
+
+    return bounds;
+  }
+
+  // Hit test for images
+  hitTestImage(point, image) {
+    const bounds = this.calculateImageBounds(image);
+    
+    // Add small tolerance for easier clicking
+    const tolerance = 2;
+    
+    console.log('Image hit test:', {
+      id: image.id,
+      point: point,
+      bounds: bounds,
+      tolerance: tolerance
+    });
+
+    const hit = point.x >= bounds.x - tolerance &&
+      point.x <= bounds.x + bounds.width + tolerance &&
+      point.y >= bounds.y - tolerance &&
+      point.y <= bounds.y + bounds.height + tolerance;
+
+    console.log('Image hit result:', hit);
+    return hit;
+  }
+
+  // Move image element
+  moveImageElement(id, deltaX, deltaY) {
+    const element = this.paths.find(p => p.id === id && p.type === 'image');
+
+    if (!element) {
+      console.warn('CanvasEngine: Image element not found for move:', id);
+      return false;
+    }
+
+    // Update position
+    element.x += deltaX;
+    element.y += deltaY;
+    element.lastModified = Date.now();
+
+    // Update transform if it exists
+    if (!element.transform) {
+      element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    }
+    element.transform.translateX += deltaX;
+    element.transform.translateY += deltaY;
+
+    // Update bounding box
+    const newBounds = this.calculateImageBounds(element);
+    if (newBounds) {
+      this.pathBBoxes.set(id, newBounds);
+    }
+
+    // Update quick access map
+    this.imageElements.set(id, element);
+
+    console.log('CanvasEngine: Moved image element:', id, { deltaX, deltaY });
+    return true;
+  }
+
+  // Resize image element
+  resizeImageElement(id, newWidth, newHeight, maintainAspectRatio = true) {
+    const element = this.paths.find(p => p.id === id && p.type === 'image');
+
+    if (!element) {
+      console.warn('CanvasEngine: Image element not found for resize:', id);
+      return false;
+    }
+
+    if (maintainAspectRatio) {
+      const aspectRatio = element.originalWidth / element.originalHeight;
+      const newAspectRatio = newWidth / newHeight;
+      
+      if (newAspectRatio > aspectRatio) {
+        newWidth = newHeight * aspectRatio;
+      } else {
+        newHeight = newWidth / aspectRatio;
+      }
+    }
+
+    // Update dimensions
+    element.width = Math.max(10, newWidth); // Minimum size
+    element.height = Math.max(10, newHeight);
+    element.lastModified = Date.now();
+
+    // Update transform scale
+    if (!element.transform) {
+      element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    }
+    element.transform.scaleX = element.width / element.originalWidth;
+    element.transform.scaleY = element.height / element.originalHeight;
+
+    // Update bounding box
+    const newBounds = this.calculateImageBounds(element);
+    if (newBounds) {
+      this.pathBBoxes.set(id, newBounds);
+    }
+
+    // Update quick access map
+    this.imageElements.set(id, element);
+
+    console.log('CanvasEngine: Resized image element:', id, { width: element.width, height: element.height });
+    return true;
+  }
+
+  // Remove image element
+  removeImageElement(id) {
+    const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'image');
+    
+    if (elementIndex === -1) {
+      console.warn('CanvasEngine: Image element not found for removal:', id);
+      return false;
+    }
+
+    // Remove from paths array
+    this.paths.splice(elementIndex, 1);
+    
+    // Clean up maps
+    this.pathBBoxes.delete(id);
+    this.imageElements.delete(id);
+    this.loadedImages.delete(id);
+
+    console.log('CanvasEngine: Removed image element:', id);
+    return true;
+  }
+
+  // Get loaded image object
+  getLoadedImage(id) {
+    return this.loadedImages.get(id);
+  }
+
+  // ===========================================
+  // AI TEXT ELEMENT METHODS
   // ===========================================
 
   // Add AI text element to the canvas
@@ -149,14 +736,13 @@ export class CanvasEngine {
   // Calculate bounding box for text elements
   calculateTextBounds(textElement) {
     // Approximate text bounds calculation
-    // In a real implementation, you might want to measure actual rendered text
     const { text, fontSize, x, y } = textElement;
-    
+
     // Rough estimation: each character is about 0.6 * fontSize wide
     const charWidth = fontSize * 0.6;
     const width = text.length * charWidth;
     const height = fontSize * 1.2; // Include line height
-    
+
     // Adjust based on text alignment
     let adjustedX = x;
     switch (textElement.textAlign) {
@@ -171,7 +757,7 @@ export class CanvasEngine {
         adjustedX = x;
         break;
     }
-    
+
     return {
       x: adjustedX,
       y: y - height * 0.8, // Adjust for baseline
@@ -180,429 +766,372 @@ export class CanvasEngine {
     };
   }
 
-  // Update AI text element
-  updateAITextElement(id, updates) {
-    const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'aiText');
-    
-    if (elementIndex === -1) {
-      console.warn('CanvasEngine: AI text element not found:', id);
-      return false;
-    }
-    
-    // Update the element
-    this.paths[elementIndex] = {
-      ...this.paths[elementIndex],
-      ...updates,
-      lastModified: Date.now()
-    };
-    
-    // Update the quick access map
-    this.aiTextElements.set(id, this.paths[elementIndex]);
-    
-    // Recalculate bounds if position or text changed
-    if (updates.text || updates.x || updates.y || updates.fontSize || updates.fontFamily) {
-      const newBounds = this.calculateTextBounds(this.paths[elementIndex]);
-      if (newBounds) {
-        this.pathBBoxes.set(id, newBounds);
-      }
-    }
-    
-    console.log('CanvasEngine: Updated AI text element:', id);
-    return true;
-  }
-
-  // Delete AI text element
-  deleteAITextElement(id) {
-    const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'aiText');
-    
-    if (elementIndex === -1) {
-      console.warn('CanvasEngine: AI text element not found for deletion:', id);
-      return false;
-    }
-    
-    // Remove from paths
-    this.paths.splice(elementIndex, 1);
-    
-    // Remove from quick access map
-    this.aiTextElements.delete(id);
-    
-    // Clean up bounding box
-    this.pathBBoxes.delete(id);
-    
-    // Remove from selection if selected
-    this.removeFromSelection(id);
-    
-    console.log('CanvasEngine: Deleted AI text element:', id);
-    return true;
-  }
-
-  // Get all AI text elements
-  getAITextElements() {
-    return this.paths.filter(p => p.type === 'aiText');
-  }
-
-  // Find AI text element at point
-  findAITextAtPoint(point) {
-    const aiTexts = this.getAITextElements();
-    const tolerance = 15 / (this.options.viewBox ? 
-      this.options.width / this.options.viewBox.width : 1);
-    
-    // Check from top to bottom (reverse order)
-    for (let i = aiTexts.length - 1; i >= 0; i--) {
-      const textElement = aiTexts[i];
-      const bounds = this.pathBBoxes.get(textElement.id);
-      
-      if (bounds && this.pointInBounds(point, bounds, tolerance)) {
-        return textElement;
-      }
-    }
-    
-    return null;
-  }
-
   // Check if point is within bounds (with tolerance)
   pointInBounds(point, bounds, tolerance = 0) {
     return point.x >= bounds.x - tolerance &&
-           point.x <= bounds.x + bounds.width + tolerance &&
-           point.y >= bounds.y - tolerance &&
-           point.y <= bounds.y + bounds.height + tolerance;
+      point.x <= bounds.x + bounds.width + tolerance &&
+      point.y >= bounds.y - tolerance &&
+      point.y <= bounds.y + bounds.height + tolerance;
   }
 
   // Move AI text element
   moveAITextElement(id, deltaX, deltaY) {
     const element = this.paths.find(p => p.id === id && p.type === 'aiText');
-    
+
     if (!element) {
       console.warn('CanvasEngine: AI text element not found for move:', id);
       return false;
     }
-    
+
     // Update position
     element.x += deltaX;
     element.y += deltaY;
     element.lastModified = Date.now();
-    
+
     // Update transform if it exists
     if (!element.transform) {
       element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     }
     element.transform.translateX += deltaX;
     element.transform.translateY += deltaY;
-    
+
     // Update bounding box
     const newBounds = this.calculateTextBounds(element);
     if (newBounds) {
       this.pathBBoxes.set(id, newBounds);
     }
-    
+
     // Update quick access map
     this.aiTextElements.set(id, element);
-    
+
     console.log('CanvasEngine: Moved AI text element:', id, { deltaX, deltaY });
     return true;
   }
 
-  // Scale AI text element
-  scaleAITextElement(id, scaleX, scaleY, origin) {
-    const element = this.paths.find(p => p.id === id && p.type === 'aiText');
-    
-    if (!element) {
-      console.warn('CanvasEngine: AI text element not found for scale:', id);
-      return false;
-    }
-    
-    // Update font size based on scale
-    const newFontSize = Math.max(8, Math.min(72, element.fontSize * Math.abs(scaleY)));
-    element.fontSize = newFontSize;
-    element.lastModified = Date.now();
-    
-    // Update transform
-    if (!element.transform) {
-      element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
-    }
-    element.transform.scaleX *= scaleX;
-    element.transform.scaleY *= scaleY;
-    
-    // Update position if origin is specified
-    if (origin) {
-      const offsetX = (element.x - origin.x) * (scaleX - 1);
-      const offsetY = (element.y - origin.y) * (scaleY - 1);
-      element.x += offsetX;
-      element.y += offsetY;
-    }
-    
-    // Update bounding box
-    const newBounds = this.calculateTextBounds(element);
-    if (newBounds) {
-      this.pathBBoxes.set(id, newBounds);
-    }
-    
-    // Update quick access map
-    this.aiTextElements.set(id, element);
-    
-    console.log('CanvasEngine: Scaled AI text element:', id, { scaleX, scaleY });
-    return true;
-  }
-
-  // Hit test for AI text elements
-  hitTestAIText(point, textElement, bounds) {
-    const tolerance = 15 / (this.options.viewBox ?
-      this.options.width / this.options.viewBox.width : 1);
-
-    console.log('Hit testing AI text:', {
-      id: textElement.id,
-      point: point,
-      bounds: bounds,
-      tolerance: tolerance
-    });
-
-    const hit = this.pointInBounds(point, bounds, tolerance);
-    console.log('AI text hit test result:', hit);
-    return hit;
-  }
-
   // ===========================================
-  // SELECTION METHODS (ENHANCED WITH AI SUPPORT)
+  // SELECTION STATE METHODS
   // ===========================================
 
-  // Hit testing for individual items (ENHANCED)
-  hitTest(point, item) {
-    const tolerance = 15 / (this.options.viewBox ?
-      this.options.width / this.options.viewBox.width : 1);
-
-    console.log('Hit testing item:', item.id, item.type);
-
-    if (item.type === 'stroke') {
-      return this.hitTestStroke(point, item, tolerance);
-    } else if (item.type === 'shape') {
-      return this.hitTestShape(point, item, tolerance);
-    } else if (item.type === 'aiText') {
-      const bounds = this.pathBBoxes.get(item.id);
-      return bounds ? this.hitTestAIText(point, item, bounds) : false;
-    }
-    return false;
+  setSelectedItems(itemIds) {
+    this.selectedItems = new Set(itemIds);
+    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
+    console.log('Set selected items:', itemIds, 'bounds:', this.selectionBounds);
   }
 
-  hitTestStroke(point, stroke, tolerance) {
-    // INCREASED TOLERANCE for easier clicking
-    const adjustedTolerance = tolerance * 2; // Double the tolerance
-
-    // Get or calculate bounding box
-    let bbox = this.pathBBoxes.get(stroke.id);
-    if (!bbox) {
-      bbox = this.calculateBoundingBox(stroke.pathData);
-      if (bbox) {
-        // Apply transform if it exists
-        if (stroke.transform) {
-          bbox.x += stroke.transform.translateX || 0;
-          bbox.y += stroke.transform.translateY || 0;
-        }
-        this.pathBBoxes.set(stroke.id, bbox);
-      }
-    }
-
-    if (!bbox) {
-      console.log('No bounding box for stroke:', stroke.id);
-      return false;
-    }
-
-    // DEBUG: Log hit test details
-    console.log('Hit testing stroke:', {
-      id: stroke.id,
-      point: point,
-      bbox: bbox,
-      tolerance: adjustedTolerance
-    });
-
-    // Expanded bounding box test with increased tolerance
-    const hit = point.x >= bbox.x - adjustedTolerance &&
-      point.x <= bbox.x + bbox.width + adjustedTolerance &&
-      point.y >= bbox.y - adjustedTolerance &&
-      point.y <= bbox.y + bbox.height + adjustedTolerance;
-
-    console.log('Hit test result:', hit);
-    return hit;
+  addToSelection(itemId) {
+    this.selectedItems.add(itemId);
+    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
+    console.log('Added to selection:', itemId, 'total selected:', this.selectedItems.size);
   }
 
-  hitTestShape(point, shape, tolerance) {
-    console.log('Shape hit test:', shape, 'point:', point);
-
-    if (shape.shapeType === 'rectangle') {
-      const hit = point.x >= shape.x - tolerance &&
-        point.x <= shape.x + shape.width + tolerance &&
-        point.y >= shape.y - tolerance &&
-        point.y <= shape.y + shape.height + tolerance;
-
-      console.log('Rectangle hit test result:', hit);
-      return hit;
-    }
-    return false;
+  removeFromSelection(itemId) {
+    this.selectedItems.delete(itemId);
+    this.selectionBounds = this.selectedItems.size > 0 ?
+      this.getSelectionBounds(this.selectedItems) : null;
+    console.log('Removed from selection:', itemId, 'remaining:', this.selectedItems.size);
   }
 
-  // Find the topmost item at a point (ENHANCED WITH AI SUPPORT)
-  findItemAtPoint(point) {
-    console.log('Finding item at point:', point, 'total paths:', this.paths.length);
-
-    // Search from top to bottom (reverse order since later items are on top)
-    for (let i = this.paths.length - 1; i >= 0; i--) {
-      const item = this.paths[i];
-      console.log('Testing item:', item.id, item.type);
-
-      if (this.hitTest(point, item)) {
-        console.log('Found item:', item.id);
-        return item;
-      }
-    }
-
-    console.log('No item found at point');
-    return null;
+  clearSelection() {
+    console.log('Clearing selection, was:', this.selectedItems.size, 'items');
+    this.selectedItems.clear();
+    this.selectionBounds = null;
+    this.isSelecting = false;
+    this.selectionStart = null;
+    this.selectionRect = null;
   }
 
-  // Find all items within a rectangle
-  findItemsInRect(rect) {
-    console.log('Finding items in rect:', rect);
-    const itemsInRect = [];
-
-    for (const item of this.paths) {
-      if (this.itemIntersectsRect(item, rect)) {
-        itemsInRect.push(item.id);
-        console.log('Item in rect:', item.id);
-      }
-    }
-
-    console.log('Found items in rect:', itemsInRect);
-    return itemsInRect;
+  isItemSelected(itemId) {
+    return this.selectedItems.has(itemId);
   }
 
-  itemIntersectsRect(item, rect) {
-    let itemBounds;
+  // AREA SELECTION METHODS
 
-    if (item.type === 'stroke') {
-      itemBounds = this.pathBBoxes.get(item.id);
-      if (!itemBounds) {
-        itemBounds = this.calculateBoundingBox(item.pathData);
-        if (itemBounds && item.transform) {
-          itemBounds.x += item.transform.translateX || 0;
-          itemBounds.y += item.transform.translateY || 0;
-        }
-        if (itemBounds) {
-          this.pathBBoxes.set(item.id, itemBounds);
-        }
-      }
-    } else if (item.type === 'shape') {
-      itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
-    } else if (item.type === 'aiText') {
-      itemBounds = this.pathBBoxes.get(item.id);
-      if (!itemBounds) {
-        itemBounds = this.calculateTextBounds(item);
-        if (itemBounds) {
-          this.pathBBoxes.set(item.id, itemBounds);
-        }
-      }
-    }
-
-    if (!itemBounds) return false;
-
-    // Check if rectangles intersect
-    const intersects = !(rect.x > itemBounds.x + itemBounds.width ||
-      rect.x + rect.width < itemBounds.x ||
-      rect.y > itemBounds.y + itemBounds.height ||
-      rect.y + rect.height < itemBounds.y);
-
-    console.log('Item intersects rect:', item.id, intersects, 'itemBounds:', itemBounds, 'rect:', rect);
-    return intersects;
+  startAreaSelection(point) {
+    console.log('Starting area selection at:', point);
+    this.isSelecting = true;
+    this.selectionStart = point;
+    this.selectionRect = { x: point.x, y: point.y, width: 0, height: 0 };
   }
 
-  // Calculate bounding box for selected items (ENHANCED)
-  getSelectionBounds(selectedItemIds) {
-    // Handle both Set and Array inputs
-    let itemIds;
-    if (selectedItemIds instanceof Set) {
-      itemIds = Array.from(selectedItemIds);
-    } else if (Array.isArray(selectedItemIds)) {
-      itemIds = selectedItemIds;
+  updateAreaSelection(currentPoint) {
+    if (!this.isSelecting || !this.selectionStart) return;
+
+    const start = this.selectionStart;
+    this.selectionRect = {
+      x: Math.min(start.x, currentPoint.x),
+      y: Math.min(start.y, currentPoint.y),
+      width: Math.abs(currentPoint.x - start.x),
+      height: Math.abs(currentPoint.y - start.y)
+    };
+
+    console.log('Updated selection rect:', this.selectionRect);
+  }
+
+  finishAreaSelection(addToExisting = false) {
+    if (!this.isSelecting || !this.selectionRect) return [];
+
+    console.log('Finishing area selection:', this.selectionRect);
+    const itemsInRect = this.findItemsInRect(this.selectionRect);
+
+    if (!addToExisting) {
+      this.setSelectedItems(itemsInRect);
     } else {
-      console.error('getSelectionBounds: Invalid input type:', typeof selectedItemIds);
-      return null;
-    }
-  
-    if (itemIds.length === 0) {
-      console.log('getSelectionBounds: No items selected');
-      return null;
-    }
-    
-    console.log('getSelectionBounds: Processing items:', itemIds);
-    
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    let validItems = 0;
-    
-    for (const itemId of itemIds) {
-      const item = this.paths.find(p => p.id === itemId);
-      if (!item) {
-        console.log('getSelectionBounds: Item not found:', itemId);
-        continue;
+      for (const itemId of itemsInRect) {
+        this.addToSelection(itemId);
       }
-      
-      let itemBounds;
+    }
+
+    this.isSelecting = false;
+    this.selectionStart = null;
+    this.selectionRect = null;
+
+    console.log('Area selection finished, selected items:', Array.from(this.selectedItems));
+    return Array.from(this.selectedItems);
+  }
+
+  // ===========================================
+  // TRANSFORMATION METHODS
+  // ===========================================
+
+  moveSelectedItems(deltaX, deltaY) {
+    console.log('Moving selected items:', { deltaX, deltaY, count: this.selectedItems.size });
+
+    for (const itemId of this.selectedItems) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) continue;
+
       if (item.type === 'stroke') {
-        itemBounds = this.pathBBoxes.get(item.id);
-        if (!itemBounds) {
-          console.log('getSelectionBounds: Calculating bounds for stroke:', item.id);
-          itemBounds = this.calculateBoundingBox(item.pathData);
-          if (itemBounds) {
-            // Apply transform if it exists
-            if (item.transform) {
-              itemBounds.x += item.transform.translateX || 0;
-              itemBounds.y += item.transform.translateY || 0;
-            }
-            this.pathBBoxes.set(item.id, itemBounds);
-          }
+        this.moveStroke(item, deltaX, deltaY);
+      } else if (item.type === 'shape') {
+        this.moveShape(item, deltaX, deltaY);
+      } else if (item.type === 'aiText') {
+        this.moveAITextElement(itemId, deltaX, deltaY);
+      } else if (item.type === 'image') {
+        this.moveImageElement(itemId, deltaX, deltaY);
+      }
+    }
+
+    // Update bounding boxes and selection bounds
+    this.updatePathBoundingBoxes();
+    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
+  }
+
+  resizeSelectedItems(newBounds) {
+    console.log('Resizing selected items:', { newBounds, count: this.selectedItems.size });
+
+    if (!this.selectionBounds || this.selectedItems.size === 0) return;
+
+    const oldBounds = this.selectionBounds;
+    const scaleX = newBounds.width / oldBounds.width;
+    const scaleY = newBounds.height / oldBounds.height;
+    const offsetX = newBounds.x - oldBounds.x;
+    const offsetY = newBounds.y - oldBounds.y;
+
+    console.log('Resize params:', { scaleX, scaleY, offsetX, offsetY });
+
+    for (const itemId of this.selectedItems) {
+      const item = this.paths.find(p => p.id === itemId);
+      if (!item) continue;
+
+      if (item.type === 'shape') {
+        this.resizeShape(item, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY);
+      } else if (item.type === 'image') {
+        this.resizeImageItem(item, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY);
+      } else if (item.type === 'aiText') {
+        this.resizeAITextItem(item, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY);
+      } else if (item.type === 'stroke') {
+        this.resizeStroke(item, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY);
+      }
+    }
+
+    // Update bounding boxes and selection bounds
+    this.updatePathBoundingBoxes();
+    this.selectionBounds = newBounds;
+  }
+
+  resizeShape(shape, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
+    // Calculate relative position within old bounds
+    const relativeX = (shape.x - oldBounds.x) / oldBounds.width;
+    const relativeY = (shape.y - oldBounds.y) / oldBounds.height;
+    const relativeWidth = shape.width / oldBounds.width;
+    const relativeHeight = shape.height / oldBounds.height;
+
+    // Apply to new bounds
+    shape.x = newBounds.x + (relativeX * newBounds.width);
+    shape.y = newBounds.y + (relativeY * newBounds.height);
+    shape.width = relativeWidth * newBounds.width;
+    shape.height = relativeHeight * newBounds.height;
+
+    // Update bounding box
+    const bbox = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+    this.pathBBoxes.set(shape.id, bbox);
+  }
+
+  resizeImageItem(image, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
+    // Calculate relative position within old bounds
+    const relativeX = (image.x - oldBounds.x) / oldBounds.width;
+    const relativeY = (image.y - oldBounds.y) / oldBounds.height;
+    const relativeWidth = image.width / oldBounds.width;
+    const relativeHeight = image.height / oldBounds.height;
+
+    // Apply to new bounds
+    image.x = newBounds.x + (relativeX * newBounds.width);
+    image.y = newBounds.y + (relativeY * newBounds.height);
+    image.width = relativeWidth * newBounds.width;
+    image.height = relativeHeight * newBounds.height;
+
+    // Update transform
+    if (!image.transform) {
+      image.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    }
+    image.transform.scaleX = image.width / image.originalWidth;
+    image.transform.scaleY = image.height / image.originalHeight;
+
+    // Update bounding box
+    const bbox = this.calculateImageBounds(image);
+    if (bbox) {
+      this.pathBBoxes.set(image.id, bbox);
+    }
+
+    console.log('Resized image:', image.id, { 
+      newDimensions: `${image.width}x${image.height}`,
+      position: `${image.x},${image.y}`
+    });
+  }
+
+  resizeAITextItem(textItem, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
+    // Calculate relative position within old bounds
+    const relativeX = (textItem.x - oldBounds.x) / oldBounds.width;
+    const relativeY = (textItem.y - oldBounds.y) / oldBounds.height;
+
+    // Apply to new bounds (position only, don't scale text size)
+    textItem.x = newBounds.x + (relativeX * newBounds.width);
+    textItem.y = newBounds.y + (relativeY * newBounds.height);
+
+    // Update bounding box
+    const bbox = this.calculateTextBounds(textItem);
+    if (bbox) {
+      this.pathBBoxes.set(textItem.id, bbox);
+    }
+  }
+
+  resizeStroke(stroke, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
+    // For strokes, we need to transform the path data itself
+    // This is more complex and might not be ideal for all use cases
+    // For now, just move the stroke proportionally
+    
+    if (!stroke.transform) {
+      stroke.transform = { translateX: 0, translateY: 0 };
+    }
+
+    // Calculate current stroke bounds
+    let strokeBounds = this.pathBBoxes.get(stroke.id);
+    if (!strokeBounds) {
+      strokeBounds = this.calculateBoundingBox(stroke.pathData);
+      if (strokeBounds) {
+        this.pathBBoxes.set(stroke.id, strokeBounds);
+      }
+    }
+
+    if (strokeBounds) {
+      // Calculate relative position within old bounds
+      const relativeX = (strokeBounds.x - oldBounds.x) / oldBounds.width;
+      const relativeY = (strokeBounds.y - oldBounds.y) / oldBounds.height;
+
+      // Apply to new bounds
+      const newStrokeX = newBounds.x + (relativeX * newBounds.width);
+      const newStrokeY = newBounds.y + (relativeY * newBounds.height);
+
+      // Update transform
+      stroke.transform.translateX += (newStrokeX - strokeBounds.x);
+      stroke.transform.translateY += (newStrokeY - strokeBounds.y);
+
+      // Update bounding box
+      strokeBounds.x = newStrokeX;
+      strokeBounds.y = newStrokeY;
+      this.pathBBoxes.set(stroke.id, strokeBounds);
+    }
+  }
+
+  moveStroke(stroke, deltaX, deltaY) {
+    // Store the transformation and apply it during rendering
+    if (!stroke.transform) {
+      stroke.transform = { translateX: 0, translateY: 0 };
+    }
+    stroke.transform.translateX += deltaX;
+    stroke.transform.translateY += deltaY;
+
+    // Update bounding box
+    let bbox = this.pathBBoxes.get(stroke.id);
+    if (bbox) {
+      bbox.x += deltaX;
+      bbox.y += deltaY;
+      this.pathBBoxes.set(stroke.id, bbox);
+    }
+  }
+
+  moveShape(shape, deltaX, deltaY) {
+    shape.x += deltaX;
+    shape.y += deltaY;
+
+    // Update bounding box
+    const bbox = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+    this.pathBBoxes.set(shape.id, bbox);
+  }
+
+  updatePathBoundingBoxes() {
+    for (const item of this.paths) {
+      if (item.type === 'stroke') {
+        const bbox = this.calculateBoundingBox(item.pathData);
+        if (bbox && item.transform) {
+          bbox.x += item.transform.translateX || 0;
+          bbox.y += item.transform.translateY || 0;
+        }
+        if (bbox) {
+          this.pathBBoxes.set(item.id, bbox);
         }
       } else if (item.type === 'shape') {
-        itemBounds = { x: item.x, y: item.y, width: item.width, height: item.height };
+        const bbox = { x: item.x, y: item.y, width: item.width, height: item.height };
+        this.pathBBoxes.set(item.id, bbox);
       } else if (item.type === 'aiText') {
-        itemBounds = this.pathBBoxes.get(item.id);
-        if (!itemBounds) {
-          itemBounds = this.calculateTextBounds(item);
-          if (itemBounds) {
-            this.pathBBoxes.set(item.id, itemBounds);
-          }
+        const bbox = this.calculateTextBounds(item);
+        if (bbox) {
+          this.pathBBoxes.set(item.id, bbox);
+        }
+      } else if (item.type === 'image') {
+        const bbox = this.calculateImageBounds(item);
+        if (bbox) {
+          this.pathBBoxes.set(item.id, bbox);
         }
       }
-      
-      if (itemBounds && itemBounds.width > 0 && itemBounds.height > 0) {
-        console.log('getSelectionBounds: Valid bounds for', item.id, ':', itemBounds);
-        minX = Math.min(minX, itemBounds.x);
-        minY = Math.min(minY, itemBounds.y);
-        maxX = Math.max(maxX, itemBounds.x + itemBounds.width);
-        maxY = Math.max(maxY, itemBounds.y + itemBounds.height);
-        validItems++;
-      } else {
-        console.log('getSelectionBounds: Invalid bounds for', item.id, ':', itemBounds);
-      }
     }
-    
-    if (validItems === 0 || minX === Infinity) {
-      console.log('getSelectionBounds: No valid bounds found');
-      return null;
+  }
+
+  deleteSelectedItems() {
+    const itemsToDelete = Array.from(this.selectedItems);
+    console.log('Deleting selected items:', itemsToDelete);
+
+    // Remove items from paths array
+    this.paths = this.paths.filter(item => !itemsToDelete.includes(item.id));
+
+    // Clean up maps
+    for (const itemId of itemsToDelete) {
+      this.pathBBoxes.delete(itemId);
+      this.aiTextElements.delete(itemId);
+      this.imageElements.delete(itemId);
+      this.loadedImages.delete(itemId);
     }
-    
-    const bounds = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY
-    };
-    
-    console.log('getSelectionBounds: Final bounds:', bounds);
-    return bounds;
+
+    // Clear selection
+    this.selectedItems.clear();
+    this.selectionBounds = null;
   }
 
   // Get resize handle at point
   getResizeHandleAtPoint(point, bounds) {
     if (!bounds) return null;
 
-    const handleSize = 8;
+    const handleSize = 12; // Increased handle size for easier clicking
     const handles = this.getResizeHandles(bounds);
 
     for (const [name, handle] of Object.entries(handles)) {
@@ -627,188 +1156,6 @@ export class CanvasEngine {
       'sw': { x: x, y: y + height },           // bottom-left
       'w': { x: x, y: y + height / 2 }          // middle-left
     };
-  }
-
-  // TRANSFORMATION METHODS (ENHANCED WITH AI SUPPORT)
-
-  moveSelectedItems(deltaX, deltaY) {
-    for (const itemId of this.selectedItems) {
-      const item = this.paths.find(p => p.id === itemId);
-      if (!item) continue;
-
-      if (item.type === 'stroke') {
-        this.moveStroke(item, deltaX, deltaY);
-      } else if (item.type === 'shape') {
-        this.moveShape(item, deltaX, deltaY);
-      } else if (item.type === 'aiText') {
-        this.moveAITextElement(itemId, deltaX, deltaY);
-      }
-    }
-
-    // Update bounding boxes
-    this.updatePathBoundingBoxes();
-  }
-
-  moveStroke(stroke, deltaX, deltaY) {
-    // This is complex - we need to parse and modify the SVG path data
-    // For now, we'll store the transformation and apply it during rendering
-    if (!stroke.transform) {
-      stroke.transform = { translateX: 0, translateY: 0 };
-    }
-    stroke.transform.translateX += deltaX;
-    stroke.transform.translateY += deltaY;
-  }
-
-  moveShape(shape, deltaX, deltaY) {
-    shape.x += deltaX;
-    shape.y += deltaY;
-  }
-
-  resizeSelectedItems(newBounds) {
-    if (this.selectedItems.size === 0 || !this.selectionBounds) return;
-
-    const oldBounds = this.selectionBounds;
-    const scaleX = newBounds.width / oldBounds.width;
-    const scaleY = newBounds.height / oldBounds.height;
-
-    for (const itemId of this.selectedItems) {
-      const item = this.paths.find(p => p.id === itemId);
-      if (!item) continue;
-
-      if (item.type === 'shape') {
-        this.resizeShape(item, oldBounds, newBounds, scaleX, scaleY);
-      } else if (item.type === 'aiText') {
-        this.scaleAITextElement(itemId, scaleX, scaleY, { x: oldBounds.x, y: oldBounds.y });
-      }
-      // Note: Stroke resizing is more complex and would require path transformation
-    }
-
-    this.selectionBounds = newBounds;
-    this.updatePathBoundingBoxes();
-  }
-
-  resizeShape(shape, oldBounds, newBounds, scaleX, scaleY) {
-    // Calculate relative position within old bounds
-    const relX = (shape.x - oldBounds.x) / oldBounds.width;
-    const relY = (shape.y - oldBounds.y) / oldBounds.height;
-    const relW = shape.width / oldBounds.width;
-    const relH = shape.height / oldBounds.height;
-
-    // Apply to new bounds
-    shape.x = newBounds.x + relX * newBounds.width;
-    shape.y = newBounds.y + relY * newBounds.height;
-    shape.width = relW * newBounds.width;
-    shape.height = relH * newBounds.height;
-  }
-
-  deleteSelectedItems() {
-    const itemsToDelete = Array.from(this.selectedItems);
-
-    // Remove items from paths array
-    this.paths = this.paths.filter(item => !itemsToDelete.includes(item.id));
-
-    // Clean up AI text elements map
-    for (const itemId of itemsToDelete) {
-      this.pathBBoxes.delete(itemId);
-      this.aiTextElements.delete(itemId);
-    }
-
-    // Clear selection
-    this.selectedItems.clear();
-    this.selectionBounds = null;
-  }
-
-  updatePathBoundingBoxes() {
-    for (const item of this.paths) {
-      if (item.type === 'stroke') {
-        const bbox = this.calculateBoundingBox(item.pathData);
-        if (bbox && item.transform) {
-          bbox.x += item.transform.translateX;
-          bbox.y += item.transform.translateY;
-        }
-        if (bbox) {
-          this.pathBBoxes.set(item.id, bbox);
-        }
-      } else if (item.type === 'shape') {
-        const bbox = { x: item.x, y: item.y, width: item.width, height: item.height };
-        this.pathBBoxes.set(item.id, bbox);
-      } else if (item.type === 'aiText') {
-        const bbox = this.calculateTextBounds(item);
-        if (bbox) {
-          this.pathBBoxes.set(item.id, bbox);
-        }
-      }
-    }
-  }
-
-  // SELECTION STATE METHODS
-
-  setSelectedItems(itemIds) {
-    this.selectedItems = new Set(itemIds);
-    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
-  }
-
-  addToSelection(itemId) {
-    this.selectedItems.add(itemId);
-    this.selectionBounds = this.getSelectionBounds(this.selectedItems);
-  }
-
-  removeFromSelection(itemId) {
-    this.selectedItems.delete(itemId);
-    this.selectionBounds = this.selectedItems.size > 0 ?
-      this.getSelectionBounds(this.selectedItems) : null;
-  }
-
-  clearSelection() {
-    this.selectedItems.clear();
-    this.selectionBounds = null;
-    this.isSelecting = false;
-    this.selectionStart = null;
-    this.selectionRect = null;
-  }
-
-  isItemSelected(itemId) {
-    return this.selectedItems.has(itemId);
-  }
-
-  // AREA SELECTION METHODS
-
-  startAreaSelection(point) {
-    this.isSelecting = true;
-    this.selectionStart = point;
-    this.selectionRect = { x: point.x, y: point.y, width: 0, height: 0 };
-  }
-
-  updateAreaSelection(currentPoint) {
-    if (!this.isSelecting || !this.selectionStart) return;
-
-    const start = this.selectionStart;
-    this.selectionRect = {
-      x: Math.min(start.x, currentPoint.x),
-      y: Math.min(start.y, currentPoint.y),
-      width: Math.abs(currentPoint.x - start.x),
-      height: Math.abs(currentPoint.y - start.y)
-    };
-  }
-
-  finishAreaSelection(addToExisting = false) {
-    if (!this.isSelecting || !this.selectionRect) return [];
-
-    const itemsInRect = this.findItemsInRect(this.selectionRect);
-
-    if (!addToExisting) {
-      this.setSelectedItems(itemsInRect);
-    } else {
-      for (const itemId of itemsInRect) {
-        this.addToSelection(itemId);
-      }
-    }
-
-    this.isSelecting = false;
-    this.selectionStart = null;
-    this.selectionRect = null;
-
-    return Array.from(this.selectedItems);
   }
 
   // ===========================================
@@ -896,7 +1243,7 @@ export class CanvasEngine {
     return [x, y, pressure];
   }
 
-  // Rectangle drawing methods (existing)
+  // Rectangle drawing methods
   startRectangle(startPoint) {
     console.log('Starting rectangle at:', startPoint);
     this.isDrawingRectangle = true;
@@ -1013,50 +1360,6 @@ export class CanvasEngine {
     this.currentRectangle = null;
   }
 
-  calculateBoundingBox(pathData) {
-    if (typeof pathData === 'string') {
-      const coords = pathData.match(/(-?\d+(?:\.\d+)?)/g);
-      if (!coords || coords.length < 4) return null;
-
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-      for (let i = 0; i < coords.length - 1; i += 2) {
-        const x = parseFloat(coords[i]);
-        const y = parseFloat(coords[i + 1]);
-
-        if (!isNaN(x) && !isNaN(y)) {
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
-        }
-      }
-
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-    }
-    else if (typeof pathData === 'object') {
-      const shape = pathData;
-
-      if (shape.type === 'line') {
-        const x = Math.min(shape.x1, shape.x2);
-        const y = Math.min(shape.y1, shape.y2);
-        const width = Math.abs(shape.x2 - shape.x1);
-        const height = Math.abs(shape.y2 - shape.y1);
-        return { x, y, width, height };
-      }
-      else {
-        return {
-          x: shape.x,
-          y: shape.y,
-          width: shape.width,
-          height: shape.height
-        };
-      }
-    }
-
-    return null;
-  }
-
   eraserIntersectsBoundingBox(eraserX, eraserY, eraserRadius, bbox) {
     const zoomLevel = this.options.viewBox ?
       this.options.width / this.options.viewBox.width : 1;
@@ -1164,7 +1467,9 @@ export class CanvasEngine {
     this.nextPathId = 0;
     this.clearSelection(); // Clear selection when clearing paths
     this.cancelRectangle();
-    this.aiTextElements.clear(); // NEW: Clear AI text elements
+    this.aiTextElements.clear();
+    this.imageElements.clear();
+    this.loadedImages.clear();
   }
 
   undo() {
@@ -1175,21 +1480,41 @@ export class CanvasEngine {
       this.pathBBoxes.delete(lastPath.id);
       // Remove from selection if it was selected
       this.removeFromSelection(lastPath.id);
-      // NEW: Remove from AI text elements if it's an AI text
+      // Remove from AI text elements if it's an AI text
       if (lastPath.type === 'aiText') {
         this.aiTextElements.delete(lastPath.id);
+      }
+      // Remove from image elements if it's an image
+      if (lastPath.type === 'image') {
+        this.imageElements.delete(lastPath.id);
+        this.loadedImages.delete(lastPath.id);
       }
     }
     return true;
   }
 
-  // ENHANCED EXPORT/IMPORT WITH AI TEXT SUPPORT
+  // EXPORT/IMPORT WITH AI TEXT SUPPORT
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
       version: 1,
       elements: this.paths.map(path => {
-        if (path.type === 'aiText') {
+        if (path.type === 'image') {
+          return {
+            id: path.id,
+            type: 'image',
+            url: path.url,
+            x: path.x,
+            y: path.y,
+            width: path.width,
+            height: path.height,
+            originalWidth: path.originalWidth,
+            originalHeight: path.originalHeight,
+            name: path.name,
+            timestamp: path.timestamp,
+            transform: path.transform
+          };
+        } else if (path.type === 'aiText') {
           return {
             id: path.id,
             type: 'aiText',
@@ -1285,8 +1610,50 @@ export class CanvasEngine {
 
       this.clearPaths();
 
-      data.elements.forEach((element) => {
-        if (element.type === 'aiText') {
+      data.elements.forEach(async (element) => {
+        if (element.type === 'image') {
+          // Import image element
+          try {
+            const imageElement = {
+              id: this.generatePathId(),
+              type: 'image',
+              url: element.url || '',
+              x: element.x || 0,
+              y: element.y || 0,
+              width: element.width || 100,
+              height: element.height || 100,
+              originalWidth: element.originalWidth || element.width || 100,
+              originalHeight: element.originalHeight || element.height || 100,
+              name: element.name || 'image',
+              timestamp: element.timestamp || Date.now(),
+              transform: element.transform || {
+                translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0
+              }
+            };
+
+            // Try to load the image if URL is available
+            if (element.url) {
+              try {
+                const img = await this.loadImage(element.url);
+                this.loadedImages.set(imageElement.id, img);
+              } catch (error) {
+                console.warn('CanvasEngine: Could not load image during import:', error);
+              }
+            }
+
+            const bbox = this.calculateImageBounds(imageElement);
+            if (bbox) {
+              this.pathBBoxes.set(imageElement.id, bbox);
+            }
+
+            this.paths.push(imageElement);
+            this.imageElements.set(imageElement.id, imageElement);
+            console.log('CanvasEngine: Imported image element:', imageElement.id);
+          } catch (error) {
+            console.error('CanvasEngine: Failed to import image element:', error);
+          }
+        }
+        else if (element.type === 'aiText') {
           // Import AI text element
           const aiTextElement = {
             id: this.generatePathId(),
@@ -1474,7 +1841,9 @@ export class CanvasEngine {
       cancelAnimationFrame(this.frameRequest);
     }
     this.pathBBoxes.clear();
-    this.aiTextElements.clear(); // NEW: Clear AI text elements
+    this.aiTextElements.clear();
+    this.imageElements.clear();
+    this.loadedImages.clear();
     this.cancelRectangle();
     this.clearSelection();
   }

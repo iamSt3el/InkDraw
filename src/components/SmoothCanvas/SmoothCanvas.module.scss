@@ -82,6 +82,15 @@
       cursor: default !important;
     }
   }
+
+  // NEW: AI handwriting mode cursor
+  &.aiHandwritingMode {
+    cursor: crosshair;
+    
+    .canvas {
+      cursor: crosshair !important;
+    }
+  }
   
   // Special state for active panning (takes highest priority)
   &.panningMode {
@@ -96,7 +105,8 @@
     &.eraserMode,
     &.rectangleMode,
     &.pointerMode,
-    &.selectMode {
+    &.selectMode,
+    &.aiHandwritingMode {
       cursor: grabbing !important;
       
       .canvas {
@@ -174,6 +184,36 @@
     backdrop-filter: blur(4px);
     animation: slideDownFade 0.3s ease-out;
   }
+
+  // NEW: AI processing indicator
+  .aiProcessingInfo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: rgba(139, 92, 246, 0.95);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    backdrop-filter: blur(8px);
+    animation: slideDownFade 0.3s ease-out;
+
+    .aiSpinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
 }
 
 .canvas {
@@ -240,7 +280,7 @@
     stroke-linejoin: round;
     
     // Better path rendering
-    &:not(#temp-path) {
+    &:not(#temp-path):not([id^="temp-ai-path"]) {
       mix-blend-mode: normal;
       transition: opacity 0.15s ease, fill 0.15s ease;
     }
@@ -253,21 +293,56 @@
       filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
     }
 
-    // FIXED: Selection state styles
-    &.selected-stroke {
-      filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.5)) !important;
+    // NEW: AI temp path styles
+    &[id^="temp-ai-path"] {
       opacity: 0.8;
+      fill: none;
+      stroke: #8b5cf6;
+      stroke-width: 3;
+      stroke-dasharray: 5,5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      will-change: d;
+      animation: aiStrokePulse 2s ease-in-out infinite;
+    }
+
+    // FIXED: Selection state styles with better visibility
+    &.selected-stroke {
+      filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8)) !important;
+      opacity: 0.9 !important;
+      outline: 2px solid rgba(59, 130, 246, 0.3);
+      outline-offset: 2px;
     }
   }
 
-  // FIXED: Selection shape styles
+  // FIXED: Selection shape styles with better visibility
   .selected-shape {
-    filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.5)) !important;
-    opacity: 0.8;
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8)) !important;
+    opacity: 0.9 !important;
+    outline: 2px solid rgba(59, 130, 246, 0.3);
+    outline-offset: 2px;
+  }
+
+  // NEW: Selected AI text styles
+  .selected-ai-text {
+    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.8)) !important;
+    opacity: 0.9 !important;
+    outline: 2px solid rgba(139, 92, 246, 0.3);
+    outline-offset: 2px;
   }
 
   .rough-shape {
     transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  // AI text elements
+  .ai-generated-text {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    
+    &:hover {
+      opacity: 0.8;
+    }
   }
 }
 
@@ -348,6 +423,56 @@
   100% { transform: rotate(360deg); }
 }
 
+// NEW: AI stroke animation
+@keyframes aiStrokePulse {
+  0% {
+    stroke-dasharray: 5,5;
+    stroke-dashoffset: 0;
+    opacity: 0.8;
+  }
+  50% {
+    stroke-dasharray: 5,5;
+    stroke-dashoffset: -10;
+    opacity: 0.6;
+  }
+  100% {
+    stroke-dasharray: 5,5;
+    stroke-dashoffset: -20;
+    opacity: 0.8;
+  }
+}
+
+// NEW: Selection overlay animations
+@keyframes selectionPulse {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.8;
+  }
+  50% {
+    stroke-dashoffset: -8;
+    opacity: 0.6;
+  }
+  100% {
+    stroke-dashoffset: -16;
+    opacity: 0.8;
+  }
+}
+
+@keyframes selectionBoundsPulse {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+  50% {
+    stroke-dashoffset: -12;
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: -24;
+    opacity: 0.9;
+  }
+}
+
 // Data transition animations
 @keyframes fadeInData {
   0% { 
@@ -373,7 +498,7 @@
 
 // Smooth data transitions
 .canvasContainer.dataTransitioning {
-  .svg path:not(#temp-path) {
+  .svg path:not(#temp-path):not([id^="temp-ai-path"]) {
     animation: fadeInData 0.3s ease-out;
   }
 }
@@ -431,17 +556,19 @@
   .canvasContainer,
   .eraserCursor,
   .dataLoadingIndicator,
-  .selectionInfo {
+  .selectionInfo,
+  .aiProcessingInfo {
     animation: none;
     transition: none;
   }
 
-  .svg path#temp-path {
+  .svg path#temp-path,
+  .svg path[id^="temp-ai-path"] {
     animation: none;
     transition: none;
   }
 
-  .svg path:not(#temp-path) {
+  .svg path:not(#temp-path):not([id^="temp-ai-path"]) {
     transition: none;
   }
 
@@ -449,7 +576,8 @@
   @keyframes eraserInnerPulse,
   @keyframes fadeInData,
   @keyframes fadeOutData,
-  @keyframes slideDownFade {
+  @keyframes slideDownFade,
+  @keyframes aiStrokePulse {
     0%, 100% {
       transform: scale(1) translateZ(0);
       opacity: 0.8;
@@ -481,6 +609,11 @@
       background-color: rgba(59, 130, 246, 0.95);
       box-shadow: 0 2px 8px rgba(59, 130, 246, 0.6);
     }
+
+    .aiProcessingInfo {
+      background-color: rgba(139, 92, 246, 0.98);
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.8);
+    }
   }
 }
 
@@ -493,7 +626,8 @@
     
     .zoomIndicator,
     .dataLoadingIndicator,
-    .selectionInfo {
+    .selectionInfo,
+    .aiProcessingInfo {
       display: none;
     }
 
@@ -531,6 +665,16 @@
       left: 5px;
       padding: 4px 8px;
       font-size: 11px;
+    }
+
+    .aiProcessingInfo {
+      padding: 8px 16px;
+      font-size: 12px;
+
+      .aiSpinner {
+        width: 16px;
+        height: 16px;
+      }
     }
   }
 }

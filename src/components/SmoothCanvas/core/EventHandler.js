@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - FIXED AI TOOL BUGS
+// src/components/SmoothCanvas/core/EventHandler.js - FIXED SELECTION TOOL
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -12,29 +12,33 @@ export class EventHandler {
     this.lastPanPoint = null;
     this.panStartPoint = null;
 
-    // Selection state
+    // FIXED: Selection state with better tracking
     this.isSelecting = false;
     this.isDraggingSelection = false;
     this.isResizingSelection = false;
     this.selectionDragStart = null;
     this.resizeHandle = null;
     this.originalBounds = null;
+    this.lastPointerDown = null; // Track last pointer down event
 
-    // AI Handwriting state - FIXED
+    // AI Handwriting state
     this.isCapturingAI = false;
     this.currentAIStroke = [];
     this.aiProcessingTimer = null;
     this.lastAIPoint = null;
     this.aiStartTime = null;
     this.aiStrokeCount = 0;
-    this.currentStrokePoints = []; // NEW: Track current stroke points separately
+    this.currentStrokePoints = [];
 
-    // FIXED: Add throttling and optimization variables
+    // FIXED: Throttling and optimization variables
     this.dragThrottleTimeout = null;
     this.lastDragUpdate = 0;
     this.dragUpdateInterval = 16; // ~60fps
     this.accumulatedDelta = { x: 0, y: 0 };
     this.isThrottling = false;
+
+    // FIXED: Selection debugging
+    this.debugSelection = true; // Enable for debugging
 
     // Bind methods
     this.handlePointerDown = this.handlePointerDown.bind(this);
@@ -48,6 +52,36 @@ export class EventHandler {
 
   setCallbacks(callbacks) {
     this.callbacks = { ...this.callbacks, ...callbacks };
+  }
+
+  // FIXED: Enhanced coordinate conversion for selection
+  getWorldCoordinates(e) {
+    if (!this.engine.canvasRef.current) return null;
+
+    const rect = this.engine.canvasRef.current.getBoundingClientRect();
+    
+    // Get client coordinates
+    let clientX, clientY;
+    if (e.touches && e.touches[0]) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    // Convert to canvas coordinates
+    const canvasX = (clientX - rect.left) / rect.width * this.engine.options.width;
+    const canvasY = (clientY - rect.top) / rect.height * this.engine.options.height;
+
+    // Convert to world coordinates using viewBox
+    const viewBox = this.engine.options.viewBox || 
+      { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
+    
+    const worldX = viewBox.x + (canvasX / this.engine.options.width) * viewBox.width;
+    const worldY = viewBox.y + (canvasY / this.engine.options.height) * viewBox.height;
+
+    return { x: worldX, y: worldY };
   }
 
   // Get simple canvas coordinates for AI (like Flask HTML)
@@ -79,315 +113,39 @@ export class EventHandler {
   }
 
   // ===========================================
-  // AI HANDWRITING METHODS - FIXED VISUAL FEEDBACK
-  // ===========================================
-
-  startAICapture(e) {
-    console.log('AI Tool: Starting NEW capture session');
-    
-    // FIXED: Clear any existing timer immediately
-    this.clearAITimer();
-    
-    // Get raw canvas coordinates (like Flask HTML)
-    const canvas = this.engine.canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-
-    console.log('AI Tool: Starting capture with raw coordinates:', { rawX, rawY });
-
-    // FIXED: Reset all AI state properly
-    this.isCapturingAI = true;
-    this.currentAIStroke = [{
-      x: rawX,
-      y: rawY,
-      timestamp: Date.now(),
-      isNewStroke: true
-    }];
-    this.lastAIPoint = { x: rawX, y: rawY };
-    this.aiStartTime = Date.now();
-    this.aiStrokeCount = 1;
-    // NEW: Reset current stroke points for visual feedback
-    this.currentStrokePoints = [];
-
-    // FIXED: Clear any existing visual feedback before creating new
-    this.clearAllTempAIPaths();
-
-    // Create visual feedback using complex coordinates
-    const complexPoint = this.engine.getPointFromEvent(e);
-    this.createTempAIPath(complexPoint, this.aiStrokeCount);
-    
-    // NEW: Add first point to current stroke for visual feedback
-    this.currentStrokePoints = [complexPoint];
-
-    // Notify start
-    if (this.callbacks.onAIStrokeStart) {
-      this.callbacks.onAIStrokeStart({ x: rawX, y: rawY });
-    }
-  }
-
-  continueAICapture(e) {
-    console.log('AI Tool: Continuing existing capture session');
-    
-    // FIXED: Clear any pending timer since user is still writing
-    this.clearAITimer();
-
-    // Get simple coordinates for AI data
-    const simpleCoords = this.getSimpleCanvasCoordinates(e);
-    if (simpleCoords) {
-      // FIXED: Increment stroke count for new stroke
-      this.aiStrokeCount++;
-      
-      // Add a stroke separator with proper marking
-      this.currentAIStroke.push({
-        x: simpleCoords.x,
-        y: simpleCoords.y,
-        timestamp: Date.now(),
-        isNewStroke: true,
-        strokeId: this.aiStrokeCount
-      });
-      
-      this.lastAIPoint = { x: simpleCoords.x, y: simpleCoords.y };
-
-      console.log('AI Tool: Added new stroke separator, total strokes:', this.aiStrokeCount);
-
-      // FIXED: Create separate visual path for new stroke AND reset current stroke points
-      const complexPoint = this.engine.getPointFromEvent(e);
-      this.createTempAIPath(complexPoint, this.aiStrokeCount);
-      
-      // NEW: Reset current stroke points for new stroke
-      this.currentStrokePoints = [complexPoint];
-    }
-  }
-
-  updateAICapture(e) {
-    if (!this.isCapturingAI) return;
-    
-    // Get raw canvas coordinates for data
-    const canvas = this.engine.canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    const rawX = e.clientX - rect.left;
-    const rawY = e.clientY - rect.top;
-    
-    // FIXED: Only add points if they're significantly different (reduce noise)
-    const lastPoint = this.lastAIPoint;
-    const distance = Math.sqrt(Math.pow(rawX - lastPoint.x, 2) + Math.pow(rawY - lastPoint.y, 2));
-    
-    if (distance > 1) { // Minimum distance threshold
-      // Add to AI data collection
-      this.currentAIStroke.push({
-        x: rawX,
-        y: rawY,
-        timestamp: Date.now(),
-        strokeId: this.aiStrokeCount
-      });
-      this.lastAIPoint = { x: rawX, y: rawY };
-      
-      // NEW: Add to current stroke points for visual feedback
-      const complexPoint = this.engine.getPointFromEvent(e);
-      this.currentStrokePoints.push(complexPoint);
-      
-      // FIXED: Update visual feedback with only current stroke points
-      this.updateTempAIPathFixed(this.aiStrokeCount);
-    }
-  }
-
-  // NEW: Fixed visual path update method
-  updateTempAIPathFixed(strokeId) {
-    const svg = this.engine.svgRef.current;
-    if (!svg) return;
-
-    const pathId = `temp-ai-path-${strokeId}`;
-    const tempPath = svg.querySelector(`#${pathId}`);
-
-    if (tempPath && this.currentStrokePoints.length > 1) {
-      const viewBox = this.options.viewBox || this.engine.options.viewBox ||
-        { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
-
-      // FIXED: Create path data from ONLY current stroke points (no stroke mixing)
-      let pathData = '';
-
-      for (let i = 0; i < this.currentStrokePoints.length; i++) {
-        const point = this.currentStrokePoints[i];
-
-        // Convert to viewBox coordinates for display
-        const svgX = viewBox.x + (point[0] / this.engine.options.width) * viewBox.width;
-        const svgY = viewBox.y + (point[1] / this.engine.options.height) * viewBox.height;
-
-        if (i === 0) {
-          // Start new path
-          pathData = `M ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
-        } else {
-          // Continue current path - no stroke breaks within same stroke
-          pathData += ` L ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
-        }
-      }
-
-      tempPath.setAttribute('d', pathData);
-    }
-  }
-
-  finishAICapture() {
-    if (!this.isCapturingAI || this.currentAIStroke.length < 2) {
-      console.log('AI Tool: Cannot finish capture - insufficient points');
-      this.cancelAICapture();
-      return;
-    }
-
-    console.log('AI Tool: Finishing capture with', this.currentAIStroke.length, 'raw points across', this.aiStrokeCount, 'strokes');
-
-    // FIXED: Calculate bounds using raw coordinates properly
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-    this.currentAIStroke.forEach(point => {
-      minX = Math.min(minX, point.x);
-      minY = Math.min(minY, point.y);
-      maxX = Math.max(maxX, point.x);
-      maxY = Math.max(maxY, point.y);
-    });
-
-    const bounds = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-      centerX: (minX + maxX) / 2,
-      centerY: (minY + maxY) / 2
-    };
-
-    console.log('AI Tool: Raw bounds:', bounds);
-
-    // FIXED: Prepare stroke data with proper stroke separation
-    const strokeData = {
-      points: this.currentAIStroke,
-      bounds: bounds,
-      duration: Date.now() - this.aiStartTime,
-      timestamp: Date.now(),
-      strokeCount: this.aiStrokeCount
-    };
-
-    // FIXED: Clear all visual feedback properly
-    this.clearAllTempAIPaths();
-
-    // Send raw data to AI processing
-    if (this.callbacks.onAIStrokeComplete) {
-      this.callbacks.onAIStrokeComplete(strokeData);
-    }
-
-    // FIXED: Reset ALL AI state
-    this.resetAIState();
-  }
-
-  cancelAICapture() {
-    console.log('EventHandler: Cancelling AI capture');
-
-    // FIXED: Clear timer and visual feedback
-    this.clearAITimer();
-    this.clearAllTempAIPaths();
-
-    // FIXED: Reset all AI state
-    this.resetAIState();
-  }
-
-  // FIXED: Proper timer management
-  clearAITimer() {
-    if (this.aiProcessingTimer) {
-      clearTimeout(this.aiProcessingTimer);
-      this.aiProcessingTimer = null;
-      console.log('AI Tool: Cleared existing timer');
-    }
-  }
-
-  // FIXED: Complete AI state reset
-  resetAIState() {
-    this.isCapturingAI = false;
-    this.currentAIStroke = [];
-    this.lastAIPoint = null;
-    this.aiStartTime = null;
-    this.aiStrokeCount = 0;
-    this.aiProcessingTimer = null;
-    this.currentStrokePoints = []; // NEW: Clear visual feedback points
-  }
-
-  // FIXED: Create separate visual path for each stroke
-  createTempAIPath(point, strokeId) {
-    const svg = this.engine.svgRef.current;
-    if (!svg) return;
-
-    // FIXED: Create unique ID for each stroke
-    const pathId = `temp-ai-path-${strokeId}`;
-    
-    // Remove existing path with same ID (shouldn't happen, but safety)
-    const existingPath = svg.querySelector(`#${pathId}`);
-    if (existingPath) {
-      existingPath.remove();
-    }
-
-    const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    tempPath.id = pathId;
-    tempPath.setAttribute('fill', 'none');
-    tempPath.setAttribute('stroke', '#8b5cf6'); // Purple color for AI
-    tempPath.setAttribute('stroke-width', '3');
-    tempPath.setAttribute('stroke-dasharray', '5,5');
-    tempPath.setAttribute('opacity', '0.8');
-    tempPath.setAttribute('data-stroke-id', strokeId);
-    tempPath.setAttribute('stroke-linecap', 'round'); // NEW: Smoother line caps
-    tempPath.setAttribute('stroke-linejoin', 'round'); // NEW: Smoother line joins
-
-    const pathData = `M ${point[0].toFixed(2)},${point[1].toFixed(2)}`;
-    tempPath.setAttribute('d', pathData);
-
-    svg.appendChild(tempPath);
-    
-    console.log('AI Tool: Created visual path for stroke', strokeId);
-  }
-
-  // FIXED: Clear all AI visual paths
-  clearAllTempAIPaths() {
-    const svg = this.engine.svgRef.current;
-    if (!svg) return;
-
-    // FIXED: Remove all AI temp paths (multiple strokes)
-    const tempPaths = svg.querySelectorAll('[id^="temp-ai-path-"]');
-    tempPaths.forEach(path => {
-      path.remove();
-    });
-    
-    console.log('AI Tool: Cleared all visual feedback paths');
-  }
-
-  // ===========================================
-  // MAIN EVENT HANDLERS - FIXED AI HANDLING
+  // MAIN EVENT HANDLERS - FIXED SELECTION
   // ===========================================
 
   handlePointerDown(e) {
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
 
-    const point = this.engine.getPointFromEvent(e);
-    const worldPoint = { x: point[0], y: point[1] };
-
-    console.log('Pointer down:', {
+    // Store the last pointer down for debugging
+    this.lastPointerDown = {
+      timestamp: Date.now(),
       tool: this.options.currentTool,
-      point: worldPoint,
-      isCapturingAI: this.isCapturingAI
-    });
+      clientX: e.clientX,
+      clientY: e.clientY
+    };
 
-    // FIXED: Handle AI handwriting tool with proper state management
+    const point = this.engine.getPointFromEvent(e);
+    const worldPoint = this.getWorldCoordinates(e);
+
+    if (this.debugSelection) {
+      console.log('=== POINTER DOWN ===');
+      console.log('Tool:', this.options.currentTool);
+      console.log('Engine point:', point);
+      console.log('World point:', worldPoint);
+      console.log('ViewBox:', this.engine.options.viewBox);
+    }
+
+    // Handle AI handwriting tool
     if (this.options.currentTool === 'aiHandwriting') {
-      console.log('AI Tool: Pointer down detected');
-
-      // FIXED: Proper multi-stroke handling
       if (this.isCapturingAI) {
-        console.log('AI Tool: Adding new stroke to existing capture');
         this.continueAICapture(e);
       } else {
-        console.log('AI Tool: Starting new capture session');
         this.startAICapture(e);
       }
 
-      // FIXED: Proper pointer management
       this.engine.activePointer = e.pointerId;
       this.engine.isDrawing = true;
 
@@ -405,7 +163,7 @@ export class EventHandler {
       return;
     }
 
-    // Handle selection tool
+    // FIXED: Handle selection tool with improved logic
     if (this.options.currentTool === 'select') {
       this.handleSelectionPointerDown(e, worldPoint);
       return;
@@ -441,11 +199,10 @@ export class EventHandler {
     if (!this.engine.canvasRef.current) return;
 
     const point = this.engine.getPointFromEvent(e);
-    const worldPoint = { x: point[0], y: point[1] };
+    const worldPoint = this.getWorldCoordinates(e);
 
-    // FIXED: Handle AI handwriting tool movement with proper checks
+    // Handle AI handwriting tool movement
     if (this.options.currentTool === 'aiHandwriting') {
-      // FIXED: Only update if we're actively capturing AND this is the active pointer
       if (this.isCapturingAI && this.engine.isDrawing && e.pointerId === this.engine.activePointer) {
         this.updateAICapture(e);
         e.preventDefault();
@@ -459,11 +216,10 @@ export class EventHandler {
       return;
     }
 
-    // FIXED: Optimized selection dragging
+    // FIXED: Selection dragging with proper throttling
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
 
-      // FIXED: Accumulate movement instead of applying immediately
       const deltaX = worldPoint.x - this.selectionDragStart.x;
       const deltaY = worldPoint.y - this.selectionDragStart.y;
 
@@ -472,9 +228,13 @@ export class EventHandler {
         this.accumulatedDelta.x += deltaX;
         this.accumulatedDelta.y += deltaY;
         this.selectionDragStart = worldPoint;
-      }
 
-      // The actual movement is handled by throttledDragUpdate
+        // Start throttled updates if not already running
+        if (!this.isThrottling) {
+          this.isThrottling = true;
+          this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+        }
+      }
       return;
     }
 
@@ -532,22 +292,17 @@ export class EventHandler {
   }
 
   handlePointerUp(e) {
-    console.log('Pointer up event:', {
-      tool: this.options.currentTool,
-      isCapturingAI: this.isCapturingAI,
-      pointerId: e.pointerId,
-      activePointer: this.engine.activePointer
-    });
+    if (this.debugSelection) {
+      console.log('=== POINTER UP ===');
+      console.log('Tool:', this.options.currentTool);
+      console.log('Is selecting:', this.isSelecting);
+      console.log('Is dragging selection:', this.isDraggingSelection);
+      console.log('Is resizing selection:', this.isResizingSelection);
+    }
 
-    // FIXED: Handle AI handwriting tool end with proper timer management
+    // Handle AI handwriting tool end
     if (this.options.currentTool === 'aiHandwriting') {
-      console.log('AI Tool: Pointer up detected');
-
-      // FIXED: Only handle if this is the active pointer and we're capturing
       if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
-        console.log('AI Tool: Handling pointer up for active capture');
-
-        // FIXED: Proper cleanup of pointer capture and engine state
         if (this.engine.canvasRef.current?.releasePointerCapture) {
           try {
             this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
@@ -556,27 +311,19 @@ export class EventHandler {
           }
         }
 
-        // Reset engine state
         this.engine.isDrawing = false;
         this.engine.activePointer = null;
 
-        // FIXED: Proper timer management - clear existing timer first
         this.clearAITimer();
 
-        // Start new timer only if we have enough points
         if (this.currentAIStroke.length >= 2) {
-          console.log('AI Tool: Starting 1-second processing timer');
           this.aiProcessingTimer = setTimeout(() => {
-            console.log('AI Tool: Timer expired, finishing capture');
             this.finishAICapture();
           }, 1000);
         } else {
-          // Not enough points, cancel immediately
-          console.log('AI Tool: Not enough points, cancelling capture');
           this.cancelAICapture();
         }
 
-        console.log('AI Tool: Pointer up handling complete');
         e.preventDefault();
         return;
       }
@@ -588,7 +335,7 @@ export class EventHandler {
       return;
     }
 
-    // Handle selection tool interactions
+    // FIXED: Handle selection tool interactions
     if (this.options.currentTool === 'select') {
       this.handleSelectionPointerUp(e);
       return;
@@ -618,56 +365,667 @@ export class EventHandler {
     this.engine.lastPoint = null;
   }
 
-  // FIXED: Enhanced mouse leave handling for AI tool
-  handleMouseLeave() {
-    this.engine.showEraser = false;
-    if (this.callbacks.onEraserShow) {
-      this.callbacks.onEraserShow(false);
+  // ===========================================
+  // FIXED SELECTION METHODS
+  // ===========================================
+
+  // FIXED: Better selection pointer down handling
+  handleSelectionPointerDown(e, worldPoint) {
+    e.preventDefault();
+
+    if (this.debugSelection) {
+      console.log('=== SELECTION POINTER DOWN ===');
+      console.log('World point:', worldPoint);
+      console.log('Available paths:', this.engine.paths.length);
+      console.log('Current selection:', Array.from(this.engine.selectedItems));
+      console.log('Selection bounds:', this.engine.selectionBounds);
     }
 
-    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
-      this.engine.cancelRectangle();
-    }
-
-    if (this.options.currentTool === 'select' && this.isSelecting) {
-      this.engine.clearSelection();
-      this.isSelecting = false;
-    }
-
-    // FIXED: Handle AI capture when mouse leaves with proper timer management
-    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
-      console.log('AI Tool: Mouse left canvas during capture');
-      
-      // FIXED: Don't finish immediately, let the timer handle it
-      // This prevents accidental triggers when mouse briefly leaves canvas
-      if (this.currentAIStroke.length >= 2) {
-        console.log('AI Tool: Starting expedited timer on mouse leave');
-        this.clearAITimer();
-        this.aiProcessingTimer = setTimeout(() => {
-          this.finishAICapture();
-        }, 500); // Shorter timer on mouse leave
-      } else {
-        this.cancelAICapture();
+    // Check for resize handle interaction first
+    if (this.engine.selectionBounds && this.engine.selectedItems.size > 0) {
+      const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
+      if (handle) {
+        if (this.debugSelection) {
+          console.log('Clicked on resize handle:', handle);
+        }
+        this.startResizing(e, handle, worldPoint);
+        return;
       }
+    }
+
+    // FIXED: Find item at point with better debugging
+    if (this.debugSelection) {
+      console.log('Starting hit test...');
+    }
+    
+    const clickedItem = this.engine.findItemAtPoint(worldPoint);
+    
+    if (this.debugSelection) {
+      console.log('Hit test result:', clickedItem ? {
+        id: clickedItem.id,
+        type: clickedItem.type,
+        isSelected: this.engine.isItemSelected(clickedItem.id)
+      } : 'No item found');
+    }
+
+    if (clickedItem) {
+      // FIXED: Handle clicking on selected items
+      if (this.engine.isItemSelected(clickedItem.id)) {
+        if (this.debugSelection) {
+          console.log('Clicked on selected item, starting drag');
+        }
+        this.startDraggingSelection(e, worldPoint);
+        return;
+      }
+
+      // FIXED: Handle multi-select and single select
+      if (e.ctrlKey || e.metaKey) {
+        if (this.debugSelection) {
+          console.log('Multi-select mode - adding to selection');
+        }
+        this.engine.addToSelection(clickedItem.id);
+      } else {
+        if (this.debugSelection) {
+          console.log('Single select mode - replacing selection');
+        }
+        this.engine.setSelectedItems([clickedItem.id]);
+      }
+
+      // Notify callback
+      if (this.callbacks.onSelectionChanged) {
+        this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
+      }
+      return;
+    }
+
+    // FIXED: Handle clicking on empty space
+    if (this.debugSelection) {
+      console.log('Clicked on empty space');
+    }
+
+    // Clear selection if not holding modifier keys
+    if (!e.ctrlKey && !e.metaKey) {
+      if (this.engine.selectedItems.size > 0) {
+        if (this.debugSelection) {
+          console.log('Clearing existing selection');
+        }
+        this.engine.clearSelection();
+        if (this.callbacks.onSelectionChanged) {
+          this.callbacks.onSelectionChanged([]);
+        }
+      }
+    }
+
+    // Start area selection
+    if (this.debugSelection) {
+      console.log('Starting area selection');
+    }
+    this.startAreaSelection(e, worldPoint);
+  }
+
+  // FIXED: Improved selection pointer move handling
+  handleSelectionPointerMove(e, worldPoint) {
+    // Handle area selection
+    if (this.isSelecting && e.pointerId === this.engine.activePointer) {
+      e.preventDefault();
+      this.engine.updateAreaSelection(worldPoint);
+
+      if (this.callbacks.onSelectionRectChanged) {
+        this.callbacks.onSelectionRectChanged(this.engine.selectionRect);
+      }
+      return;
+    }
+
+    // Handle selection resizing
+    if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
+      e.preventDefault();
+      
+      const newBounds = this.calculateNewBounds(worldPoint);
+      if (newBounds) {
+        this.engine.resizeSelectedItems(newBounds);
+
+        if (this.callbacks.onSelectionChanged) {
+          this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
+        }
+      }
+      return;
+    }
+
+    // Update cursor based on what's under the pointer
+    if (!this.isSelecting && !this.isDraggingSelection && !this.isResizingSelection) {
+      this.updateSelectionCursor(worldPoint);
     }
   }
 
-  // FIXED: Keyboard event handler with AI tool support
+  // FIXED: Better selection pointer up handling
+  handleSelectionPointerUp(e) {
+    e.preventDefault();
+    
+    if (this.debugSelection) {
+      console.log('=== SELECTION POINTER UP ===');
+      console.log('Is selecting:', this.isSelecting);
+      console.log('Is dragging:', this.isDraggingSelection);
+      console.log('Is resizing:', this.isResizingSelection);
+    }
+
+    if (this.engine.canvasRef.current?.releasePointerCapture) {
+      this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    // Finish area selection
+    if (this.isSelecting && e.pointerId === this.engine.activePointer) {
+      if (this.debugSelection) {
+        console.log('Finishing area selection');
+      }
+      
+      const addToExisting = e.ctrlKey || e.metaKey;
+      const selectedItems = this.engine.finishAreaSelection(addToExisting);
+
+      if (this.debugSelection) {
+        console.log('Area selection result:', selectedItems);
+      }
+
+      if (this.callbacks.onSelectionChanged) {
+        this.callbacks.onSelectionChanged(selectedItems);
+      }
+
+      this.isSelecting = false;
+    }
+
+    // FIXED: Finish dragging selection with proper cleanup
+    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
+      if (this.debugSelection) {
+        console.log('Finished dragging selection');
+      }
+
+      // Stop throttling and apply any remaining movement
+      this.isThrottling = false;
+      if (this.dragThrottleTimeout) {
+        cancelAnimationFrame(this.dragThrottleTimeout);
+        this.dragThrottleTimeout = null;
+      }
+
+      // Apply any accumulated movement
+      const { x, y } = this.accumulatedDelta;
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        this.engine.moveSelectedItems(x, y);
+      }
+
+      // Reset state
+      this.isDraggingSelection = false;
+      this.selectionDragStart = null;
+      this.accumulatedDelta = { x: 0, y: 0 };
+
+      // Notify callbacks
+      if (this.callbacks.onSelectionDragEnd) {
+        this.callbacks.onSelectionDragEnd();
+      }
+
+      if (this.callbacks.onSelectionMoved) {
+        this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+      }
+    }
+
+    // Finish resizing selection
+    if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
+      if (this.debugSelection) {
+        console.log('Finished resizing selection');
+      }
+      
+      this.isResizingSelection = false;
+      this.resizeHandle = null;
+      this.selectionDragStart = null;
+      this.originalBounds = null;
+
+      if (this.callbacks.onSelectionResized) {
+        this.callbacks.onSelectionResized(this.engine.getSelectedItems());
+      }
+    }
+
+    this.engine.activePointer = null;
+
+    // Reset cursor
+    if (this.options.currentTool === 'select') {
+      this.engine.canvasRef.current.style.cursor = 'default';
+    }
+  }
+
+  // FIXED: Throttled drag update with better performance
+  throttledDragUpdate = () => {
+    if (!this.isThrottling || !this.isDraggingSelection) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
+      const { x, y } = this.accumulatedDelta;
+
+      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
+        this.engine.moveSelectedItems(x, y);
+        this.accumulatedDelta = { x: 0, y: 0 };
+        this.lastDragUpdate = now;
+
+        if (this.callbacks.onSelectionMoved) {
+          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+        }
+      }
+    }
+
+    if (this.isDraggingSelection) {
+      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
+    } else {
+      this.isThrottling = false;
+    }
+  };
+
+  // FIXED: Start area selection with proper setup
+  startAreaSelection(e, worldPoint) {
+    this.isSelecting = true;
+    this.engine.startAreaSelection(worldPoint);
+
+    if (this.engine.canvasRef.current.setPointerCapture) {
+      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
+    }
+
+    this.engine.activePointer = e.pointerId;
+    
+    if (this.debugSelection) {
+      console.log('Area selection started at:', worldPoint);
+    }
+  }
+
+  // FIXED: Start dragging with proper initialization
+  startDraggingSelection(e, worldPoint) {
+    if (this.debugSelection) {
+      console.log('Starting selection drag from:', worldPoint);
+    }
+    
+    this.isDraggingSelection = true;
+    this.selectionDragStart = worldPoint;
+    this.accumulatedDelta = { x: 0, y: 0 };
+    this.lastDragUpdate = Date.now();
+
+    if (this.engine.canvasRef.current.setPointerCapture) {
+      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
+    }
+
+    this.engine.activePointer = e.pointerId;
+
+    // Set cursor
+    this.engine.canvasRef.current.style.cursor = 'move';
+
+    // Notify callback
+    if (this.callbacks.onSelectionDragStart) {
+      this.callbacks.onSelectionDragStart();
+    }
+  }
+
+  // Start resizing with proper setup
+  startResizing(e, handle, worldPoint) {
+    if (this.debugSelection) {
+      console.log('Starting resize with handle:', handle);
+    }
+    
+    this.isResizingSelection = true;
+    this.resizeHandle = handle;
+    this.selectionDragStart = worldPoint;
+    this.originalBounds = { ...this.engine.selectionBounds };
+
+    if (this.engine.canvasRef.current.setPointerCapture) {
+      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
+    }
+
+    this.engine.activePointer = e.pointerId;
+
+    // Set appropriate cursor
+    const cursors = {
+      'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
+      'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
+      'sw': 'sw-resize', 'w': 'w-resize'
+    };
+    this.engine.canvasRef.current.style.cursor = cursors[handle] || 'default';
+  }
+
+  // Calculate new bounds during resize
+  calculateNewBounds(currentPoint) {
+    if (!this.originalBounds || !this.resizeHandle) return null;
+
+    const { x, y, width, height } = this.originalBounds;
+    const deltaX = currentPoint.x - this.selectionDragStart.x;
+    const deltaY = currentPoint.y - this.selectionDragStart.y;
+
+    let newBounds = { x, y, width, height };
+
+    switch (this.resizeHandle) {
+      case 'nw':
+        newBounds.x = x + deltaX;
+        newBounds.y = y + deltaY;
+        newBounds.width = width - deltaX;
+        newBounds.height = height - deltaY;
+        break;
+      case 'n':
+        newBounds.y = y + deltaY;
+        newBounds.height = height - deltaY;
+        break;
+      case 'ne':
+        newBounds.y = y + deltaY;
+        newBounds.width = width + deltaX;
+        newBounds.height = height - deltaY;
+        break;
+      case 'e':
+        newBounds.width = width + deltaX;
+        break;
+      case 'se':
+        newBounds.width = width + deltaX;
+        newBounds.height = height + deltaY;
+        break;
+      case 's':
+        newBounds.height = height + deltaY;
+        break;
+      case 'sw':
+        newBounds.x = x + deltaX;
+        newBounds.width = width - deltaX;
+        newBounds.height = height + deltaY;
+        break;
+      case 'w':
+        newBounds.x = x + deltaX;
+        newBounds.width = width - deltaX;
+        break;
+    }
+
+    // Enforce minimum size
+    const minSize = 10;
+    if (newBounds.width < minSize) {
+      if (this.resizeHandle.includes('w')) {
+        newBounds.x = newBounds.x + newBounds.width - minSize;
+      }
+      newBounds.width = minSize;
+    }
+    if (newBounds.height < minSize) {
+      if (this.resizeHandle.includes('n')) {
+        newBounds.y = newBounds.y + newBounds.height - minSize;
+      }
+      newBounds.height = minSize;
+    }
+
+    return newBounds;
+  }
+
+  // FIXED: Update cursor based on what's under the pointer
+  updateSelectionCursor(worldPoint) {
+    let cursor = 'default';
+
+    // Check for resize handles first
+    if (this.engine.selectionBounds) {
+      const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
+      if (handle) {
+        const cursors = {
+          'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
+          'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
+          'sw': 'sw-resize', 'w': 'w-resize'
+        };
+        cursor = cursors[handle] || 'default';
+      } else {
+        // Check if hovering over selected item
+        const item = this.engine.findItemAtPoint(worldPoint);
+        if (item && this.engine.isItemSelected(item.id)) {
+          cursor = 'move';
+        }
+      }
+    } else {
+      // Check if hovering over any item
+      const item = this.engine.findItemAtPoint(worldPoint);
+      if (item) {
+        cursor = 'pointer';
+      }
+    }
+
+    // Only update cursor if it changed
+    if (this.engine.canvasRef.current.style.cursor !== cursor) {
+      this.engine.canvasRef.current.style.cursor = cursor;
+    }
+  }
+
+  // ===========================================
+  // AI HANDWRITING METHODS
+  // ===========================================
+
+  startAICapture(e) {
+    console.log('AI Tool: Starting NEW capture session');
+    
+    this.clearAITimer();
+    
+    const canvas = this.engine.canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+
+    this.isCapturingAI = true;
+    this.currentAIStroke = [{
+      x: rawX,
+      y: rawY,
+      timestamp: Date.now(),
+      isNewStroke: true
+    }];
+    this.lastAIPoint = { x: rawX, y: rawY };
+    this.aiStartTime = Date.now();
+    this.aiStrokeCount = 1;
+    this.currentStrokePoints = [];
+
+    this.clearAllTempAIPaths();
+
+    const complexPoint = this.engine.getPointFromEvent(e);
+    this.createTempAIPath(complexPoint, this.aiStrokeCount);
+    
+    this.currentStrokePoints = [complexPoint];
+
+    if (this.callbacks.onAIStrokeStart) {
+      this.callbacks.onAIStrokeStart({ x: rawX, y: rawY });
+    }
+  }
+
+  continueAICapture(e) {
+    this.clearAITimer();
+
+    const simpleCoords = this.getSimpleCanvasCoordinates(e);
+    if (simpleCoords) {
+      this.aiStrokeCount++;
+      
+      this.currentAIStroke.push({
+        x: simpleCoords.x,
+        y: simpleCoords.y,
+        timestamp: Date.now(),
+        isNewStroke: true,
+        strokeId: this.aiStrokeCount
+      });
+      
+      this.lastAIPoint = { x: simpleCoords.x, y: simpleCoords.y };
+
+      const complexPoint = this.engine.getPointFromEvent(e);
+      this.createTempAIPath(complexPoint, this.aiStrokeCount);
+      
+      this.currentStrokePoints = [complexPoint];
+    }
+  }
+
+  updateAICapture(e) {
+    if (!this.isCapturingAI) return;
+    
+    const canvas = this.engine.canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    
+    const lastPoint = this.lastAIPoint;
+    const distance = Math.sqrt(Math.pow(rawX - lastPoint.x, 2) + Math.pow(rawY - lastPoint.y, 2));
+    
+    if (distance > 1) {
+      this.currentAIStroke.push({
+        x: rawX,
+        y: rawY,
+        timestamp: Date.now(),
+        strokeId: this.aiStrokeCount
+      });
+      this.lastAIPoint = { x: rawX, y: rawY };
+      
+      const complexPoint = this.engine.getPointFromEvent(e);
+      this.currentStrokePoints.push(complexPoint);
+      
+      this.updateTempAIPathFixed(this.aiStrokeCount);
+    }
+  }
+
+  updateTempAIPathFixed(strokeId) {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const pathId = `temp-ai-path-${strokeId}`;
+    const tempPath = svg.querySelector(`#${pathId}`);
+
+    if (tempPath && this.currentStrokePoints.length > 1) {
+      const viewBox = this.options.viewBox || this.engine.options.viewBox ||
+        { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
+
+      let pathData = '';
+
+      for (let i = 0; i < this.currentStrokePoints.length; i++) {
+        const point = this.currentStrokePoints[i];
+
+        const svgX = viewBox.x + (point[0] / this.engine.options.width) * viewBox.width;
+        const svgY = viewBox.y + (point[1] / this.engine.options.height) * viewBox.height;
+
+        if (i === 0) {
+          pathData = `M ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
+        } else {
+          pathData += ` L ${svgX.toFixed(2)},${svgY.toFixed(2)}`;
+        }
+      }
+
+      tempPath.setAttribute('d', pathData);
+    }
+  }
+
+  finishAICapture() {
+    if (!this.isCapturingAI || this.currentAIStroke.length < 2) {
+      this.cancelAICapture();
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    this.currentAIStroke.forEach(point => {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    });
+
+    const bounds = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2
+    };
+
+    const strokeData = {
+      points: this.currentAIStroke,
+      bounds: bounds,
+      duration: Date.now() - this.aiStartTime,
+      timestamp: Date.now(),
+      strokeCount: this.aiStrokeCount
+    };
+
+    this.clearAllTempAIPaths();
+
+    if (this.callbacks.onAIStrokeComplete) {
+      this.callbacks.onAIStrokeComplete(strokeData);
+    }
+
+    this.resetAIState();
+  }
+
+  cancelAICapture() {
+    this.clearAITimer();
+    this.clearAllTempAIPaths();
+    this.resetAIState();
+  }
+
+  clearAITimer() {
+    if (this.aiProcessingTimer) {
+      clearTimeout(this.aiProcessingTimer);
+      this.aiProcessingTimer = null;
+    }
+  }
+
+  resetAIState() {
+    this.isCapturingAI = false;
+    this.currentAIStroke = [];
+    this.lastAIPoint = null;
+    this.aiStartTime = null;
+    this.aiStrokeCount = 0;
+    this.aiProcessingTimer = null;
+    this.currentStrokePoints = [];
+  }
+
+  createTempAIPath(point, strokeId) {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const pathId = `temp-ai-path-${strokeId}`;
+    
+    const existingPath = svg.querySelector(`#${pathId}`);
+    if (existingPath) {
+      existingPath.remove();
+    }
+
+    const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    tempPath.id = pathId;
+    tempPath.setAttribute('fill', 'none');
+    tempPath.setAttribute('stroke', '#8b5cf6');
+    tempPath.setAttribute('stroke-width', '3');
+    tempPath.setAttribute('stroke-dasharray', '5,5');
+    tempPath.setAttribute('opacity', '0.8');
+    tempPath.setAttribute('data-stroke-id', strokeId);
+    tempPath.setAttribute('stroke-linecap', 'round');
+    tempPath.setAttribute('stroke-linejoin', 'round');
+
+    const pathData = `M ${point[0].toFixed(2)},${point[1].toFixed(2)}`;
+    tempPath.setAttribute('d', pathData);
+
+    svg.appendChild(tempPath);
+  }
+
+  clearAllTempAIPaths() {
+    const svg = this.engine.svgRef.current;
+    if (!svg) return;
+
+    const tempPaths = svg.querySelectorAll('[id^="temp-ai-path-"]');
+    tempPaths.forEach(path => {
+      path.remove();
+    });
+  }
+
+  // ===========================================
+  // KEYBOARD EVENT HANDLER
+  // ===========================================
+
   handleKeyDown(e) {
-    // FIXED: Handle AI tool keyboard shortcuts
+    // Handle AI tool keyboard shortcuts
     if (this.options.currentTool === 'aiHandwriting') {
       switch (e.key) {
         case 'Escape':
           if (this.isCapturingAI) {
             e.preventDefault();
-            console.log('AI Tool: Escape pressed, cancelling capture');
             this.cancelAICapture();
           }
           break;
         case 'Enter':
           if (this.isCapturingAI && this.currentAIStroke.length >= 2) {
             e.preventDefault();
-            console.log('AI Tool: Enter pressed, finishing capture immediately');
             this.clearAITimer();
             this.finishAICapture();
           }
@@ -728,8 +1086,6 @@ export class EventHandler {
             case 'ArrowRight': deltaX = step; break;
           }
 
-          console.log('FIXED: Moving selection by keyboard:', { deltaX, deltaY });
-
           this.engine.moveSelectedItems(deltaX, deltaY);
           this.engine.selectionBounds = this.engine.getSelectionBounds(this.engine.selectedItems);
 
@@ -742,373 +1098,54 @@ export class EventHandler {
   }
 
   // ===========================================
-  // SELECTION METHODS (UNCHANGED - Rest of the code remains the same)
+  // OTHER EVENT HANDLERS
   // ===========================================
 
-  // FIXED: Throttled drag update method
-  throttledDragUpdate = () => {
-    if (!this.isThrottling || !this.isDraggingSelection) {
-      return;
+  handleMouseLeave() {
+    this.engine.showEraser = false;
+    if (this.callbacks.onEraserShow) {
+      this.callbacks.onEraserShow(false);
     }
 
-    const now = Date.now();
-    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
-      const { x, y } = this.accumulatedDelta;
-
-      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-        this.engine.moveSelectedItems(x, y);
-        this.accumulatedDelta = { x: 0, y: 0 };
-        this.lastDragUpdate = now;
-
-        if (this.callbacks.onSelectionMoved) {
-          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
-        }
-      }
+    if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
+      this.engine.cancelRectangle();
     }
 
-    if (this.isDraggingSelection) {
-      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
-    } else {
-      this.isThrottling = false;
-    }
-  };
-
-  // ===========================================
-  // SELECTION METHODS (UNCHANGED)
-  // ===========================================
-
-  // FIXED: Throttled drag update method
-  throttledDragUpdate = () => {
-    if (!this.isThrottling || !this.isDraggingSelection) {
-      return;
-    }
-
-    const now = Date.now();
-    if (now - this.lastDragUpdate >= this.dragUpdateInterval) {
-      const { x, y } = this.accumulatedDelta;
-
-      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-        this.engine.moveSelectedItems(x, y);
-        this.accumulatedDelta = { x: 0, y: 0 };
-        this.lastDragUpdate = now;
-
-        if (this.callbacks.onSelectionMoved) {
-          this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
-        }
-      }
-    }
-
-    if (this.isDraggingSelection) {
-      this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
-    } else {
-      this.isThrottling = false;
-    }
-  };
-
-  handleSelectionPointerDown(e, worldPoint) {
-    e.preventDefault();
-
-    console.log('=== SELECTION CLICK DEBUG ===');
-    console.log('World point:', worldPoint);
-    console.log('Available paths:', this.engine.paths.length);
-
-    if (this.engine.selectionBounds) {
-      const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
-      if (handle) {
-        console.log('Clicked on resize handle:', handle);
-        this.startResizing(e, handle, worldPoint);
-        return;
-      }
-    }
-
-    console.log('Starting hit test...');
-    const clickedItem = this.engine.findItemAtPoint(worldPoint);
-    console.log('Hit test result:', clickedItem);
-
-    if (clickedItem) {
-      console.log('Found clicked item:', {
-        id: clickedItem.id,
-        type: clickedItem.type,
-        isSelected: this.engine.isItemSelected(clickedItem.id)
-      });
-
-      if (this.engine.isItemSelected(clickedItem.id)) {
-        console.log('Clicked on selected item, starting drag');
-        this.startDraggingSelection(e, worldPoint);
-        return;
-      }
-
-      if (e.ctrlKey || e.metaKey) {
-        console.log('Multi-select mode');
-        this.engine.addToSelection(clickedItem.id);
-      } else {
-        console.log('Single select mode');
-        this.engine.setSelectedItems([clickedItem.id]);
-      }
-
-      if (this.callbacks.onSelectionChanged) {
-        this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
-      }
-      return;
-    }
-
-    console.log('Clicked on empty space');
-
-    if (!e.ctrlKey && !e.metaKey) {
+    if (this.options.currentTool === 'select' && this.isSelecting) {
       this.engine.clearSelection();
-      if (this.callbacks.onSelectionChanged) {
-        this.callbacks.onSelectionChanged([]);
-      }
-    }
-
-    console.log('Starting area selection');
-    this.startAreaSelection(e, worldPoint);
-  }
-
-  startAreaSelection(e, worldPoint) {
-    this.isSelecting = true;
-    this.engine.startAreaSelection(worldPoint);
-
-    if (this.engine.canvasRef.current.setPointerCapture) {
-      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
-    }
-
-    this.engine.activePointer = e.pointerId;
-  }
-
-  startDraggingSelection(e, worldPoint) {
-    console.log('FIXED: Starting selection drag');
-    this.isDraggingSelection = true;
-    this.selectionDragStart = worldPoint;
-    this.accumulatedDelta = { x: 0, y: 0 };
-    this.lastDragUpdate = Date.now();
-
-    if (this.engine.canvasRef.current.setPointerCapture) {
-      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
-    }
-
-    this.engine.activePointer = e.pointerId;
-
-    this.isThrottling = true;
-    this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
-
-    if (this.callbacks.onSelectionDragStart) {
-      this.callbacks.onSelectionDragStart();
-    }
-
-    this.engine.canvasRef.current.style.cursor = 'move';
-  }
-
-  startResizing(e, handle, worldPoint) {
-    this.isResizingSelection = true;
-    this.resizeHandle = handle;
-    this.selectionDragStart = worldPoint;
-    this.originalBounds = { ...this.engine.selectionBounds };
-
-    if (this.engine.canvasRef.current.setPointerCapture) {
-      this.engine.canvasRef.current.setPointerCapture(e.pointerId);
-    }
-
-    this.engine.activePointer = e.pointerId;
-
-    const cursors = {
-      'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
-      'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
-      'sw': 'sw-resize', 'w': 'w-resize'
-    };
-    this.engine.canvasRef.current.style.cursor = cursors[handle] || 'default';
-  }
-
-  handleSelectionPointerMove(e, worldPoint) {
-    if (this.isSelecting && e.pointerId === this.engine.activePointer) {
-      e.preventDefault();
-      this.engine.updateAreaSelection(worldPoint);
-
-      if (this.callbacks.onSelectionRectChanged) {
-        this.callbacks.onSelectionRectChanged(this.engine.selectionRect);
-      }
-      return;
-    }
-
-    if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
-      e.preventDefault();
-      console.log('Resizing selection');
-
-      const newBounds = this.calculateNewBounds(worldPoint);
-      if (newBounds) {
-        this.engine.resizeSelectedItems(newBounds);
-
-        if (this.callbacks.onSelectionChanged) {
-          this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
-        }
-      }
-      return;
-    }
-
-    if (!this.isSelecting && !this.isDraggingSelection && !this.isResizingSelection) {
-      this.updateSelectionCursor(worldPoint);
-    }
-  }
-
-  calculateNewBounds(currentPoint) {
-    if (!this.originalBounds || !this.resizeHandle) return null;
-
-    const { x, y, width, height } = this.originalBounds;
-    const deltaX = currentPoint.x - this.selectionDragStart.x;
-    const deltaY = currentPoint.y - this.selectionDragStart.y;
-
-    let newBounds = { x, y, width, height };
-
-    switch (this.resizeHandle) {
-      case 'nw':
-        newBounds.x = x + deltaX;
-        newBounds.y = y + deltaY;
-        newBounds.width = width - deltaX;
-        newBounds.height = height - deltaY;
-        break;
-      case 'n':
-        newBounds.y = y + deltaY;
-        newBounds.height = height - deltaY;
-        break;
-      case 'ne':
-        newBounds.y = y + deltaY;
-        newBounds.width = width + deltaX;
-        newBounds.height = height - deltaY;
-        break;
-      case 'e':
-        newBounds.width = width + deltaX;
-        break;
-      case 'se':
-        newBounds.width = width + deltaX;
-        newBounds.height = height + deltaY;
-        break;
-      case 's':
-        newBounds.height = height + deltaY;
-        break;
-      case 'sw':
-        newBounds.x = x + deltaX;
-        newBounds.width = width - deltaX;
-        newBounds.height = height + deltaY;
-        break;
-      case 'w':
-        newBounds.x = x + deltaX;
-        newBounds.width = width - deltaX;
-        break;
-    }
-
-    const minSize = 10;
-    if (newBounds.width < minSize) {
-      if (this.resizeHandle.includes('w')) {
-        newBounds.x = newBounds.x + newBounds.width - minSize;
-      }
-      newBounds.width = minSize;
-    }
-    if (newBounds.height < minSize) {
-      if (this.resizeHandle.includes('n')) {
-        newBounds.y = newBounds.y + newBounds.height - minSize;
-      }
-      newBounds.height = minSize;
-    }
-
-    return newBounds;
-  }
-
-  updateSelectionCursor(worldPoint) {
-    let cursor = 'default';
-
-    if (this.engine.selectionBounds) {
-      const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
-      if (handle) {
-        const cursors = {
-          'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
-          'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
-          'sw': 'sw-resize', 'w': 'w-resize'
-        };
-        cursor = cursors[handle] || 'default';
-      } else {
-        const item = this.engine.findItemAtPoint(worldPoint);
-        if (item && this.engine.isItemSelected(item.id)) {
-          cursor = 'move';
-        }
-      }
-    } else {
-      const item = this.engine.findItemAtPoint(worldPoint);
-      if (item) {
-        cursor = 'pointer';
-      }
-    }
-
-    this.engine.canvasRef.current.style.cursor = cursor;
-  }
-
-  handleSelectionPointerUp(e) {
-    e.preventDefault();
-    console.log('Selection pointer up');
-
-    if (this.engine.canvasRef.current?.releasePointerCapture) {
-      this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
-    }
-
-    // Finish area selection
-    if (this.isSelecting && e.pointerId === this.engine.activePointer) {
-      console.log('Finishing area selection');
-      const addToExisting = e.ctrlKey || e.metaKey;
-      const selectedItems = this.engine.finishAreaSelection(addToExisting);
-
-      console.log('Area selection result:', selectedItems);
-
-      if (this.callbacks.onSelectionChanged) {
-        this.callbacks.onSelectionChanged(selectedItems);
-      }
-
       this.isSelecting = false;
     }
 
-    // FIXED: Finish dragging selection with proper cleanup
-    if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
-      console.log('FIXED: Finished dragging selection');
-
-      this.isThrottling = false;
-      if (this.dragThrottleTimeout) {
-        cancelAnimationFrame(this.dragThrottleTimeout);
-        this.dragThrottleTimeout = null;
-      }
-
-      const { x, y } = this.accumulatedDelta;
-      if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-        this.engine.moveSelectedItems(x, y);
-      }
-
-      this.isDraggingSelection = false;
-      this.selectionDragStart = null;
-      this.accumulatedDelta = { x: 0, y: 0 };
-
-      if (this.callbacks.onSelectionDragEnd) {
-        this.callbacks.onSelectionDragEnd();
-      }
-
-      if (this.callbacks.onSelectionMoved) {
-        this.callbacks.onSelectionMoved(this.engine.getSelectedItems());
+    if (this.options.currentTool === 'aiHandwriting' && this.isCapturingAI) {
+      if (this.currentAIStroke.length >= 2) {
+        this.clearAITimer();
+        this.aiProcessingTimer = setTimeout(() => {
+          this.finishAICapture();
+        }, 500);
+      } else {
+        this.cancelAICapture();
       }
     }
+  }
 
-    // Finish resizing selection
-    if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
-      console.log('Finished resizing selection');
-      this.isResizingSelection = false;
-      this.resizeHandle = null;
-      this.selectionDragStart = null;
-      this.originalBounds = null;
-
-      if (this.callbacks.onSelectionResized) {
-        this.callbacks.onSelectionResized(this.engine.getSelectedItems());
+  handleMouseEnter() {
+    if (this.options.currentTool === 'eraser') {
+      this.engine.showEraser = true;
+      if (this.callbacks.onEraserShow) {
+        this.callbacks.onEraserShow(true);
       }
     }
+  }
 
-    this.engine.activePointer = null;
+  handleWheel(e) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
 
-    if (this.options.currentTool === 'select') {
-      this.engine.canvasRef.current.style.cursor = 'default';
+      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+
+      if (this.callbacks.onZoom) {
+        this.callbacks.onZoom(zoomDelta, { x: e.clientX, y: e.clientY });
+      }
     }
   }
 
@@ -1117,7 +1154,6 @@ export class EventHandler {
   // ===========================================
 
   startRectangleDrawing(e) {
-    console.log('Starting rectangle drawing');
     e.preventDefault();
 
     if (this.engine.canvasRef.current.setPointerCapture) {
@@ -1138,7 +1174,6 @@ export class EventHandler {
   }
 
   finishRectangleDrawing(e) {
-    console.log('Finishing rectangle drawing');
     e.preventDefault();
 
     if (this.engine.canvasRef.current?.releasePointerCapture) {
@@ -1160,7 +1195,6 @@ export class EventHandler {
   // ===========================================
 
   startPanning(e) {
-    console.log('EventHandler: Starting pan');
     this.isPanning = true;
     this.panStartPoint = { x: e.clientX, y: e.clientY };
     this.lastPanPoint = { x: e.clientX, y: e.clientY };
@@ -1224,7 +1258,6 @@ export class EventHandler {
   }
 
   endPanning(e) {
-    console.log('EventHandler: Ending pan');
     this.isPanning = false;
     this.panStartPoint = null;
     this.lastPanPoint = null;
@@ -1269,35 +1302,6 @@ export class EventHandler {
     }
 
     e.preventDefault();
-  }
-
-  // ===========================================
-  // WHEEL ZOOM SUPPORT
-  // ===========================================
-
-  handleWheel(e) {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-
-      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-
-      if (this.callbacks.onZoom) {
-        this.callbacks.onZoom(zoomDelta, { x: e.clientX, y: e.clientY });
-      }
-    }
-  }
-
-  // ===========================================
-  // MOUSE ENTER/LEAVE HANDLERS
-  // ===========================================
-
-  handleMouseEnter() {
-    if (this.options.currentTool === 'eraser') {
-      this.engine.showEraser = true;
-      if (this.callbacks.onEraserShow) {
-        this.callbacks.onEraserShow(true);
-      }
-    }
   }
 
   // ===========================================
@@ -1418,8 +1422,6 @@ export class EventHandler {
     const currentPath = this.engine.getCurrentPath();
 
     if (currentPath.length <= 1) {
-      console.log('Path too short to finalize, points:', currentPath.length);
-
       const svg = this.engine.svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       if (tempPath) {
@@ -1484,18 +1486,17 @@ export class EventHandler {
   // ===========================================
 
   cleanup() {
-    console.log('EventHandler: Cleaning up with AI state reset');
-
     if (this.dragThrottleTimeout) {
       cancelAnimationFrame(this.dragThrottleTimeout);
       this.dragThrottleTimeout = null;
     }
 
-    // FIXED: Proper AI cleanup
+    // AI cleanup
     this.clearAITimer();
     this.clearAllTempAIPaths();
     this.resetAIState();
 
+    // Reset all state
     this.isThrottling = false;
     this.isDraggingSelection = false;
     this.isSelecting = false;
@@ -1506,6 +1507,7 @@ export class EventHandler {
     this.selectionDragStart = null;
     this.lastPanPoint = null;
     this.panStartPoint = null;
+    this.lastPointerDown = null;
   }
 
   attachListeners(element) {

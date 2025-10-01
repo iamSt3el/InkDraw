@@ -6,7 +6,7 @@ import PageNavigator from '../PageNavigator/PageNavigator';
 import { 
   Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3, 
   Settings, ZoomIn, ZoomOut, RotateCcw, Move, Square, ArrowLeft, Save, 
-  Shapes, MousePointer2, Brain // ADDED Brain icon for AI tool
+  Shapes, MousePointer2, Brain, ImageIcon // ADDED ImageIcon for image tool
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -73,6 +73,77 @@ const ToolBar = ({
   // ADDED: AI Handwriting tool handler
   const handleAiHandwritingClick = () => {
     setTool('aiHandwriting');
+  };
+
+  // ADDED: Image tool handler
+  const handleImageClick = () => {
+    // Create hidden file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleImageUpload(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleImageUpload = async (file) => {
+    try {
+      // Convert file to data URL for persistence
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target.result;
+        
+        // Create image to get dimensions
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            // Scale down large images
+            let width = img.naturalWidth;
+            let height = img.naturalHeight;
+            const maxSize = 800;
+            
+            if (width > maxSize || height > maxSize) {
+              const aspectRatio = width / height;
+              if (width > height) {
+                width = maxSize;
+                height = maxSize / aspectRatio;
+              } else {
+                height = maxSize;
+                width = maxSize * aspectRatio;
+              }
+            }
+            
+            // Add image to canvas
+            const { addImage } = useDrawingStore.getState();
+            if (addImage) {
+              await addImage({
+                url: dataUrl,
+                x: 100, // Default position
+                y: 100,
+                width: width,
+                height: height,
+                originalWidth: img.naturalWidth,
+                originalHeight: img.naturalHeight,
+                name: file.name
+              });
+              showNotification('success', 'Image added to canvas');
+            }
+          } catch (error) {
+            console.error('Error adding image to canvas:', error);
+            showNotification('error', 'Failed to add image to canvas');
+          }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      showNotification('error', 'Failed to upload image');
+    }
   };
 
   const handleClearClick = () => {
@@ -154,6 +225,12 @@ const ToolBar = ({
               isActive={currentTool === 'aiHandwriting'}
               onClick={handleAiHandwritingClick}
               label={`AI Handwriting Tool (A) ${isAiProcessing ? '- Processing...' : ''}`}
+            />
+            {/* ADDED: Image Tool Button */}
+            <Button
+              Icon={ImageIcon}
+              onClick={handleImageClick}
+              label="Add Image (I)"
             />
             <Button
               Icon={Eraser}
@@ -322,7 +399,7 @@ const ToolBar = ({
 
       {/* BOTTOM ZOOM CONTROLS */}
       <div className={styles.zoom_toolbar}>
-        {/* <div className={styles.zoom_controls}>
+        <div className={styles.zoom_controls}>
           <span className={styles.zoom_label}>Zoom:</span>
           <div className={styles.zoom_buttons}>
             <button 
@@ -374,14 +451,14 @@ const ToolBar = ({
               <RotateCcw size={16} />
             </button>
           </div>
-        </div> */}
+        </div>
 
-        {/* Selection info in zoom toolbar
+        Selection info in zoom toolbar
         {currentTool === 'select' && selectedItems.size > 0 && (
           <div className={styles.selection_info}>
             <span>{selectedItems.size} selected</span>
           </div>
-        )} */}
+        )}
 
         {/* ADDED: AI processing info in zoom toolbar */}
         {currentTool === 'aiHandwriting' && (

@@ -1,70 +1,73 @@
-# Getting Started with Create React App
+# Inkdraw
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A professional digital notebook application designed for seamless drawing and note-taking experiences. Built with React and Electron for cross-platform compatibility.
 
-## Available Scripts
+## Screenshots
 
-In the project directory, you can run:
+<!-- Add application screenshots or demo video here -->
+<!-- Example: ![Inkdraw Interface](./screenshots/main-interface.png) -->
 
-### `yarn start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Smooth Drawing Canvas**: High-performance drawing with smooth pen input
+- **Multiple Tools**: Pen, shapes, and AI-powered text tools
+- **Notebook Management**: Create, organize, and navigate between multiple notebooks
+- **Page Navigation**: Multi-page support with easy page management
+- **Cross-Platform**: Available for Windows, macOS, and Linux
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Requirements
 
-### `yarn test`
+- Node.js 16 or higher
+- Yarn package manager
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Installation
 
-### `yarn build`
+```bash
+# Clone the repository
+git clone <repository-url>
+cd inkDraw
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+# Install dependencies
+yarn install
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Development
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+# Start development server
+yarn start
 
-### `yarn eject`
+# Run with Electron (development)
+yarn electron-dev
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# Run tests
+yarn test
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Building
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+# Build for production
+yarn build
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Package Electron app
+yarn electron-pack
 
-## Learn More
+# Package for specific platforms
+yarn electron-pack:win    # Windows
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Architecture
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- **Frontend**: React with Zustand for state management
+- **Desktop**: Electron for cross-platform desktop application
+- **Styling**: SCSS modules for component styling
+- **Drawing**: Custom canvas engine with smooth rendering
 
-### Code Splitting
+## Author
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Captain Electron
 
-### Analyzing the Bundle Size
+## License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `yarn build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Private

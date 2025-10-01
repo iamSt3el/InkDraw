@@ -606,6 +606,7 @@ export const useDrawingStore = create((set, get) => ({
   undoCanvas: null,
   getCurrentCanvasData: null,
   loadCanvasData: null,
+  addImage: null, // Image handling method
   
   // FIXED: Selection method references (these will be set by registerCanvasMethods)
   findItemsInRect: null,
@@ -631,6 +632,7 @@ export const useDrawingStore = create((set, get) => ({
       undoCanvas: methods.undo,
       getCurrentCanvasData: methods.getCurrentCanvasData,
       loadCanvasData: methods.loadCanvasData,
+      addImage: methods.addImage, // Add image method
       // FIXED: Add all selection methods
       findItemsInRect: methods.findItemsInRect,
       getSelectionBounds: methods.getSelectionBounds,
