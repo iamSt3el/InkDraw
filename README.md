@@ -68,10 +68,4 @@ yarn electron-pack:win    # Windows
 - **Styling**: SCSS modules for component styling
 - **Drawing**: Custom canvas engine with smooth rendering
 
-## Author
-
-Captain Electron
-
-## License
-
-Private
+Himanshu
