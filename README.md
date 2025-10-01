@@ -5,7 +5,10 @@ A professional digital notebook application designed for seamless drawing and no
 ## Screenshots
 
 <!-- Add application screenshots or demo video here -->
+![Inkdraw Interface](./screenshots/2025-10-01T10:23:46,532116309+05:30.png)
+![Inkdraw Interface](./screenshots/2025-10-01T10:24:11,323524240+05:30.png)
 ![Inkdraw Interface](./screenshots/main.png)
+    
 
 
 ## Features
