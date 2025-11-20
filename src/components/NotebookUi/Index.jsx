@@ -1,4 +1,4 @@
-// src/components/NotebookUi/Index.jsx
+
 import React from 'react';
 import styles from './NotebookUi.module.scss';
 import SmoothCanvas from '../SmoothCanvas/SmoothCanvas';
@@ -7,19 +7,19 @@ import { useDrawingStore } from '../../stores/drawingStore';
 const NoteBookUi = () => {
   const numberOfHoles = 27;
   
-  // Get page settings from the store
+  
   const { pageSettings } = useDrawingStore();
   
-  // Get background pattern style based on settings
+  
   const getBackgroundPattern = () => {
     if (!pageSettings) return {};
     
     const { pattern, patternSize, patternColor, patternOpacity } = pageSettings;
     
-    // Calculate dot size based on pattern size to maintain visibility
+    
     const getDotSize = (size) => {
-      // Adjust dot size proportionally to pattern size
-      // but keep it visible even for large grid sizes
+      
+      
       return Math.max(2, Math.min(4, Math.floor(size / 10)));
     };
     
@@ -70,7 +70,7 @@ const NoteBookUi = () => {
     }
   };
 
-  // Helper function to convert hex to rgb
+  
   const hexToRgb = (hex) => {
     const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
     hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
@@ -83,7 +83,7 @@ const NoteBookUi = () => {
 
   return (
     <div className={styles.notebookui_cover}>
-      {/* Separate background layer for the pattern */}
+      {}
       <div 
         className={styles.pattern_background}
         style={getBackgroundPattern()}

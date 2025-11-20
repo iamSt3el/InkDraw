@@ -1,4 +1,4 @@
-// src/pages/NoteBookManagerPage/index.jsx - Updated with router navigation
+
 import React, { useEffect, useState } from 'react'
 import styles from './NoteBookManager.module.scss'
 import Header from '../../components/Header';
@@ -15,7 +15,7 @@ const NoteBookManager = () => {
 
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Initialize notebooks on component mount
+  
   useEffect(() => {
     const initializeNotebooks = async () => {
       if (!hasInitialized) {
@@ -28,7 +28,7 @@ const NoteBookManager = () => {
     initializeNotebooks();
   }, [loadNotebooks, hasInitialized]);
 
-  // Enhanced logging for debugging
+  
   useEffect(() => {
     console.log('=== NotebookManager Debug ===');
     console.log('Raw notebooks from store:', notebooks);
@@ -37,7 +37,7 @@ const NoteBookManager = () => {
     console.log('Error state:', error);
     console.log('Has initialized:', hasInitialized);
     
-    // Log each notebook
+    
     if (notebooks && notebooks.length > 0) {
       notebooks.forEach((notebook, index) => {
         console.log(`Notebook ${index}:`, {

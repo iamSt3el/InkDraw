@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/SmoothCanvas.jsx - COMPLETE VERSION WITH FIXED SELECTION OVERLAY
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CanvasEngine } from './core/CanvasEngine';
 import { EventHandler } from './core/EventHandler';
@@ -26,17 +26,17 @@ const SmoothCanvas = () => {
     panCanvas,
     setZoomLevel,
     setViewBox,
-    // Shape properties
+    
     shapeColor,
     shapeBorderSize,
     shapeFill,
     shapeFillColor,
     shapeRoundCorners,
-    // Selection properties
+    
     selectedItems,
     setSelection,
     clearSelection,
-    // AI properties
+    
     aiTextSettings,
     isAiProcessing,
     setAiProcessing,
@@ -49,7 +49,7 @@ const SmoothCanvas = () => {
   const { currentPageData } = usePageStore();
   const { showNotification } = useUIStore();
 
-  // Refs
+  
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -60,21 +60,21 @@ const SmoothCanvas = () => {
   const isDraggingSelectionRef = useRef(false);
   const aiProcessingQueueRef = useRef([]);
 
-  // State
+  
   const [paths, setPaths] = useState([]);
   const [pathsToErase, setPathsToErase] = useState(new Set());
   const [eraserPosition, setEraserPosition] = useState({ x: 0, y: 0 });
   const [showEraser, setShowEraser] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // FIXED: Selection overlay state
+  
   const [selectionOverlay, setSelectionOverlay] = useState({
     isSelecting: false,
     selectionRect: null,
     selectionBounds: null
   });
 
-  // AI-specific state
+  
   const [aiProcessingState, setAiProcessingState] = useState({
     isProcessing: false,
     currentStroke: null,
@@ -83,7 +83,7 @@ const SmoothCanvas = () => {
 
   const { width, height } = canvasDimensions;
 
-  // Get current canvas data
+  
   const getCurrentCanvasData = useCallback(() => {
     if (engineRef.current) {
       return engineRef.current.exportAsJSON();
@@ -91,7 +91,7 @@ const SmoothCanvas = () => {
     return null;
   }, []);
 
-  // Update canvas data when content changes
+  
   const updateCanvasData = useCallback(() => {
     if (engineRef.current && isInitialized) {
       const data = getCurrentCanvasData();
@@ -99,7 +99,7 @@ const SmoothCanvas = () => {
     }
   }, [getCurrentCanvasData, setCanvasData, isInitialized]);
 
-  // Process AI handwriting
+  
   const processAIHandwriting = useCallback(async (strokeData) => {
     console.log('SmoothCanvas: Processing AI handwriting...');
 
@@ -112,7 +112,7 @@ const SmoothCanvas = () => {
       setAiProcessing(true);
       setAiProcessingState(prev => ({ ...prev, isProcessing: true }));
 
-      // Show processing feedback
+      
       if (rendererRef.current) {
         rendererRef.current.renderAIProcessingFeedback(strokeData.bounds, true);
       }
@@ -136,15 +136,15 @@ const SmoothCanvas = () => {
           hasCorrections: result.metadata?.hasCorrections
         });
 
-        // Clear processing feedback
+        
         if (rendererRef.current) {
           rendererRef.current.clearAIProcessingFeedback();
         }
 
-        // Create AI text element
+        
         await createAITextElement(result, strokeData.bounds);
 
-        // Show success notification
+        
         if (showNotification) {
           const confidencePercent = Math.round(result.confidence * 100);
           const message = result.metadata?.hasCorrections
@@ -160,12 +160,12 @@ const SmoothCanvas = () => {
     } catch (error) {
       console.error('SmoothCanvas: AI processing error:', error);
 
-      // Clear processing feedback
+      
       if (rendererRef.current) {
         rendererRef.current.clearAIProcessingFeedback();
       }
 
-      // Show error notification with helpful message
+      
       if (showNotification) {
         let errorMessage = 'AI processing failed';
         if (error.message.includes('not available')) {
@@ -184,7 +184,7 @@ const SmoothCanvas = () => {
     }
   }, [setAiProcessing, clearAiProcessing, showNotification]);
 
-  // Create AI text element
+  
   const createAITextElement = useCallback(async (aiResult, bounds) => {
     console.log('SmoothCanvas: Creating AI text element...');
 
@@ -194,14 +194,14 @@ const SmoothCanvas = () => {
     }
 
     try {
-      // Get effective text color (use stroke color if textColor is null)
+      
       const effectiveTextColor = aiTextSettings.textColor || strokeColor;
 
-      // Calculate text position based on bounds and alignment
+      
       let textX = bounds.x;
-      const textY = bounds.centerY; // Center vertically in the stroke bounds
+      const textY = bounds.centerY; 
 
-      // Adjust X position based on text alignment
+      
       switch (aiTextSettings.textAlign) {
         case 'center':
           textX = bounds.centerX;
@@ -215,7 +215,7 @@ const SmoothCanvas = () => {
           break;
       }
 
-      // Create AI text object
+      
       const aiTextElement = {
         id: engineRef.current.generatePathId(),
         type: 'aiText',
@@ -239,17 +239,17 @@ const SmoothCanvas = () => {
 
       console.log('SmoothCanvas: Adding AI text element to engine:', aiTextElement);
 
-      // Add to engine paths
+      
       engineRef.current.paths.push(aiTextElement);
 
-      // Render the text element
+      
       rendererRef.current.renderAITextElement(aiTextElement);
 
-      // Update paths state
+      
       const currentPaths = engineRef.current.getPaths();
       setPaths([...currentPaths]);
 
-      // Update canvas data
+      
       updateCanvasData();
 
       console.log('SmoothCanvas: AI text element created successfully');
@@ -259,7 +259,7 @@ const SmoothCanvas = () => {
     }
   }, [aiTextSettings, strokeColor, updateCanvasData]);
 
-  // Simple canvas data loader
+  
   const loadCanvasData = useCallback((vectorData) => {
     if (!engineRef.current || !vectorData) return false;
 
@@ -273,7 +273,7 @@ const SmoothCanvas = () => {
         const currentPaths = engineRef.current.getPaths();
         setPaths([...currentPaths]);
 
-        // Re-render AI text elements if any
+        
         if (rendererRef.current) {
           rendererRef.current.renderAITextElements();
         }
@@ -286,7 +286,7 @@ const SmoothCanvas = () => {
     }
   }, []);
 
-  // Simple clear canvas
+  
   const clearCanvas = useCallback(() => {
     if (engineRef.current) {
       engineRef.current.clearPaths();
@@ -294,7 +294,7 @@ const SmoothCanvas = () => {
       setPaths([]);
       setPathsToErase(new Set());
 
-      // Clear any temporary elements
+      
       const svg = svgRef.current;
       const tempPath = svg?.querySelector('#temp-path');
       const tempRect = svg?.querySelector('#temp-rectangle');
@@ -309,14 +309,14 @@ const SmoothCanvas = () => {
         rendererRef.current.clearAIProcessingFeedback();
       }
 
-      // Update canvas data immediately
+      
       const emptyData = getCurrentCanvasData();
       setCanvasData(emptyData);
 
-      // Clear AI processing state
+      
       clearAiProcessing();
 
-      // FIXED: Clear selection overlay
+      
       setSelectionOverlay({
         isSelecting: false,
         selectionRect: null,
@@ -328,18 +328,18 @@ const SmoothCanvas = () => {
     return false;
   }, [getCurrentCanvasData, setCanvasData, clearAiProcessing]);
 
-  // Handle pan events
+  
   const handlePan = useCallback((deltaX, deltaY) => {
     panCanvas(deltaX, deltaY);
   }, [panCanvas]);
 
-  // Handle zoom events
+  
   const handleZoom = useCallback((zoomDelta, center) => {
     const newZoom = Math.max(0.1, Math.min(5, zoomLevel * zoomDelta));
     setZoomLevel(newZoom);
   }, [zoomLevel, setZoomLevel]);
 
-  // FIXED: Selection event handlers with overlay updates
+  
   const handleSelectionChanged = useCallback((selectedItemIds) => {
     console.log('SmoothCanvas: Selection changed:', selectedItemIds);
     setSelection(selectedItemIds);
@@ -347,7 +347,7 @@ const SmoothCanvas = () => {
     if (engineRef.current) {
       engineRef.current.setSelectedItems(selectedItemIds);
       
-      // Update selection overlay state
+      
       const bounds = engineRef.current.getSelectionBounds(selectedItemIds);
       console.log('SmoothCanvas: Selection bounds:', bounds);
       setSelectionOverlay(prev => ({
@@ -355,7 +355,7 @@ const SmoothCanvas = () => {
         selectionBounds: bounds
       }));
       
-      // Force renderer update
+      
       if (rendererRef.current) {
         rendererRef.current.renderPaths();
       }
@@ -364,11 +364,11 @@ const SmoothCanvas = () => {
     const currentPaths = engineRef.current.getPaths();
     setPaths([...currentPaths]);
     
-    // Force canvas data update to trigger re-render
+    
     updateCanvasData();
   }, [setSelection, updateCanvasData]);
 
-  // FIXED: New selection rect changed handler
+  
   const handleSelectionRectChanged = useCallback((rect) => {
     console.log('SmoothCanvas: Selection rect changed:', rect);
     setSelectionOverlay(prev => ({
@@ -383,7 +383,7 @@ const SmoothCanvas = () => {
     const currentPaths = engineRef.current.getPaths();
     setPaths([...currentPaths]);
     
-    // Update selection bounds after move
+    
     if (engineRef.current) {
       const bounds = engineRef.current.getSelectionBounds(selectedItemIds);
       setSelectionOverlay(prev => ({
@@ -391,7 +391,7 @@ const SmoothCanvas = () => {
         selectionBounds: bounds
       }));
       
-      // Force renderer update for images
+      
       if (rendererRef.current) {
         rendererRef.current.renderPaths();
       }
@@ -403,7 +403,7 @@ const SmoothCanvas = () => {
     const currentPaths = engineRef.current.getPaths();
     setPaths([...currentPaths]);
     
-    // Update selection bounds after resize
+    
     if (engineRef.current) {
       const bounds = engineRef.current.getSelectionBounds(selectedItemIds);
       setSelectionOverlay(prev => ({
@@ -411,7 +411,7 @@ const SmoothCanvas = () => {
         selectionBounds: bounds
       }));
       
-      // Force renderer update for images
+      
       if (rendererRef.current) {
         rendererRef.current.renderPaths();
       }
@@ -426,7 +426,7 @@ const SmoothCanvas = () => {
     isDraggingSelectionRef.current = false;
     updateCanvasData();
     
-    // Clear area selection overlay when drag ends
+    
     setSelectionOverlay(prev => ({
       ...prev,
       isSelecting: false,
@@ -434,7 +434,7 @@ const SmoothCanvas = () => {
     }));
   }, [updateCanvasData]);
 
-  // AI stroke event handlers
+  
   const handleAIStrokeStart = useCallback((point) => {
     console.log('SmoothCanvas: AI stroke started');
     setAiProcessingState(prev => ({
@@ -463,7 +463,7 @@ const SmoothCanvas = () => {
       return strokes[0];
     }
 
-    // Combine all points and calculate overall bounds
+    
     let allPoints = [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
@@ -497,15 +497,15 @@ const SmoothCanvas = () => {
   const handleAIStrokeComplete = useCallback((strokeData) => {
     console.log('SmoothCanvas: AI stroke completed, processing...');
 
-    // Add to processing queue
+    
     aiProcessingQueueRef.current.push(strokeData);
 
-    // Clear any existing timer
+    
     if (aiProcessingQueueRef.current.timer) {
       clearTimeout(aiProcessingQueueRef.current.timer);
     }
 
-    // Start new timer
+    
     aiProcessingQueueRef.current.timer = setTimeout(() => {
       const strokesToProcess = [...aiProcessingQueueRef.current];
       aiProcessingQueueRef.current = [];
@@ -517,7 +517,7 @@ const SmoothCanvas = () => {
     }, 1000);
   }, [processAIHandwriting, combineNearbyStrokes]);
 
-  // Helper function for resize handle cursors
+  
   const getHandleCursor = useCallback((handleName) => {
     const cursors = {
       'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
@@ -527,21 +527,21 @@ const SmoothCanvas = () => {
     return cursors[handleName] || 'default';
   }, []);
 
-  // Load canvas data when it changes (but not during selection drag)
+  
   useEffect(() => {
     if (isInitialized && canvasData && !isDraggingSelectionRef.current) {
       loadCanvasData(canvasData);
     }
   }, [canvasData, isInitialized, loadCanvasData]);
 
-  // Load from page data if available
+  
   useEffect(() => {
     if (isInitialized && currentPageData?.canvasData && !canvasData) {
       loadCanvasData(currentPageData.canvasData);
     }
   }, [currentPageData?.canvasData, isInitialized, canvasData, loadCanvasData]);
 
-  // Initialize canvas
+  
   useEffect(() => {
     if (!canvasRef.current || !svgRef.current || isInitialized) return;
 
@@ -572,7 +572,7 @@ const SmoothCanvas = () => {
 
     const renderer = new CanvasRenderer(engine);
 
-    // FIXED: Set callbacks including selection rect callback
+    
     eventHandler.setCallbacks({
       onStrokeComplete: () => {
         const newPaths = [...engine.getPaths()];
@@ -605,9 +605,9 @@ const SmoothCanvas = () => {
       onSelectionResized: handleSelectionResized,
       onSelectionDragStart: handleSelectionDragStart,
       onSelectionDragEnd: handleSelectionDragEnd,
-      // FIXED: Add selection rect changed callback
+      
       onSelectionRectChanged: handleSelectionRectChanged,
-      // AI callbacks
+      
       onAIStrokeStart: handleAIStrokeStart,
       onAIStrokeUpdate: handleAIStrokeUpdate,
       onAIStrokeComplete: handleAIStrokeComplete
@@ -619,7 +619,7 @@ const SmoothCanvas = () => {
     eventHandlerRef.current = eventHandler;
     rendererRef.current = renderer;
 
-    // Register canvas methods
+    
     registerCanvasMethods({
       clearCanvas: clearCanvas,
       exportImage: async (format = 'png') => {
@@ -642,7 +642,7 @@ const SmoothCanvas = () => {
       },
       getCurrentCanvasData: getCurrentCanvasData,
       loadCanvasData: loadCanvasData,
-      // Selection methods
+      
       findItemsInRect: (rect) => {
         return engineRef.current ? engineRef.current.findItemsInRect(rect) : [];
       },
@@ -696,16 +696,16 @@ const SmoothCanvas = () => {
       }
       aiProcessingQueueRef.current = [];
     };
-  }, []); // Initialize only once
+  }, []); 
 
-  // Update canvas dimensions
+  
   useEffect(() => {
     if (engineRef.current && isInitialized) {
       engineRef.current.updateOptions({ width, height });
     }
   }, [width, height, isInitialized]);
 
-  // Update tool options including AI settings
+  
   useEffect(() => {
     if (engineRef.current && eventHandlerRef.current && isInitialized) {
       engineRef.current.updateOptions({
@@ -744,7 +744,7 @@ const SmoothCanvas = () => {
         if (engineRef.current) {
           engineRef.current.clearSelection();
         }
-        // FIXED: Clear selection overlay when switching tools
+        
         setSelectionOverlay({
           isSelecting: false,
           selectionRect: null,
@@ -752,7 +752,7 @@ const SmoothCanvas = () => {
         });
       }
 
-      // Clear AI processing when switching away from AI tool
+      
       if (currentTool !== 'aiHandwriting') {
         clearAiProcessing();
         if (rendererRef.current) {
@@ -765,7 +765,7 @@ const SmoothCanvas = () => {
     shapeColor, shapeBorderSize, shapeFill, shapeFillColor, shapeRoundCorners,
     isInitialized, selectedItems, clearSelection, clearAiProcessing]);
 
-  // Sync selection state
+  
   useEffect(() => {
     if (engineRef.current && isInitialized && !isDraggingSelectionRef.current) {
       const storeSelectedArray = Array.from(selectedItems);
@@ -776,7 +776,7 @@ const SmoothCanvas = () => {
         const currentPaths = engineRef.current.getPaths();
         setPaths([...currentPaths]);
         
-        // Update selection overlay bounds
+        
         const bounds = engineRef.current.getSelectionBounds(storeSelectedArray);
         setSelectionOverlay(prev => ({
           ...prev,
@@ -786,14 +786,14 @@ const SmoothCanvas = () => {
     }
   }, [selectedItems, isInitialized]);
 
-  // Update SVG viewBox
+  
   useEffect(() => {
     if (svgRef.current && viewBox) {
       svgRef.current.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
     }
   }, [viewBox]);
 
-  // Update eraser preview
+  
   useEffect(() => {
     if (rendererRef.current && isInitialized) {
       rendererRef.current.updateEraserPreview(pathsToErase);
@@ -855,7 +855,7 @@ const SmoothCanvas = () => {
         {rendererRef.current?.renderPaths(paths, pathsToErase)}
       </svg>
 
-      {/* FIXED: Selection overlay SVG */}
+      {}
       <svg
         width={width}
         height={height}
@@ -868,7 +868,7 @@ const SmoothCanvas = () => {
           zIndex: 3
         }}
       >
-        {/* FIXED: Manual selection overlay rendering */}
+        {}
         {currentTool === 'select' && selectionOverlay.isSelecting && selectionOverlay.selectionRect && (
           <rect
             x={selectionOverlay.selectionRect.x}
@@ -886,10 +886,10 @@ const SmoothCanvas = () => {
           />
         )}
         
-        {/* Selection bounds and handles */}
+        {}
         {currentTool === 'select' && selectionOverlay.selectionBounds && selectedItems.size > 0 && (
           <g>
-            {/* Selection bounds rectangle */}
+            {}
             <rect
               x={selectionOverlay.selectionBounds.x - 3}
               y={selectionOverlay.selectionBounds.y - 3}
@@ -905,12 +905,12 @@ const SmoothCanvas = () => {
               }}
             />
             
-            {/* Resize handles */}
+            {}
             {engineRef.current && (() => {
               const handles = engineRef.current.getResizeHandles(selectionOverlay.selectionBounds);
               return Object.entries(handles).map(([name, handle]) => (
                 <g key={`handle-${name}`}>
-                  {/* Handle background */}
+                  {}
                   <circle
                     cx={handle.x}
                     cy={handle.y}
@@ -924,7 +924,7 @@ const SmoothCanvas = () => {
                       filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
                     }}
                   />
-                  {/* Handle center dot */}
+                  {}
                   <circle
                     cx={handle.x}
                     cy={handle.y}
@@ -945,7 +945,7 @@ const SmoothCanvas = () => {
       {currentTool === 'eraser' && showEraser &&
         rendererRef.current?.renderEraserCursor(showEraser, eraserPosition, eraserWidth / zoomLevel)}
 
-      {/* AI tool cursor */}
+      {}
       {currentTool === 'aiHandwriting' && rendererRef.current?.renderAIToolCursor(true, eraserPosition)}
 
       <div className={styles.zoomIndicator}>
@@ -958,7 +958,7 @@ const SmoothCanvas = () => {
         </div>
       )}
 
-      {/* AI processing indicator */}
+      {}
       {currentTool === 'aiHandwriting' && isAiProcessing && (
         <div className={styles.aiProcessingInfo}>
           <div className={styles.aiSpinner}></div>
@@ -966,7 +966,7 @@ const SmoothCanvas = () => {
         </div>
       )}
 
-      {/* FIXED: Debug overlay for selection state */}
+      {}
       {currentTool === 'select' && process.env.NODE_ENV === 'development' && (
         <div style={{
           position: 'absolute',

@@ -1,4 +1,4 @@
-// src/components/Notification/Notification.jsx - NEW COMPONENT
+
 import React, { useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
@@ -7,7 +7,7 @@ import styles from './Notification.module.scss';
 const Notification = () => {
   const { notification, clearNotification } = useUIStore();
 
-  // Auto-hide notification
+  
   useEffect(() => {
     if (notification && notification.duration > 0) {
       const timer = setTimeout(() => {

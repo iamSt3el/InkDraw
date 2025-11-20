@@ -1,4 +1,4 @@
-// src/components/ZoomControls/ZoomControls.jsx
+
 import React from 'react';
 import { ZoomIn, ZoomOut, Move, Maximize } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
@@ -14,13 +14,13 @@ const ZoomControls = () => {
     setTool
   } = useDrawingStore();
 
-  // Format zoom level as percentage
+  
   const zoomPercentage = Math.round(zoomLevel * 100);
 
-  // Handle pan tool toggle
+  
   const handlePanToolToggle = () => {
     if (currentTool === 'pan') {
-      // If already in pan mode, switch back to pen
+      
       setTool('pen');
     } else {
       setTool('pan');

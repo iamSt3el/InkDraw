@@ -1,4 +1,4 @@
-// src/components/NotebookCard/index.jsx - Updated with router navigation
+
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styles from './NotebookCard.module.scss'
@@ -12,40 +12,40 @@ const NoteBookCard = ({ notebook }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const numberOfHoles = 19;
 
-  // Default values in case notebook prop is not provided
+  
   const {
     id = 1,
     title = "What is DSA",
     description = "This notebook contains notes about DSA. Like Array, linked list and trees.",
     date = "14/05/2025",
-    pages = [], // This is the array of page IDs
-    totalPages = 100, // This is the total pages limit
+    pages = [], 
+    totalPages = 100, 
     currentPage = 1,
     progress = 0,
     gradient = "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)"
   } = notebook || {};
 
-  // Calculate actual progress based on current page and total pages
+  
   const actualProgress = totalPages ? Math.round((currentPage / totalPages) * 100) : 0;
 
-  // Determine how many pages have been created vs total allowed
+  
   const createdPages = Array.isArray(pages) ? pages.length : 0;
   const totalAllowedPages = totalPages || 100;
 
   const handleCardClick = (e) => {
-    // Don't open notebook if clicking on delete button
+    
     if (e.target.closest(`.${styles.delete_button}`)) {
       return;
     }
     
     console.log('Opening notebook:', id, title);
     
-    // Navigate to the notebook inside page
+    
     navigate(`/notebook/${id}`);
   };
 
   const handleDeleteClick = (e) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation(); 
     setShowDeleteConfirm(true);
   };
 
@@ -56,7 +56,7 @@ const NoteBookCard = ({ notebook }) => {
       setShowDeleteConfirm(false);
     } catch (error) {
       console.error('Error deleting notebook:', error);
-      // Keep modal open on error
+      
     }
   };
 
@@ -137,7 +137,7 @@ const NoteBookCard = ({ notebook }) => {
         </div>
       </div>
 
-      {/* Render Delete Confirmation Modal using Portal */}
+      {}
       {showDeleteConfirm && createPortal(<DeleteModal />, document.body)}
     </>
   )

@@ -1,13 +1,13 @@
-// src/services/AIProcessingService.js - SIMPLIFIED VERSION FOR RAW COORDINATES
+
 class AIProcessingService {
   constructor() {
     this.flaskServerUrl = 'http://127.0.0.1:5000';
     this.isFlaskAvailable = false;
     this.lastHealthCheck = 0;
-    this.healthCheckInterval = 30000; // 30 seconds
+    this.healthCheckInterval = 30000; 
   }
 
-  // Update the convertStrokeDataForFlask method in AIProcessingService.js
+  
 
   convertStrokeDataForFlask(coordinates, bounds) {
     console.log('Converting RAW stroke data for Flask...', {
@@ -20,7 +20,7 @@ class AIProcessingService {
       return { strokes: [] };
     }
 
-    // Sample first few points to see what we're working with
+    
     console.log('Sample raw coordinates:', coordinates.slice(0, 5));
 
     const strokes = [];
@@ -29,22 +29,22 @@ class AIProcessingService {
     for (let i = 0; i < coordinates.length; i++) {
       const point = coordinates[i];
 
-      // Start new stroke if this point is marked as new stroke (except for first point)
+      
       if (point.isNewStroke && i > 0 && currentStroke.length > 0) {
-        // Save current stroke and start new one
+        
         strokes.push([...currentStroke]);
         currentStroke = [];
       }
 
-      // Add point to current stroke - these are now RAW canvas coordinates
-      // Just like Flask HTML collects them
+      
+      
       currentStroke.push({
         x: point.x, 
         y: point.y
       });
     }
 
-    // Add the last stroke if it has points
+    
     if (currentStroke.length > 0) {
       strokes.push(currentStroke);
     }
@@ -73,7 +73,7 @@ class AIProcessingService {
         headers: {
           'Content-Type': 'application/json',
         },
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000) 
       });
 
       if (response.ok) {
@@ -101,7 +101,7 @@ class AIProcessingService {
     });
 
     try {
-      // Check if Flask server is available
+      
       const isFlaskHealthy = await this.checkFlaskHealth();
 
       if (!isFlaskHealthy) {
@@ -112,13 +112,13 @@ class AIProcessingService {
         }
       }
 
-      // SIMPLIFIED: Convert data to Flask format (no complex coordinate scaling)
+      
       const flaskData = this.convertStrokeDataForFlask(coordinates, bounds);
 
-      // Send data in the format Flask expects
+      
       const requestBody = {
         strokes: flaskData.strokes,
-        use_spell_check: options.useSpellCheck !== false // Default to true
+        use_spell_check: options.useSpellCheck !== false 
       };
 
       console.log('Sending to Flask server:', {
@@ -129,14 +129,14 @@ class AIProcessingService {
         coordinateRanges: this.analyzeCoordinateRanges(requestBody.strokes)
       });
 
-      // Send request to Flask server
+      
       const response = await fetch(`${this.flaskServerUrl}/predict`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(15000) // 15 second timeout for AI processing
+        signal: AbortSignal.timeout(15000) 
       });
 
       if (!response.ok) {
@@ -150,7 +150,7 @@ class AIProcessingService {
         throw new Error(result.error || 'AI processing failed');
       }
 
-      // Convert Flask response to our expected format
+      
       const recognizedText = result.spell_checked || result.raw_prediction || '';
 
       return {
@@ -158,14 +158,14 @@ class AIProcessingService {
         recognizedText: recognizedText,
         rawPrediction: result.raw_prediction || '',
         spellChecked: result.spell_checked || result.raw_prediction || '',
-        confidence: 0.8, // Flask doesn't return confidence, use default
+        confidence: 0.8, 
         metadata: {
           processingTime: Date.now(),
           hasCorrections: result.spell_checked && result.spell_checked !== result.raw_prediction,
           spellCheckInfo: result.spell_check_info,
           numStrokes: requestBody.strokes.length,
           totalPoints: requestBody.strokes.reduce((sum, stroke) => sum + stroke.length, 0),
-          coordinateSystem: 'simple_canvas', // Now using simple canvas coordinates
+          coordinateSystem: 'simple_canvas', 
           flaskResponse: result
         }
       };
@@ -181,7 +181,7 @@ class AIProcessingService {
     }
   }
 
-  // Helper method to analyze coordinate ranges for debugging
+  
   analyzeCoordinateRanges(strokes) {
     if (!strokes || strokes.length === 0) return null;
 
@@ -209,7 +209,7 @@ class AIProcessingService {
   getFallbackResponse(coordinates) {
     console.log('AIProcessingService: Using fallback response');
 
-    // Simple fallback based on stroke characteristics
+    
     const numPoints = coordinates.length;
     let fallbackText = '';
 
@@ -228,7 +228,7 @@ class AIProcessingService {
       recognizedText: fallbackText,
       rawPrediction: fallbackText,
       spellChecked: fallbackText,
-      confidence: 0.3, // Low confidence for fallback
+      confidence: 0.3, 
       metadata: {
         processingTime: Date.now(),
         hasCorrections: false,
@@ -269,6 +269,5 @@ class AIProcessingService {
   }
 }
 
-// Export singleton instance
 const aiProcessingService = new AIProcessingService();
 export default aiProcessingService;

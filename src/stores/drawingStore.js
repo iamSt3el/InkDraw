@@ -1,56 +1,56 @@
-// src/stores/drawingStore.js - COMPLETE FIXED VERSION
+
 import { create } from 'zustand';
 
 const VALID_PATTERNS = ['blank', 'grid', 'dots', 'lines', 'graph'];
 
 export const useDrawingStore = create((set, get) => ({
-  // Tool state
+  
   currentTool: 'pen',
   strokeColor: '#000000',
   strokeWidth: 5,
   opacity: 100,
   eraserWidth: 10,
 
-   // AI Handwriting specific settings - NEW
+   
    aiTextSettings: {
     fontFamily: 'Arial, Helvetica, sans-serif',
     fontSize: 22,
     fontWeight: 'normal',
-    textColor: null, // null means use stroke color
+    textColor: null, 
     textAlign: 'center'
   },
   
-  // AI processing state - NEW
+  
   isAiProcessing: false,
   aiProcessingTimer: null,
-  currentAiStrokes: [], // Raw coordinate data for current word
-  aiWordBoundaryThreshold: 40, // pixels
+  currentAiStrokes: [], 
+  aiWordBoundaryThreshold: 40, 
   
-  // Selection state
-  selectedItems: new Set(), // Set of selected item IDs
-  selectionBounds: null, // { x, y, width, height } of selection
-  isSelecting: false, // True when dragging selection area
-  selectionStart: null, // Start point for area selection
-  selectionRect: null, // Current selection rectangle
   
-  // Shape properties
+  selectedItems: new Set(), 
+  selectionBounds: null, 
+  isSelecting: false, 
+  selectionStart: null, 
+  selectionRect: null, 
+  
+  
   shapeColor: '#000000',
   shapeBorderSize: 2,
   shapeFill: false,
   shapeFillColor: '#000000',
   shapeRoundCorners: false,
   
-  // Canvas dimensions
+  
   canvasDimensions: {
     width: 1600,
     height: 870
   },
   
-  // Zoom and Pan state
+  
   zoomLevel: 1,
   viewBox: { x: 0, y: 0, width: 1600, height: 870 },
   
-  // Page settings
+  
   pageSettings: {
     pattern: 'grid',
     patternSize: 20,
@@ -58,21 +58,21 @@ export const useDrawingStore = create((set, get) => ({
     patternOpacity: 50
   },
   
-  // Canvas state management
+  
   canvasData: null,
   hasUnsavedChanges: false,
   isDataLoading: false,
   
-   // UPDATED: Tool actions with AI handwriting support
+   
    setTool: (tool) => {
-    const validTools = ['pen', 'eraser', 'pan', 'rectangle', 'select', 'aiHandwriting']; // ADDED aiHandwriting
+    const validTools = ['pen', 'eraser', 'pan', 'rectangle', 'select', 'aiHandwriting']; 
     if (validTools.includes(tool)) {
-      // Clear selection when switching away from select tool
+      
       if (get().currentTool === 'select' && tool !== 'select') {
         get().clearSelection();
       }
       
-      // NEW: Clear AI processing when switching away from AI tool
+      
       if (get().currentTool === 'aiHandwriting' && tool !== 'aiHandwriting') {
         get().clearAiProcessing();
       }
@@ -83,7 +83,7 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
 
-  // NEW: AI Text Settings Actions
+  
   setAiFontFamily: (fontFamily) => {
     set(state => ({
       aiTextSettings: { ...state.aiTextSettings, fontFamily }
@@ -121,7 +121,7 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
   
-  // NEW: AI Processing Actions
+  
   setAiProcessing: (isProcessing) => {
     set({ isAiProcessing: isProcessing });
   },
@@ -147,12 +147,12 @@ export const useDrawingStore = create((set, get) => ({
   startAiProcessingTimer: (callback) => {
     const state = get();
     
-    // Clear existing timer
+    
     if (state.aiProcessingTimer) {
       clearTimeout(state.aiProcessingTimer);
     }
     
-    // Start new 1-second timer
+    
     const timer = setTimeout(() => {
       if (state.currentAiStrokes.length > 0) {
         callback(state.currentAiStrokes);
@@ -162,12 +162,12 @@ export const useDrawingStore = create((set, get) => ({
     set({ aiProcessingTimer: timer });
   },
   
-  // NEW: Word boundary detection
+  
   shouldStartNewWord: (newStrokeStart) => {
     const state = get();
     if (state.currentAiStrokes.length === 0) return false;
     
-    // Get last point of last stroke
+    
     const lastStroke = state.currentAiStrokes[state.currentAiStrokes.length - 1];
     if (!lastStroke || lastStroke.length === 0) return false;
     
@@ -180,7 +180,7 @@ export const useDrawingStore = create((set, get) => ({
     return distance > state.aiWordBoundaryThreshold;
   },
   
-  // FIXED: Selection actions with proper method connections
+  
   addToSelection: (itemId) => {
     set(state => {
       const newSelected = new Set(state.selectedItems);
@@ -233,7 +233,7 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
   
-  // Selection area methods
+  
   startAreaSelection: (point) => {
     set({
       isSelecting: true,
@@ -257,14 +257,14 @@ export const useDrawingStore = create((set, get) => ({
     set({ selectionRect: rect });
   },
   
-  // FIXED: finishAreaSelection with connected methods
+  
   finishAreaSelection: () => {
     const state = get();
     if (!state.isSelecting || !state.selectionRect) return;
     
     console.log('DrawingStore: Finishing area selection with rect:', state.selectionRect);
     
-    // Use the connected findItemsInRect method
+    
     if (state.findItemsInRect) {
       const itemsInRect = state.findItemsInRect(state.selectionRect);
       console.log('DrawingStore: Found items in selection rect:', itemsInRect);
@@ -280,7 +280,7 @@ export const useDrawingStore = create((set, get) => ({
     });
   },
   
-  // FIXED: Selection bounds calculation with connected methods
+  
   calculateSelectionBounds: (selectedItems) => {
     const state = get();
     console.log('DrawingStore: Calculating selection bounds for:', selectedItems);
@@ -295,7 +295,7 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
   
-  // FIXED: Transform selected items with connected methods
+  
   moveSelection: (deltaX, deltaY) => {
     const state = get();
     if (state.selectedItems.size === 0) return;
@@ -304,7 +304,7 @@ export const useDrawingStore = create((set, get) => ({
     
     if (state.moveSelectedItems) {
       state.moveSelectedItems(deltaX, deltaY);
-      // Update selection bounds
+      
       if (state.getSelectionBounds) {
         const newBounds = state.getSelectionBounds(state.selectedItems);
         set({ selectionBounds: newBounds });
@@ -342,7 +342,7 @@ export const useDrawingStore = create((set, get) => ({
     }
   },
   
-  // Existing stroke/shape actions...
+  
   setStrokeColor: (color) => {
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
       set({ strokeColor: color });
@@ -366,7 +366,7 @@ export const useDrawingStore = create((set, get) => ({
     set({ eraserWidth: validWidth });
   },
   
-  // Shape actions
+  
   setShapeColor: (color) => {
     if (typeof color === 'string' && (color.startsWith('#') || color.startsWith('rgb'))) {
       set({ shapeColor: color });
@@ -400,7 +400,7 @@ export const useDrawingStore = create((set, get) => ({
     canvasDimensions: dimensions
   }),
   
-  // Zoom and Pan actions
+  
   setZoomLevel: (level) => set(state => {
     const newZoom = Math.max(0.1, Math.min(5, level));
     
@@ -509,7 +509,7 @@ export const useDrawingStore = create((set, get) => ({
     };
   }),
   
-  // Page settings actions
+  
   setPattern: (pattern) => {
     if (VALID_PATTERNS.includes(pattern)) {
       set(state => ({
@@ -542,7 +542,7 @@ export const useDrawingStore = create((set, get) => ({
     }));
   },
   
-  // Canvas data actions
+  
   setCanvasData: (data) => {
     const currentData = get().canvasData;
     
@@ -576,7 +576,7 @@ export const useDrawingStore = create((set, get) => ({
       hasUnsavedChanges: false,
       isDataLoading: false
     });
-    // Also clear selection when clearing canvas
+    
     get().clearSelection();
   },
   
@@ -600,22 +600,22 @@ export const useDrawingStore = create((set, get) => ({
     return null;
   },
   
-  // Canvas method references (FIXED: Remove null assignments, let registerCanvasMethods set them)
+  
   clearCanvas: null,
   exportCanvasImage: null,
   undoCanvas: null,
   getCurrentCanvasData: null,
   loadCanvasData: null,
-  addImage: null, // Image handling method
+  addImage: null, 
   
-  // FIXED: Selection method references (these will be set by registerCanvasMethods)
+  
   findItemsInRect: null,
   getSelectionBounds: null,
   moveSelectedItems: null,
   resizeSelectedItems: null,
   deleteSelectedItems: null,
   
-  // FIXED: Register canvas methods with ALL selection methods
+  
   registerCanvasMethods: (methods) => {
     console.log('DrawingStore: Registering canvas methods', Object.keys(methods));
     
@@ -632,8 +632,8 @@ export const useDrawingStore = create((set, get) => ({
       undoCanvas: methods.undo,
       getCurrentCanvasData: methods.getCurrentCanvasData,
       loadCanvasData: methods.loadCanvasData,
-      addImage: methods.addImage, // Add image method
-      // FIXED: Add all selection methods
+      addImage: methods.addImage, 
+      
       findItemsInRect: methods.findItemsInRect,
       getSelectionBounds: methods.getSelectionBounds,
       moveSelectedItems: methods.moveSelectedItems,
@@ -670,7 +670,7 @@ export const useDrawingStore = create((set, get) => ({
     };
   },
 
-  // Helper method for getting current shape options
+  
   getShapeOptions: () => {
     const state = get();
     return {
@@ -683,7 +683,6 @@ export const useDrawingStore = create((set, get) => ({
   }
 }));
 
-// FIXED: Add global debug function
 if (typeof window !== 'undefined') {
   window.debugSelection = () => {
     console.log('=== SELECTION DEBUG ===');

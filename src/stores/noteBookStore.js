@@ -1,4 +1,4 @@
-// src/stores/notebookStore.js - Updated with Electron integration
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import electronService from '../services/ElectronService';
@@ -6,14 +6,14 @@ import electronService from '../services/ElectronService';
 export const useNotebookStore = create(
   persist(
     (set, get) => ({
-      // State
+      
       notebooks: [],
       currentNotebookId: null,
       searchQuery: '',
       isLoading: false,
       error: null,
       
-      // Computed values
+      
       get filteredNotebooks() {
         const { notebooks, searchQuery } = get();
         if (!searchQuery.trim()) return notebooks;
@@ -28,19 +28,19 @@ export const useNotebookStore = create(
         return get().notebooks.find(nb => nb.id === get().currentNotebookId) || null;
       },
       
-      // Actions
+      
       setSearchQuery: (query) => set({ searchQuery: query }),
       setCurrentNotebook: (id) => set({ currentNotebookId: id }),
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
       
-      // Add notebook with Electron integration
+      
       addNotebook: async (notebookData) => {
         try {
           set({ isLoading: true, error: null });
 
           const newNotebook = {
-            id: Date.now().toString(), // Convert to string for consistency
+            id: Date.now().toString(), 
             ...notebookData,
             pages: [],
             currentPage: 1,
@@ -49,7 +49,7 @@ export const useNotebookStore = create(
             gradient: getGradientForColor(notebookData.color)
           };
           
-          // Save to Electron if available
+          
           if (electronService.isElectron) {
             const result = await electronService.saveNotebook(newNotebook);
             
@@ -58,7 +58,7 @@ export const useNotebookStore = create(
             }
           }
           
-          // Update state
+          
           set(state => ({
             notebooks: [newNotebook, ...state.notebooks],
             isLoading: false
@@ -72,7 +72,7 @@ export const useNotebookStore = create(
         }
       },
       
-      // Update notebook with Electron integration
+      
       updateNotebook: async (id, updates) => {
         try {
           const state = get();
@@ -84,7 +84,7 @@ export const useNotebookStore = create(
           
           const updatedNotebook = { ...notebook, ...updates };
           
-          // Save to Electron if available
+          
           if (electronService.isElectron) {
             const result = await electronService.saveNotebook(updatedNotebook);
             
@@ -93,7 +93,7 @@ export const useNotebookStore = create(
             }
           }
           
-          // Update state
+          
           set(state => ({
             notebooks: state.notebooks.map(notebook => 
               notebook.id === id ? updatedNotebook : notebook
@@ -108,12 +108,12 @@ export const useNotebookStore = create(
         }
       },
       
-      // Delete notebook with Electron integration
+      
       deleteNotebook: async (id) => {
         try {
           set({ isLoading: true, error: null });
           
-          // Delete from Electron if available
+          
           if (electronService.isElectron) {
             const result = await electronService.deleteNotebook(id);
             
@@ -122,7 +122,7 @@ export const useNotebookStore = create(
             }
           }
           
-          // Update state
+          
           set(state => ({
             notebooks: state.notebooks.filter(notebook => notebook.id !== id),
             currentNotebookId: state.currentNotebookId === id ? null : state.currentNotebookId,
@@ -136,7 +136,7 @@ export const useNotebookStore = create(
         }
       },
       
-      // Load all notebooks from Electron
+      
       loadNotebooks: async () => {
         try {
           set({ isLoading: true, error: null });
@@ -145,7 +145,7 @@ export const useNotebookStore = create(
             const result = await electronService.loadAllNotebooks();
             
             if (result.success) {
-              // Add gradients to loaded notebooks if missing
+              
               const notebooksWithGradients = result.notebooks.map(notebook => ({
                 ...notebook,
                 gradient: notebook.gradient || getGradientForColor(notebook.color)
@@ -156,7 +156,7 @@ export const useNotebookStore = create(
               throw new Error(result.error || 'Failed to load notebooks');
             }
           } else {
-            // Web version - data is already persisted via Zustand
+            
             console.log('Running in web mode, using persisted data');
             set({ isLoading: false });
           }
@@ -167,7 +167,7 @@ export const useNotebookStore = create(
         }
       },
       
-      // Page Operations
+      
       updateCurrentPage: async (pageNumber) => {
         const { currentNotebookId } = get();
         if (!currentNotebookId) return;
@@ -214,11 +214,11 @@ export const useNotebookStore = create(
         }
       },
       
-      // Utility methods
+      
       getNotebooks: () => get().notebooks,
       setNotebooks: (notebooks) => set({ notebooks }),
       
-      // Initialize store (call this on app startup)
+      
       initialize: async () => {
         console.log('Initializing notebook store...');
         await get().loadNotebooks();
@@ -227,13 +227,12 @@ export const useNotebookStore = create(
     {
       name: 'drawo-notebooks',
       getStorage: () => localStorage,
-      // Only persist in web mode
+      
       skipHydration: electronService.isElectron,
     }
   )
 );
 
-// Helper for gradient generation
 function getGradientForColor(color) {
   const colorGradients = {
     '#8b5cf6': 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)',

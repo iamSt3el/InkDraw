@@ -1,4 +1,4 @@
-// src/components/NoteBookForm/NoteBookForm.jsx - Updated with store integration
+
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './NoteBookForm.module.scss';
@@ -46,7 +46,7 @@ const NotebookForm = ({ onClose }) => {
       [name]: finalValue
     }));
 
-    // Clear form error when user starts typing
+    
     if (formError) {
       setFormError('');
     }
@@ -62,7 +62,7 @@ const NotebookForm = ({ onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate form
+    
     if (!formData.title.trim()) {
       setFormError('Please enter a notebook title');
       return;
@@ -91,12 +91,12 @@ const NotebookForm = ({ onClose }) => {
 
       console.log('Creating notebook with data:', notebookData);
 
-      // Use the store's addNotebook method
+      
       const newNotebook = await addNotebook(notebookData);
       
       console.log('Notebook created successfully:', newNotebook);
       
-      // Close the form on success
+      
       onClose();
     } catch (error) {
       console.error('Error creating notebook:', error);
@@ -106,14 +106,14 @@ const NotebookForm = ({ onClose }) => {
     }
   };
 
-  // Display any store-level errors
+  
   useEffect(() => {
     if (error) {
       setFormError(error);
     }
   }, [error]);
 
-  // The modal content
+  
   const modalContent = (
     <div className={styles.formOverlay}>
       <div className={styles.notebookFormContainer}>
@@ -130,7 +130,7 @@ const NotebookForm = ({ onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.notebookForm}>
-          {/* Show form or store errors */}
+          {}
           {formError && (
             <div className={styles.errorMessage}>
               <span>⚠️</span>
@@ -247,7 +247,7 @@ const NotebookForm = ({ onClose }) => {
     </div>
   );
 
-  // Render the modal using createPortal directly to document.body
+  
   return createPortal(modalContent, document.body);
 };
 

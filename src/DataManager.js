@@ -1,48 +1,48 @@
-// data/DataManager.js - Updated with dynamic data directory support
+
 const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
 
 class DataManager {
   constructor(baseDir = null) {
-    // If no baseDir provided, use user data directory
+    
     this.baseDir = baseDir || this.getDefaultDataDirectory();
     this.notebooksDir = path.join(this.baseDir, 'notebooks');
     this.pagesDir = path.join(this.baseDir, 'pages');
     this.settingsDir = path.join(this.baseDir, 'settings');
     
-    // Initialize directories on startup
+    
     this.init();
   }
 
-  // Get default data directory based on platform
+  
   getDefaultDataDirectory() {
     try {
-      // Use Electron's app.getPath for user data
+      
       return path.join(app.getPath('userData'), 'DrawoData');
     } catch (error) {
-      // Fallback for non-Electron environments
+      
       const os = require('os');
       return path.join(os.homedir(), '.drawo-data');
     }
   }
 
-  // Change data directory (for user-selected directories)
+  
   async changeDataDirectory(newBaseDir) {
     try {
-      // Validate the new directory
+      
       await fs.access(newBaseDir);
       
-      // Update paths
+      
       this.baseDir = newBaseDir;
       this.notebooksDir = path.join(this.baseDir, 'notebooks');
       this.pagesDir = path.join(this.baseDir, 'pages');
       this.settingsDir = path.join(this.baseDir, 'settings');
       
-      // Initialize new directories
+      
       await this.init();
       
-      // Save the new path to settings
+      
       await this.saveDataDirectoryPreference(newBaseDir);
       
       return { success: true, path: newBaseDir };
@@ -52,7 +52,7 @@ class DataManager {
     }
   }
 
-  // Save user's data directory preference
+  
   async saveDataDirectoryPreference(dataDir) {
     try {
       const preferencesPath = path.join(app.getPath('userData'), 'preferences.json');
@@ -66,7 +66,7 @@ class DataManager {
     }
   }
 
-  // Load user's data directory preference
+  
   async loadDataDirectoryPreference() {
     try {
       const preferencesPath = path.join(app.getPath('userData'), 'preferences.json');
@@ -74,12 +74,12 @@ class DataManager {
       const preferences = JSON.parse(data);
       return preferences.dataDirectory;
     } catch (error) {
-      // If no preference file exists, return null
+      
       return null;
     }
   }
 
-  // Initialize required directories
+  
   async init() {
     try {
       await fs.mkdir(this.baseDir, { recursive: true });
@@ -94,7 +94,7 @@ class DataManager {
     }
   }
 
-  // Get current data directory info
+  
   getDataDirectoryInfo() {
     return {
       baseDir: this.baseDir,
@@ -104,17 +104,17 @@ class DataManager {
     };
   }
 
-  // NOTEBOOK FUNCTIONS
   
-  // Save a notebook
+  
+  
   async saveNotebook(notebook) {
     try {
       const filePath = path.join(this.notebooksDir, `${notebook.id}.json`);
       const notebookData = {
         ...notebook,
         lastModified: new Date().toISOString(),
-        pages: notebook.pages || [], // Array of page IDs
-        totalPages: notebook.totalPages || notebook.pages || 100 // Store the pages limit
+        pages: notebook.pages || [], 
+        totalPages: notebook.totalPages || notebook.pages || 100 
       };
       await fs.writeFile(filePath, JSON.stringify(notebookData, null, 2));
       return { success: true, notebook: notebookData };
@@ -124,7 +124,7 @@ class DataManager {
     }
   }
 
-  // Load a notebook by ID
+  
   async loadNotebook(notebookId) {
     try {
       const filePath = path.join(this.notebooksDir, `${notebookId}.json`);
@@ -139,7 +139,7 @@ class DataManager {
     }
   }
 
-  // Load all notebooks
+  
   async loadAllNotebooks() {
     try {
       const files = await fs.readdir(this.notebooksDir);
@@ -153,7 +153,7 @@ class DataManager {
         }
       }
       
-      // Sort by creation date (newest first)
+      
       notebooks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
       return { success: true, notebooks };
@@ -163,10 +163,10 @@ class DataManager {
     }
   }
 
-  // Delete a notebook and all its pages
+  
   async deleteNotebook(notebookId) {
     try {
-      // First, load the notebook to get its pages
+      
       const notebookResult = await this.loadNotebook(notebookId);
       if (!notebookResult.success) {
         return notebookResult;
@@ -174,14 +174,14 @@ class DataManager {
 
       const notebook = notebookResult.notebook;
       
-      // Delete all pages belonging to this notebook
+      
       if (notebook.pages && notebook.pages.length > 0) {
         for (const pageId of notebook.pages) {
           await this.deletePage(pageId);
         }
       }
 
-      // Delete the notebook file
+      
       const filePath = path.join(this.notebooksDir, `${notebookId}.json`);
       await fs.unlink(filePath);
       
@@ -192,9 +192,9 @@ class DataManager {
     }
   }
 
-  // PAGE FUNCTIONS
   
-  // Save a page with improved settings handling
+  
+  
   async savePage(pageData) {
     try {
       const { notebookId, pageNumber, canvasData, settings, ...otherData } = pageData;
@@ -202,7 +202,7 @@ class DataManager {
       
       console.log('DataManager saving page:', pageId, 'with settings:', settings);
       
-      // If settings are not provided, try to load existing settings from the file
+      
       let finalSettings = settings;
       
       if (!settings) {
@@ -213,7 +213,7 @@ class DataManager {
             finalSettings = existingPageResult.page.settings;
             console.log('Preserved existing settings:', finalSettings);
           } else {
-            // Use default settings if no existing settings found
+            
             finalSettings = {
               pattern: 'grid',
               patternSize: 20,
@@ -248,7 +248,7 @@ class DataManager {
       const filePath = path.join(this.pagesDir, `${pageId}.json`);
       await fs.writeFile(filePath, JSON.stringify(page, null, 2));
       
-      // Update notebook's pages array
+      
       await this.addPageToNotebook(notebookId, pageId);
       
       console.log('Page saved successfully with final settings:', finalSettings);
@@ -259,7 +259,7 @@ class DataManager {
     }
   }
 
-  // Load a page by ID
+  
   async loadPage(pageId) {
     try {
       const filePath = path.join(this.pagesDir, `${pageId}.json`);
@@ -274,7 +274,7 @@ class DataManager {
     }
   }
 
-  // Load pages by notebook ID
+  
   async loadPagesByNotebook(notebookId) {
     try {
       const notebookResult = await this.loadNotebook(notebookId);
@@ -294,7 +294,7 @@ class DataManager {
         }
       }
 
-      // Sort pages by page number
+      
       pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
       return { success: true, pages };
@@ -304,7 +304,7 @@ class DataManager {
     }
   }
 
-  // Delete a page
+  
   async deletePage(pageId) {
     try {
       const filePath = path.join(this.pagesDir, `${pageId}.json`);
@@ -316,7 +316,7 @@ class DataManager {
     }
   }
 
-  // Add page to notebook's pages array
+  
   async addPageToNotebook(notebookId, pageId) {
     try {
       const notebookResult = await this.loadNotebook(notebookId);
@@ -329,7 +329,7 @@ class DataManager {
         notebook.pages = [];
       }
 
-      // Add page if not already present
+      
       if (!notebook.pages.includes(pageId)) {
         notebook.pages.push(pageId);
         await this.saveNotebook(notebook);
@@ -342,9 +342,9 @@ class DataManager {
     }
   }
 
-  // SETTINGS FUNCTIONS
   
-  // Save global app settings
+  
+  
   async saveAppSettings(settings) {
     try {
       const filePath = path.join(this.settingsDir, 'app-settings.json');
@@ -360,7 +360,7 @@ class DataManager {
     }
   }
 
-  // Load global app settings
+  
   async loadAppSettings() {
     try {
       const filePath = path.join(this.settingsDir, 'app-settings.json');
@@ -368,7 +368,7 @@ class DataManager {
       return { success: true, settings: JSON.parse(data) };
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // Return default settings if file doesn't exist
+        
         const defaultSettings = {
           theme: 'light',
           defaultPenSettings: {
@@ -390,9 +390,9 @@ class DataManager {
     }
   }
 
-  // UTILITY FUNCTIONS
   
-  // Backup all data
+  
+  
   async createBackup() {
     try {
       const backupDir = path.join(this.baseDir, 'backups');
@@ -401,7 +401,7 @@ class DataManager {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupPath = path.join(backupDir, `backup-${timestamp}`);
       
-      // Copy all directories to backup
+      
       await this.copyDirectory(this.notebooksDir, path.join(backupPath, 'notebooks'));
       await this.copyDirectory(this.pagesDir, path.join(backupPath, 'pages'));
       await this.copyDirectory(this.settingsDir, path.join(backupPath, 'settings'));
@@ -413,7 +413,7 @@ class DataManager {
     }
   }
 
-  // Copy directory recursively
+  
   async copyDirectory(src, dest) {
     await fs.mkdir(dest, { recursive: true });
     const files = await fs.readdir(src);
@@ -431,7 +431,7 @@ class DataManager {
     }
   }
 
-  // Get storage statistics
+  
   async getStorageStats() {
     try {
       const notebookFiles = await fs.readdir(this.notebooksDir);
@@ -439,7 +439,7 @@ class DataManager {
       
       let totalSize = 0;
       
-      // Calculate total size of notebook files
+      
       for (const file of notebookFiles) {
         if (file.endsWith('.json')) {
           const stat = await fs.stat(path.join(this.notebooksDir, file));
@@ -447,7 +447,7 @@ class DataManager {
         }
       }
       
-      // Calculate total size of page files
+      
       for (const file of pageFiles) {
         if (file.endsWith('.json')) {
           const stat = await fs.stat(path.join(this.pagesDir, file));
@@ -471,14 +471,14 @@ class DataManager {
     }
   }
 
-  // Static method to create DataManager with user preference
+  
   static async createWithUserPreference() {
     try {
       const tempManager = new DataManager();
       const preferredPath = await tempManager.loadDataDirectoryPreference();
       
       if (preferredPath) {
-        // Check if the preferred path still exists
+        
         try {
           await fs.access(preferredPath);
           console.log(`Using user-preferred data directory: ${preferredPath}`);
@@ -488,7 +488,7 @@ class DataManager {
         }
       }
       
-      // Use default path
+      
       console.log(`Using default data directory: ${tempManager.baseDir}`);
       return tempManager;
     } catch (error) {

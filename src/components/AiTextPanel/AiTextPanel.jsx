@@ -1,4 +1,4 @@
-// src/components/AiTextPanel/AiTextPanel.jsx - NEW COMPONENT
+
 import React, { useState, useEffect } from 'react';
 import styles from './AiTextPanel.module.scss';
 import { useDrawingStore } from '../../stores/drawingStore';
@@ -19,14 +19,14 @@ const AiTextPanel = () => {
 
   const { isAiTextPanelVisible, toggleAiTextPanel } = useUIStore();
 
-  // Local state for UI
+  
   const [currentFontFamily, setCurrentFontFamily] = useState(aiTextSettings.fontFamily);
   const [currentFontSize, setCurrentFontSize] = useState(aiTextSettings.fontSize);
   const [currentFontWeight, setCurrentFontWeight] = useState(aiTextSettings.fontWeight);
   const [currentTextColor, setCurrentTextColor] = useState(aiTextSettings.textColor);
   const [currentTextAlign, setCurrentTextAlign] = useState(aiTextSettings.textAlign);
 
-  // Sync with store changes
+  
   useEffect(() => {
     setCurrentFontFamily(aiTextSettings.fontFamily);
     setCurrentFontSize(aiTextSettings.fontSize);
@@ -35,10 +35,10 @@ const AiTextPanel = () => {
     setCurrentTextAlign(aiTextSettings.textAlign);
   }, [aiTextSettings]);
 
-  // Early return if panel not visible
+  
   if (!isAiTextPanelVisible) return null;
 
-  // Font families available
+  
   const fontFamilies = [
     { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
     { label: 'Times New Roman', value: 'Times New Roman, Times, serif' },
@@ -50,7 +50,7 @@ const AiTextPanel = () => {
     { label: 'Trebuchet MS', value: 'Trebuchet MS, Helvetica, sans-serif' }
   ];
 
-  // Font weights
+  
   const fontWeights = [
     { label: 'Normal', value: 'normal' },
     { label: 'Bold', value: 'bold' },
@@ -60,14 +60,14 @@ const AiTextPanel = () => {
     { label: 'Extra Bold', value: '800' }
   ];
 
-  // Text alignments
+  
   const textAlignments = [
     { label: 'Left', value: 'left', icon: '⬅️' },
     { label: 'Center', value: 'center', icon: '↔️' },
     { label: 'Right', value: 'right', icon: '➡️' }
   ];
 
-  // Handlers
+  
   const handleFontFamilyChange = (family) => {
     setCurrentFontFamily(family);
     setAiFontFamily(family);
@@ -100,7 +100,7 @@ const AiTextPanel = () => {
     setAiTextColor(null);
   };
 
-  // Get effective text color (use stroke color if textColor is null)
+  
   const effectiveTextColor = currentTextColor || strokeColor;
 
   return (
@@ -120,7 +120,7 @@ const AiTextPanel = () => {
           </button>
         </div>
 
-        {/* Processing Status */}
+        {}
         {isAiProcessing && (
           <div className={styles.processing_status}>
             <Loader className={styles.spinner} size={16} />
@@ -128,7 +128,7 @@ const AiTextPanel = () => {
           </div>
         )}
 
-        {/* Font Family Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Font Family</div>
           <div className={styles.font_family_grid}>
@@ -145,7 +145,7 @@ const AiTextPanel = () => {
           </div>
         </div>
 
-        {/* Font Size Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>
             Font Size
@@ -178,7 +178,7 @@ const AiTextPanel = () => {
           </div>
         </div>
 
-        {/* Font Weight Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Font Weight</div>
           <div className={styles.weight_grid}>
@@ -195,7 +195,7 @@ const AiTextPanel = () => {
           </div>
         </div>
 
-        {/* Text Color Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Text Color</div>
           <div className={styles.color_controls}>
@@ -224,7 +224,7 @@ const AiTextPanel = () => {
           </div>
         </div>
 
-        {/* Text Alignment Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Text Alignment</div>
           <div className={styles.alignment_grid}>

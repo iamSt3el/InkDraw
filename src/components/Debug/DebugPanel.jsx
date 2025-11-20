@@ -1,4 +1,4 @@
-// src/components/Debug/DebugPanel.jsx - Temporary debug component
+
 import React from 'react';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import electronService from '../../services/ElectronService';

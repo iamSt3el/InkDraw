@@ -1,4 +1,4 @@
-// src/services/ElectronService.js - Updated for secure IPC
+
 class ElectronService {
     constructor() {
       this.isElectron = this.checkElectron();
@@ -6,7 +6,7 @@ class ElectronService {
     }
   
     checkElectron() {
-      // Check if running in Electron with the secure API
+      
       return typeof window !== 'undefined' && window.electronAPI && window.electronAPI.isElectron;
     }
   
@@ -22,13 +22,13 @@ class ElectronService {
           return { success: false, error: error.message };
         }
       } else {
-        // Fallback for web version
+        
         console.warn(`Electron not available or method ${method} not found, running in web mode`);
         return { success: false, error: 'Electron not available' };
       }
     }
   
-    // Notebook operations
+    
     async saveNotebook(notebook) {
       return await this.invoke('saveNotebook', notebook);
     }
@@ -45,7 +45,7 @@ class ElectronService {
       return await this.invoke('deleteNotebook', notebookId);
     }
   
-    // Page operations
+    
     async savePage(pageData) {
       return await this.invoke('savePage', pageData);
     }
@@ -62,7 +62,7 @@ class ElectronService {
       return await this.invoke('deletePage', pageId);
     }
   
-    // Settings operations
+    
     async saveAppSettings(settings) {
       return await this.invoke('saveAppSettings', settings);
     }
@@ -71,7 +71,7 @@ class ElectronService {
       return await this.invoke('loadAppSettings');
     }
   
-    // Data directory operations
+    
     async getDirectoryInfo() {
       return await this.invoke('getDirectoryInfo');
     }
@@ -88,7 +88,7 @@ class ElectronService {
       return await this.invoke('resetToDefaultDirectory');
     }
   
-    // Utility operations
+    
     async createBackup() {
       return await this.invoke('createBackup');
     }
@@ -106,6 +106,6 @@ class ElectronService {
     }
   }
   
-  // Create singleton instance
+  
   const electronService = new ElectronService();
   export default electronService;

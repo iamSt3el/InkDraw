@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/EventHandler.js - FIXED SELECTION TOOL
+
 import { getStroke } from 'perfect-freehand';
 
 export class EventHandler {
@@ -7,21 +7,21 @@ export class EventHandler {
     this.options = options;
     this.callbacks = {};
 
-    // Pan tool state
+    
     this.isPanning = false;
     this.lastPanPoint = null;
     this.panStartPoint = null;
 
-    // FIXED: Selection state with better tracking
+    
     this.isSelecting = false;
     this.isDraggingSelection = false;
     this.isResizingSelection = false;
     this.selectionDragStart = null;
     this.resizeHandle = null;
     this.originalBounds = null;
-    this.lastPointerDown = null; // Track last pointer down event
+    this.lastPointerDown = null; 
 
-    // AI Handwriting state
+    
     this.isCapturingAI = false;
     this.currentAIStroke = [];
     this.aiProcessingTimer = null;
@@ -30,17 +30,17 @@ export class EventHandler {
     this.aiStrokeCount = 0;
     this.currentStrokePoints = [];
 
-    // FIXED: Throttling and optimization variables
+    
     this.dragThrottleTimeout = null;
     this.lastDragUpdate = 0;
-    this.dragUpdateInterval = 16; // ~60fps
+    this.dragUpdateInterval = 16; 
     this.accumulatedDelta = { x: 0, y: 0 };
     this.isThrottling = false;
 
-    // FIXED: Selection debugging
-    this.debugSelection = true; // Enable for debugging
+    
+    this.debugSelection = true; 
 
-    // Bind methods
+    
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -54,13 +54,13 @@ export class EventHandler {
     this.callbacks = { ...this.callbacks, ...callbacks };
   }
 
-  // FIXED: Enhanced coordinate conversion for selection
+  
   getWorldCoordinates(e) {
     if (!this.engine.canvasRef.current) return null;
 
     const rect = this.engine.canvasRef.current.getBoundingClientRect();
     
-    // Get client coordinates
+    
     let clientX, clientY;
     if (e.touches && e.touches[0]) {
       clientX = e.touches[0].clientX;
@@ -70,11 +70,11 @@ export class EventHandler {
       clientY = e.clientY;
     }
 
-    // Convert to canvas coordinates
+    
     const canvasX = (clientX - rect.left) / rect.width * this.engine.options.width;
     const canvasY = (clientY - rect.top) / rect.height * this.engine.options.height;
 
-    // Convert to world coordinates using viewBox
+    
     const viewBox = this.engine.options.viewBox || 
       { x: 0, y: 0, width: this.engine.options.width, height: this.engine.options.height };
     
@@ -84,14 +84,14 @@ export class EventHandler {
     return { x: worldX, y: worldY };
   }
 
-  // Get simple canvas coordinates for AI (like Flask HTML)
+  
   getSimpleCanvasCoordinates(e) {
     if (!this.engine.canvasRef.current) return null;
 
     const canvas = this.engine.canvasRef.current;
     const rect = canvas.getBoundingClientRect();
 
-    // Scale factors to match actual canvas resolution
+    
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
@@ -105,21 +105,21 @@ export class EventHandler {
       clientY = e.clientY;
     }
 
-    // Simple canvas coordinates (like Flask HTML)
+    
     const x = (clientX - rect.left) * scaleX;
     const y = (clientY - rect.top) * scaleY;
 
     return { x, y };
   }
 
-  // ===========================================
-  // MAIN EVENT HANDLERS - FIXED SELECTION
-  // ===========================================
+  
+  
+  
 
   handlePointerDown(e) {
     if (!this.engine.canvasRef.current || !e.isPrimary) return;
 
-    // Store the last pointer down for debugging
+    
     this.lastPointerDown = {
       timestamp: Date.now(),
       tool: this.options.currentTool,
@@ -138,7 +138,7 @@ export class EventHandler {
       console.log('ViewBox:', this.engine.options.viewBox);
     }
 
-    // Handle AI handwriting tool
+    
     if (this.options.currentTool === 'aiHandwriting') {
       if (this.isCapturingAI) {
         this.continueAICapture(e);
@@ -157,25 +157,25 @@ export class EventHandler {
       return;
     }
 
-    // Handle pan tool
+    
     if (this.options.currentTool === 'pan' || e.altKey || e.buttons === 4) {
       this.startPanning(e);
       return;
     }
 
-    // FIXED: Handle selection tool with improved logic
+    
     if (this.options.currentTool === 'select') {
       this.handleSelectionPointerDown(e, worldPoint);
       return;
     }
 
-    // Handle rectangle tool
+    
     if (this.options.currentTool === 'rectangle') {
       this.startRectangleDrawing(e);
       return;
     }
 
-    // Existing drawing logic for pen and eraser
+    
     this.engine.isDrawing = true;
     this.engine.activePointer = e.pointerId;
     e.preventDefault();
@@ -201,7 +201,7 @@ export class EventHandler {
     const point = this.engine.getPointFromEvent(e);
     const worldPoint = this.getWorldCoordinates(e);
 
-    // Handle AI handwriting tool movement
+    
     if (this.options.currentTool === 'aiHandwriting') {
       if (this.isCapturingAI && this.engine.isDrawing && e.pointerId === this.engine.activePointer) {
         this.updateAICapture(e);
@@ -210,26 +210,26 @@ export class EventHandler {
       return;
     }
 
-    // Handle panning
+    
     if (this.isPanning) {
       this.continuePanning(e);
       return;
     }
 
-    // FIXED: Selection dragging with proper throttling
+    
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
 
       const deltaX = worldPoint.x - this.selectionDragStart.x;
       const deltaY = worldPoint.y - this.selectionDragStart.y;
 
-      // Only accumulate if movement is significant
+      
       if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
         this.accumulatedDelta.x += deltaX;
         this.accumulatedDelta.y += deltaY;
         this.selectionDragStart = worldPoint;
 
-        // Start throttled updates if not already running
+        
         if (!this.isThrottling) {
           this.isThrottling = true;
           this.dragThrottleTimeout = requestAnimationFrame(this.throttledDragUpdate);
@@ -238,24 +238,24 @@ export class EventHandler {
       return;
     }
 
-    // Handle selection tool interactions
+    
     if (this.options.currentTool === 'select') {
       this.handleSelectionPointerMove(e, worldPoint);
       return;
     }
 
-    // Handle rectangle drawing
+    
     if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
       this.updateRectangleDrawing(e);
       return;
     }
 
-    // Handle pan tool hover (show grab cursor)
+    
     if (this.options.currentTool === 'pan' && !this.engine.isDrawing) {
       return;
     }
 
-    // Update eraser position
+    
     if (this.options.currentTool === 'eraser') {
       this.engine.eraserPosition = { x: point[0], y: point[1] };
       this.engine.showEraser = true;
@@ -271,7 +271,7 @@ export class EventHandler {
     if (this.engine.isErasing) {
       this.handleErase(point[0], point[1]);
     } else {
-      // Get coalesced events for smoother drawing
+      
       let points = [];
       if (e.getCoalescedEvents && typeof e.getCoalescedEvents === 'function') {
         const coalescedEvents = e.getCoalescedEvents();
@@ -282,7 +282,7 @@ export class EventHandler {
         points.push(this.engine.getPointFromEvent(e));
       }
 
-      // Process all points
+      
       for (const point of points) {
         this.updateDrawing(point);
       }
@@ -300,7 +300,7 @@ export class EventHandler {
       console.log('Is resizing selection:', this.isResizingSelection);
     }
 
-    // Handle AI handwriting tool end
+    
     if (this.options.currentTool === 'aiHandwriting') {
       if (this.isCapturingAI && e.pointerId === this.engine.activePointer) {
         if (this.engine.canvasRef.current?.releasePointerCapture) {
@@ -329,19 +329,19 @@ export class EventHandler {
       }
     }
 
-    // Handle pan end
+    
     if (this.isPanning) {
       this.endPanning(e);
       return;
     }
 
-    // FIXED: Handle selection tool interactions
+    
     if (this.options.currentTool === 'select') {
       this.handleSelectionPointerUp(e);
       return;
     }
 
-    // Handle rectangle drawing end
+    
     if (this.options.currentTool === 'rectangle' && this.engine.isDrawingShape()) {
       this.finishRectangleDrawing(e);
       return;
@@ -365,11 +365,11 @@ export class EventHandler {
     this.engine.lastPoint = null;
   }
 
-  // ===========================================
-  // FIXED SELECTION METHODS
-  // ===========================================
+  
+  
+  
 
-  // FIXED: Better selection pointer down handling
+  
   handleSelectionPointerDown(e, worldPoint) {
     e.preventDefault();
 
@@ -381,7 +381,7 @@ export class EventHandler {
       console.log('Selection bounds:', this.engine.selectionBounds);
     }
 
-    // Check for resize handle interaction first
+    
     if (this.engine.selectionBounds && this.engine.selectedItems.size > 0) {
       const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
       if (handle) {
@@ -393,7 +393,7 @@ export class EventHandler {
       }
     }
 
-    // FIXED: Find item at point with better debugging
+    
     if (this.debugSelection) {
       console.log('Starting hit test...');
     }
@@ -409,7 +409,7 @@ export class EventHandler {
     }
 
     if (clickedItem) {
-      // FIXED: Handle clicking on selected items
+      
       if (this.engine.isItemSelected(clickedItem.id)) {
         if (this.debugSelection) {
           console.log('Clicked on selected item, starting drag');
@@ -418,7 +418,7 @@ export class EventHandler {
         return;
       }
 
-      // FIXED: Handle multi-select and single select
+      
       if (e.ctrlKey || e.metaKey) {
         if (this.debugSelection) {
           console.log('Multi-select mode - adding to selection');
@@ -431,19 +431,19 @@ export class EventHandler {
         this.engine.setSelectedItems([clickedItem.id]);
       }
 
-      // Notify callback
+      
       if (this.callbacks.onSelectionChanged) {
         this.callbacks.onSelectionChanged(this.engine.getSelectedItems());
       }
       return;
     }
 
-    // FIXED: Handle clicking on empty space
+    
     if (this.debugSelection) {
       console.log('Clicked on empty space');
     }
 
-    // Clear selection if not holding modifier keys
+    
     if (!e.ctrlKey && !e.metaKey) {
       if (this.engine.selectedItems.size > 0) {
         if (this.debugSelection) {
@@ -456,16 +456,16 @@ export class EventHandler {
       }
     }
 
-    // Start area selection
+    
     if (this.debugSelection) {
       console.log('Starting area selection');
     }
     this.startAreaSelection(e, worldPoint);
   }
 
-  // FIXED: Improved selection pointer move handling
+  
   handleSelectionPointerMove(e, worldPoint) {
-    // Handle area selection
+    
     if (this.isSelecting && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
       this.engine.updateAreaSelection(worldPoint);
@@ -476,7 +476,7 @@ export class EventHandler {
       return;
     }
 
-    // Handle selection resizing
+    
     if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
       e.preventDefault();
       
@@ -491,13 +491,13 @@ export class EventHandler {
       return;
     }
 
-    // Update cursor based on what's under the pointer
+    
     if (!this.isSelecting && !this.isDraggingSelection && !this.isResizingSelection) {
       this.updateSelectionCursor(worldPoint);
     }
   }
 
-  // FIXED: Better selection pointer up handling
+  
   handleSelectionPointerUp(e) {
     e.preventDefault();
     
@@ -512,7 +512,7 @@ export class EventHandler {
       this.engine.canvasRef.current.releasePointerCapture(e.pointerId);
     }
 
-    // Finish area selection
+    
     if (this.isSelecting && e.pointerId === this.engine.activePointer) {
       if (this.debugSelection) {
         console.log('Finishing area selection');
@@ -532,31 +532,31 @@ export class EventHandler {
       this.isSelecting = false;
     }
 
-    // FIXED: Finish dragging selection with proper cleanup
+    
     if (this.isDraggingSelection && e.pointerId === this.engine.activePointer) {
       if (this.debugSelection) {
         console.log('Finished dragging selection');
       }
 
-      // Stop throttling and apply any remaining movement
+      
       this.isThrottling = false;
       if (this.dragThrottleTimeout) {
         cancelAnimationFrame(this.dragThrottleTimeout);
         this.dragThrottleTimeout = null;
       }
 
-      // Apply any accumulated movement
+      
       const { x, y } = this.accumulatedDelta;
       if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
         this.engine.moveSelectedItems(x, y);
       }
 
-      // Reset state
+      
       this.isDraggingSelection = false;
       this.selectionDragStart = null;
       this.accumulatedDelta = { x: 0, y: 0 };
 
-      // Notify callbacks
+      
       if (this.callbacks.onSelectionDragEnd) {
         this.callbacks.onSelectionDragEnd();
       }
@@ -566,7 +566,7 @@ export class EventHandler {
       }
     }
 
-    // Finish resizing selection
+    
     if (this.isResizingSelection && e.pointerId === this.engine.activePointer) {
       if (this.debugSelection) {
         console.log('Finished resizing selection');
@@ -584,13 +584,13 @@ export class EventHandler {
 
     this.engine.activePointer = null;
 
-    // Reset cursor
+    
     if (this.options.currentTool === 'select') {
       this.engine.canvasRef.current.style.cursor = 'default';
     }
   }
 
-  // FIXED: Throttled drag update with better performance
+  
   throttledDragUpdate = () => {
     if (!this.isThrottling || !this.isDraggingSelection) {
       return;
@@ -618,7 +618,7 @@ export class EventHandler {
     }
   };
 
-  // FIXED: Start area selection with proper setup
+  
   startAreaSelection(e, worldPoint) {
     this.isSelecting = true;
     this.engine.startAreaSelection(worldPoint);
@@ -634,7 +634,7 @@ export class EventHandler {
     }
   }
 
-  // FIXED: Start dragging with proper initialization
+  
   startDraggingSelection(e, worldPoint) {
     if (this.debugSelection) {
       console.log('Starting selection drag from:', worldPoint);
@@ -651,16 +651,16 @@ export class EventHandler {
 
     this.engine.activePointer = e.pointerId;
 
-    // Set cursor
+    
     this.engine.canvasRef.current.style.cursor = 'move';
 
-    // Notify callback
+    
     if (this.callbacks.onSelectionDragStart) {
       this.callbacks.onSelectionDragStart();
     }
   }
 
-  // Start resizing with proper setup
+  
   startResizing(e, handle, worldPoint) {
     if (this.debugSelection) {
       console.log('Starting resize with handle:', handle);
@@ -677,7 +677,7 @@ export class EventHandler {
 
     this.engine.activePointer = e.pointerId;
 
-    // Set appropriate cursor
+    
     const cursors = {
       'nw': 'nw-resize', 'n': 'n-resize', 'ne': 'ne-resize',
       'e': 'e-resize', 'se': 'se-resize', 's': 's-resize',
@@ -686,7 +686,7 @@ export class EventHandler {
     this.engine.canvasRef.current.style.cursor = cursors[handle] || 'default';
   }
 
-  // Calculate new bounds during resize
+  
   calculateNewBounds(currentPoint) {
     if (!this.originalBounds || !this.resizeHandle) return null;
 
@@ -733,7 +733,7 @@ export class EventHandler {
         break;
     }
 
-    // Enforce minimum size
+    
     const minSize = 10;
     if (newBounds.width < minSize) {
       if (this.resizeHandle.includes('w')) {
@@ -751,11 +751,11 @@ export class EventHandler {
     return newBounds;
   }
 
-  // FIXED: Update cursor based on what's under the pointer
+  
   updateSelectionCursor(worldPoint) {
     let cursor = 'default';
 
-    // Check for resize handles first
+    
     if (this.engine.selectionBounds) {
       const handle = this.engine.getResizeHandleAtPoint(worldPoint, this.engine.selectionBounds);
       if (handle) {
@@ -766,29 +766,29 @@ export class EventHandler {
         };
         cursor = cursors[handle] || 'default';
       } else {
-        // Check if hovering over selected item
+        
         const item = this.engine.findItemAtPoint(worldPoint);
         if (item && this.engine.isItemSelected(item.id)) {
           cursor = 'move';
         }
       }
     } else {
-      // Check if hovering over any item
+      
       const item = this.engine.findItemAtPoint(worldPoint);
       if (item) {
         cursor = 'pointer';
       }
     }
 
-    // Only update cursor if it changed
+    
     if (this.engine.canvasRef.current.style.cursor !== cursor) {
       this.engine.canvasRef.current.style.cursor = cursor;
     }
   }
 
-  // ===========================================
-  // AI HANDWRITING METHODS
-  // ===========================================
+  
+  
+  
 
   startAICapture(e) {
     console.log('AI Tool: Starting NEW capture session');
@@ -1009,12 +1009,12 @@ export class EventHandler {
     });
   }
 
-  // ===========================================
-  // KEYBOARD EVENT HANDLER
-  // ===========================================
+  
+  
+  
 
   handleKeyDown(e) {
-    // Handle AI tool keyboard shortcuts
+    
     if (this.options.currentTool === 'aiHandwriting') {
       switch (e.key) {
         case 'Escape':
@@ -1097,9 +1097,9 @@ export class EventHandler {
     }
   }
 
-  // ===========================================
-  // OTHER EVENT HANDLERS
-  // ===========================================
+  
+  
+  
 
   handleMouseLeave() {
     this.engine.showEraser = false;
@@ -1149,9 +1149,9 @@ export class EventHandler {
     }
   }
 
-  // ===========================================
-  // RECTANGLE DRAWING METHODS
-  // ===========================================
+  
+  
+  
 
   startRectangleDrawing(e) {
     e.preventDefault();
@@ -1190,9 +1190,9 @@ export class EventHandler {
     }
   }
 
-  // ===========================================
-  // PAN TOOL METHODS
-  // ===========================================
+  
+  
+  
 
   startPanning(e) {
     this.isPanning = true;
@@ -1304,9 +1304,9 @@ export class EventHandler {
     e.preventDefault();
   }
 
-  // ===========================================
-  // DRAWING METHODS (PEN/ERASER)
-  // ===========================================
+  
+  
+  
 
   createTempPath(point) {
     const svg = this.engine.svgRef.current;
@@ -1481,9 +1481,9 @@ export class EventHandler {
     }
   }
 
-  // ===========================================
-  // CLEANUP AND LIFECYCLE
-  // ===========================================
+  
+  
+  
 
   cleanup() {
     if (this.dragThrottleTimeout) {
@@ -1491,12 +1491,12 @@ export class EventHandler {
       this.dragThrottleTimeout = null;
     }
 
-    // AI cleanup
+    
     this.clearAITimer();
     this.clearAllTempAIPaths();
     this.resetAIState();
 
-    // Reset all state
+    
     this.isThrottling = false;
     this.isDraggingSelection = false;
     this.isSelecting = false;

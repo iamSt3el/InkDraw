@@ -1,4 +1,4 @@
-// src/components/Header/index.jsx - Updated with data directory functionality
+
 import React, { useState, useEffect } from 'react'
 import styles from './Header.module.scss'
 import { BadgePlus, FolderOpen } from 'lucide-react'
@@ -11,7 +11,7 @@ const Header = () => {
   const [showDataDirectory, setShowDataDirectory] = useState(false);
 
   const handleCreateNotebook = () => {
-    // Clear any potential event listeners by forcing a reflow
+    
     setTimeout(() => {
       setShowForm(true);
     }, 0);
@@ -20,12 +20,12 @@ const Header = () => {
   const handleCloseForm = () => {
     setShowForm(false);
 
-    // Clear focus and force reflow after closing
+    
     setTimeout(() => {
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      // Force garbage collection of any remaining event listeners
+      
       window.dispatchEvent(new Event('resize'));
     }, 100);
   };
@@ -45,9 +45,7 @@ const Header = () => {
           <h1>InkDrawo</h1>
         </div>
 
-        {/* <div className={styles.header_searchBar}>
-          <SearchBar />
-        </div> */}
+        {}
 
         <div className={styles.header_actions}>
           <Button

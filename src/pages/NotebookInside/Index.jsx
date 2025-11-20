@@ -1,4 +1,4 @@
-// src/pages/NotebookInside/Index.jsx - UPDATED with AI Text Panel
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './NotebookInside.module.scss';
@@ -7,7 +7,7 @@ import NoteBookUi from '../../components/NotebookUi/Index';
 import PageSettingPanel from '../../components/PagePanel/PagePanel';
 import PenSettingPanel from '../../components/PenPanel/PenPanel';
 import ShapePanel from '../../components/ShapePanel/ShapePanel';
-import AiTextPanel from '../../components/AiTextPanel/AiTextPanel'; // NEW: Import AI Text Panel
+import AiTextPanel from '../../components/AiTextPanel/AiTextPanel'; 
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useNotebookStore } from '../../stores/noteBookStore';
 import { usePageStore } from '../../stores/pageStore';
@@ -43,20 +43,20 @@ const NotebookInside = () => {
     switchPanelForTool,
     isPenPanelVisible,
     isShapePanelVisible,
-    isAiTextPanelVisible // NEW: AI text panel visibility state
+    isAiTextPanelVisible 
   } = useUIStore();
 
-  // State management
+  
   const [currentPageNumber, setCurrentPageNumber] = useState(parseInt(pageNumber) || 1);
   const [notebook, setNotebook] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   
-  // Refs
+  
   const saveTimeoutRef = useRef(null);
   const isInitializedRef = useRef(false);
   const lastSavedPageRef = useRef(null);
 
-  // Simplified page data loader
+  
   const loadPageData = useCallback(async (pageNum) => {
     if (!notebookId || isTransitioning) return null;
     
@@ -75,7 +75,7 @@ const NotebookInside = () => {
     return null;
   }, [notebookId, loadPage, isTransitioning, showNotification]);
 
-  // Optimized save function
+  
   const saveCurrentPage = useCallback(async (pageNum = currentPageNumber) => {
     if (!getCurrentCanvasData || !notebookId || !pageNum) return false;
 
@@ -113,7 +113,7 @@ const NotebookInside = () => {
     }
   }, [getCurrentCanvasData, notebookId, currentPageNumber, pageSettings, savePage]);
 
-  // FIXED: Simple and reliable page transition
+  
   const transitionToPage = useCallback(async (newPageNumber) => {
     if (newPageNumber === currentPageNumber || isTransitioning) return;
 
@@ -121,20 +121,20 @@ const NotebookInside = () => {
     setIsTransitioning(true);
 
     try {
-      // Save current page first
+      
       await saveCurrentPage(currentPageNumber);
       
-      // Clear canvas data immediately to prevent old data showing
+      
       clearCanvasData();
       
-      // Update page number
+      
       setCurrentPageNumber(newPageNumber);
       window.history.replaceState(null, '', `/notebook/${notebookId}/page/${newPageNumber}`);
       
-      // Load new page data
+      
       const newPageData = await loadPageData(newPageNumber);
       
-      // Set new page data (or default if none exists)
+      
       if (newPageData?.canvasData) {
         setCanvasData(newPageData.canvasData);
       } else {
@@ -149,7 +149,7 @@ const NotebookInside = () => {
     }
   }, [currentPageNumber, isTransitioning, saveCurrentPage, loadPageData, clearCanvasData, setCanvasData, notebookId, showNotification]);
 
-  // Initialize notebook
+  
   useEffect(() => {
     if (!notebookId || isInitializedRef.current) return;
 
@@ -168,7 +168,7 @@ const NotebookInside = () => {
     isInitializedRef.current = true;
   }, [notebookId, notebooks, currentNotebook, setCurrentNotebook, navigate]);
 
-  // Load initial page data
+  
   useEffect(() => {
     if (isInitializedRef.current && notebookId && currentPageNumber && !isTransitioning) {
       const loadInitialPage = async () => {
@@ -181,14 +181,14 @@ const NotebookInside = () => {
     }
   }, [isInitializedRef.current, notebookId, currentPageNumber, loadPageData, setCanvasData, isTransitioning]);
 
-  // Smart panel switching based on tool changes
+  
   useEffect(() => {
     if (switchPanelForTool) {
       switchPanelForTool(currentTool);
     }
   }, [currentTool, switchPanelForTool]);
 
-  // Navigation handlers
+  
   const handlePageChange = useCallback((newPageNumber) => {
     transitionToPage(newPageNumber);
   }, [transitionToPage]);
@@ -207,7 +207,7 @@ const NotebookInside = () => {
     }
   }, [notebook, currentPageNumber, transitionToPage]);
 
-  // Manual save
+  
   const handleManualSave = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -221,7 +221,7 @@ const NotebookInside = () => {
     }
   }, [saveCurrentPage, showNotification]);
 
-  // Back to notebooks
+  
   const handleBackToNotebooks = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -232,7 +232,7 @@ const NotebookInside = () => {
     navigate('/notebooks');
   }, [saveCurrentPage, clearCurrentPageData, navigate]);
 
-  // Keyboard shortcuts
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (isTransitioning) return;
@@ -252,7 +252,7 @@ const NotebookInside = () => {
       if (e.key === 'Escape') {
         handleBackToNotebooks();
       }
-      // NEW: Keyboard shortcut for AI tool
+      
       if (e.key === 'a' || e.key === 'A') {
         if (!e.ctrlKey && !e.altKey && !e.shiftKey) {
           e.preventDefault();
@@ -266,7 +266,7 @@ const NotebookInside = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleManualSave, handlePreviousPage, handleNextPage, handleBackToNotebooks, isTransitioning]);
 
-  // Auto-save
+  
   useEffect(() => {
     if (isTransitioning) return;
     
@@ -279,7 +279,7 @@ const NotebookInside = () => {
     return () => clearInterval(interval);
   }, [saveCurrentPage, isTransitioning]);
 
-  // Cleanup on unmount
+  
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
@@ -300,7 +300,7 @@ const NotebookInside = () => {
 
   return (
     <div className={styles.ni_cover}>
-      {/* Toolbar with AI support */}
+      {}
       <ToolBar 
         notebookInfo={{
           title: notebook.title,
@@ -317,30 +317,30 @@ const NotebookInside = () => {
         isTransitioning={isTransitioning}
       />
 
-      {/* Main content with all panels including AI Text Panel */}
+      {}
       <div className={styles.ni_content}>
         <div className={styles.ni_canvas_area}>
-          {/* Page Settings Panel (Left) */}
+          {}
           <div className={styles.ni_page_setting}>
             <PageSettingPanel />
           </div>
           
-          {/* Canvas */}
+          {}
           <div className={styles.ni_canvas}>
             <NoteBookUi />
           </div>
           
-          {/* Drawing Panels (Right) - Smart switching between pen, shape, and AI text panels */}
+          {}
           <div className={styles.ni_drawing_settings}>
             {isPenPanelVisible && <PenSettingPanel />}
             {isShapePanelVisible && <ShapePanel />}
-            {/* NEW: AI Text Panel */}
+            {}
             {isAiTextPanelVisible && <AiTextPanel />}
           </div>
         </div>
       </div>
 
-      {/* Enhanced keyboard shortcuts help with AI tool */}
+      {}
       <div className={styles.shortcutsHelp}>
         <span>Ctrl+S: Save</span>
         <span>Ctrl+←/→: Navigate Pages</span>

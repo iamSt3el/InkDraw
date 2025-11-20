@@ -17,12 +17,12 @@ const PenSettingPanel = () => {
   
   const { isPenPanelVisible, togglePenPanel } = useUIStore();
   
-  // Define all state at the top level, before any conditional returns
+  
   const [currentColor, setCurrentColor] = useState(strokeColor);
   const [currentSize, setCurrentSize] = useState(strokeWidth);
   const [currentOpacity, setCurrentOpacity] = useState(opacity);
 
-  // Update local state when store values change
+  
   useEffect(() => {
     setCurrentColor(strokeColor);
   }, [strokeColor]);
@@ -35,28 +35,28 @@ const PenSettingPanel = () => {
     setCurrentOpacity(opacity);
   }, [opacity]);
   
-  // Early return after all hooks are defined
+  
   if (!isPenPanelVisible) return null;
   
   const colors = [
-    '#000000', // Black
-    '#dc2626', // Red
-    '#2563eb', // Blue
-    '#16a34a', // Green
-    '#ca8a04', // Yellow
-    '#7c3aed', // Purple
-    '#ea580c', // Orange
-    '#0891b2', // Cyan
-    '#6b7280', // Gray
-    '#be185d', // Pink
-    '#059669', // Emerald
-    '#7c2d12', // Brown
+    '#000000', 
+    '#dc2626', 
+    '#2563eb', 
+    '#16a34a', 
+    '#ca8a04', 
+    '#7c3aed', 
+    '#ea580c', 
+    '#0891b2', 
+    '#6b7280', 
+    '#be185d', 
+    '#059669', 
+    '#7c2d12', 
   ];
 
   const handleColorClick = (color) => {
     setCurrentColor(color);
     setStrokeColor(color);
-    setTool('pen'); // Auto-switch to pen tool
+    setTool('pen'); 
   };
 
   const handleStrokeWidthChange = (width) => {
@@ -70,7 +70,7 @@ const PenSettingPanel = () => {
     setOpacity(newOpacity);
   };
 
-  // Create color with opacity for preview
+  
   const getColorWithOpacity = (hexColor, opacity) => {
     const hex = hexColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
@@ -93,7 +93,7 @@ const PenSettingPanel = () => {
           </button>
         </div>
 
-        {/* Color Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Color</div>
           <div className={styles.color_picker_cover}>
@@ -113,7 +113,7 @@ const PenSettingPanel = () => {
           </div>
         </div>
 
-        {/* Opacity Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>
             Opacity
@@ -128,7 +128,7 @@ const PenSettingPanel = () => {
               onChange={handleOpacityChange}
               className={styles.opacity_slider} 
             />
-            {/* Opacity preview */}
+            {}
             <div className={styles.opacity_preview}>
               <div 
                 className={styles.opacity_sample}
@@ -140,7 +140,7 @@ const PenSettingPanel = () => {
           </div>
         </div>
 
-        {/* Size Section */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>
             Size
@@ -177,7 +177,7 @@ const PenSettingPanel = () => {
             </button>
           </div>
           
-          {/* Custom size slider */}
+          {}
           <div className={styles.custom_size}>
             <input
               type="range"
@@ -190,7 +190,7 @@ const PenSettingPanel = () => {
           </div>
         </div>
 
-        {/* Live Preview */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Preview</div>
           <div className={styles.live_preview}>

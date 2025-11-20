@@ -1,4 +1,4 @@
-// src/stores/pageStore.js - FIXED VERSION
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import electronService from '../services/ElectronService';
@@ -6,17 +6,17 @@ import electronService from '../services/ElectronService';
 export const usePageStore = create(
   persist(
     (set, get) => ({
-      // State
-      pages: {}, // Object storing pages by ID
-      currentPageData: null, // Current page's data
+      
+      pages: {}, 
+      currentPageData: null, 
       isLoading: false, 
       isSaving: false,
       error: null,
       
-      // Enhanced state tracking
+      
       lastLoadedPageId: null,
       
-      // Actions
+      
       setLoading: (isLoading) => {
         console.log('PageStore: Setting loading state:', isLoading);
         set({ isLoading });
@@ -32,7 +32,7 @@ export const usePageStore = create(
         set({ error });
       },
       
-      // FIXED: Simplified current page data management
+      
       setCurrentPageData: (pageData) => {
         console.log('PageStore: Setting current page data:', pageData?.id);
         set({ 
@@ -41,7 +41,7 @@ export const usePageStore = create(
         });
       },
       
-      // FIXED: Enhanced save with better error handling
+      
       savePage: async (pageData) => {
         console.log('=== PageStore: SAVE PAGE START ===');
         console.log('Page data received:', {
@@ -58,12 +58,12 @@ export const usePageStore = create(
           const { notebookId, pageNumber, canvasData, settings } = pageData;
           const pageId = `${notebookId}_page_${pageNumber}`;
           
-          // Validate required data
+          
           if (!notebookId || !pageNumber) {
             throw new Error('Missing required notebook ID or page number');
           }
           
-          // FIXED: Better canvas data handling
+          
           let finalCanvasData = canvasData;
           if (!finalCanvasData || finalCanvasData.trim() === '') {
             finalCanvasData = JSON.stringify({
@@ -78,7 +78,7 @@ export const usePageStore = create(
             });
           }
           
-          // Validate JSON format
+          
           try {
             JSON.parse(finalCanvasData);
           } catch (jsonError) {
@@ -91,7 +91,7 @@ export const usePageStore = create(
             });
           }
           
-          // Ensure we have settings
+          
           const finalSettings = settings || {
             pattern: 'grid',
             patternSize: 20,
@@ -115,7 +115,7 @@ export const usePageStore = create(
             settings: page.settings
           });
           
-          // Save to Electron if available
+          
           if (electronService.isElectron) {
             console.log('PageStore: Saving to Electron...');
             const result = await electronService.savePage(page);
@@ -129,7 +129,7 @@ export const usePageStore = create(
             console.log('PageStore: Web mode - saving to localStorage only');
           }
           
-          // FIXED: Update state simply
+          
           set(state => {
             const newPages = { ...state.pages, [pageId]: page };
             
@@ -151,53 +151,53 @@ export const usePageStore = create(
         }
       },
       
-      // FIXED: Simplified load without problematic caching
+      
       loadPage: async (notebookId, pageNumber) => {
-        // console.log('=== PageStore: LOAD PAGE START ===');
-        // console.log('Loading page:', { notebookId, pageNumber });
+        
+        
         
         try {
           set({ isLoading: true, error: null });
           
           const pageId = `${notebookId}_page_${pageNumber}`;
-          // console.log('PageStore: Generated page ID:', pageId);
+          
           
           const state = get();
           let page = null;
           
-          // Always try to load from Electron first for fresh data
+          
           if (electronService.isElectron) {
-            // console.log('PageStore: Loading from file system...');
+            
             const result = await electronService.loadPage(pageId);
             
-            // console.log('PageStore: File system load result:', {
-            //   success: result.success,
-            //   error: result.error,
-            //   hasPage: !!result.page
-            // });
+            
+            
+            
+            
+            
             
             if (result.success && result.page) {
               page = result.page;
-              // console.log('PageStore: Loaded from file system:', {
-              //   id: page.id,
-              //   hasCanvasData: !!page.canvasData,
-              //   canvasDataLength: page.canvasData?.length || 0,
-              //   hasSettings: !!page.settings
-              // });
+              
+              
+              
+              
+              
+              
             } else if (result.error && result.error !== 'Page not found') {
               throw new Error(result.error);
             }
           }
           
-          // Fall back to store only if Electron failed and page not found
+          
           if (!page) {
             page = state.pages[pageId];
-            // console.log('PageStore: Found in store:', !!page);
+            
           }
           
-          // FIXED: Create default page with better structure
+          
           if (!page) {
-            // console.log('PageStore: Creating default page:', pageId);
+            
             page = {
               id: pageId,
               notebookId,
@@ -222,9 +222,9 @@ export const usePageStore = create(
               version: 1
             };
             
-            // console.log('PageStore: Created default page, saving immediately...');
             
-            // Save the default page immediately
+            
+            
             if (electronService.isElectron) {
               const saveResult = await electronService.savePage(page);
               if (!saveResult.success) {
@@ -235,9 +235,9 @@ export const usePageStore = create(
             }
           }
           
-          // FIXED: Ensure page has all required properties
+          
           if (!page.settings) {
-            // console.log('PageStore: Adding missing settings to loaded page');
+            
             page.settings = {
               pattern: 'grid',
               patternSize: 20,
@@ -247,7 +247,7 @@ export const usePageStore = create(
           }
           
           if (!page.canvasData) {
-            // console.log('PageStore: Adding missing canvas data to loaded page');
+            
             page.canvasData = JSON.stringify({
               type: 'drawing',
               version: 1,
@@ -256,7 +256,7 @@ export const usePageStore = create(
             });
           }
           
-          // Validate canvas data JSON
+          
           try {
             JSON.parse(page.canvasData);
           } catch (jsonError) {
@@ -269,7 +269,7 @@ export const usePageStore = create(
             });
           }
           
-          // FIXED: Update state without aggressive caching
+          
           set(state => {
             const newPages = { ...state.pages, [pageId]: page };
             
@@ -281,30 +281,30 @@ export const usePageStore = create(
             };
           });
           
-          // // console.log('=== PageStore: LOAD PAGE SUCCESS ===');
-          // // console.log('Final page data:', {
-          //   id: page.id,
-          //   hasCanvasData: !!page.canvasData,
-          //   canvasDataLength: page.canvasData?.length || 0,
-          //   hasSettings: !!page.settings,
-          //   settings: page.settings
-          // });
+          
+          
+          
+          
+          
+          
+          
+          
           
           return { success: true, page };
           
         } catch (error) {
-          // console.error('=== PageStore: LOAD PAGE ERROR ===', error);
+          
           set({ error: error.message, isLoading: false });
           return { success: false, error: error.message };
         }
       },
       
-      // Delete page with Electron integration
+      
       deletePage: async (pageId) => {
         try {
-          // console.log('PageStore: Deleting page:', pageId);
           
-          // Delete from Electron if available
+          
+          
           if (electronService.isElectron) {
             const result = await electronService.deletePage(pageId);
             
@@ -312,15 +312,15 @@ export const usePageStore = create(
               throw new Error(result.error || 'Failed to delete page');
             }
             
-            // console.log('PageStore: Page deleted from file system');
+            
           }
           
-          // Remove from state
+          
           set(state => {
             const newPages = { ...state.pages };
             delete newPages[pageId];
             
-            // Clear current page data if it was the deleted page
+            
             const newCurrentPageData = state.currentPageData?.id === pageId ? null : state.currentPageData;
             
             return { 
@@ -330,7 +330,7 @@ export const usePageStore = create(
             };
           });
           
-          // console.log('PageStore: Page deleted from state');
+          
           return { success: true };
           
         } catch (error) {
@@ -340,19 +340,19 @@ export const usePageStore = create(
         }
       },
       
-      // Load all pages for a notebook from Electron
+      
       loadPagesByNotebook: async (notebookId) => {
         try {
           set({ isLoading: true, error: null });
-          // console.log('PageStore: Loading all pages for notebook:', notebookId);
+          
           
           if (electronService.isElectron) {
             const result = await electronService.loadPagesByNotebook(notebookId);
             
             if (result.success) {
-              // console.log('PageStore: Loaded pages from file system:', result.pages.length);
               
-              // Update pages state with loaded pages
+              
+              
               set(state => {
                 const newPages = { ...state.pages };
                 
@@ -371,10 +371,10 @@ export const usePageStore = create(
               throw new Error(result.error || 'Failed to load pages');
             }
           } else {
-            // Web version - get from state
+            
             const pages = get().getPagesByNotebook(notebookId);
             set({ isLoading: false });
-            // console.log('PageStore: Retrieved pages from state:', pages.length);
+            
             return pages;
           }
         } catch (error) {
@@ -384,7 +384,7 @@ export const usePageStore = create(
         }
       },
       
-      // Get all pages for a notebook (from state)
+      
       getPagesByNotebook: (notebookId) => {
         const allPages = get().pages;
         return Object.values(allPages)
@@ -392,32 +392,32 @@ export const usePageStore = create(
           .sort((a, b) => a.pageNumber - b.pageNumber);
       },
       
-      // FIXED: Clear current page data
+      
       clearCurrentPageData: () => {
-        // console.log('PageStore: Clearing current page data');
+        
         set({ 
           currentPageData: null,
           lastLoadedPageId: null
         });
       },
       
-      // Utility methods
+      
       getPages: () => get().pages,
       setPages: (pages) => set({ pages }),
       
-      // Initialize store
+      
       initialize: async () => {
-        // console.log('PageStore: Initializing...');
-        // Page store doesn't need initialization like notebooks
-        // Pages are loaded on demand
+        
+        
+        
       }
     }),
     {
       name: 'drawo-pages',
       getStorage: () => localStorage,
-      // Only persist in web mode
+      
       skipHydration: electronService.isElectron,
-      // Don't persist cache to avoid stale data
+      
       partialize: (state) => ({
         pages: state.pages,
       })

@@ -1,4 +1,4 @@
-// src/components/SmoothCanvas/core/CanvasEngine.js - FIXED SELECTION ISSUES
+
 import rough from 'roughjs';
 
 export class CanvasEngine {
@@ -21,7 +21,7 @@ export class CanvasEngine {
       ...options
     };
 
-    // Existing properties
+    
     this.isDrawing = false;
     this.currentPath = [];
     this.paths = [];
@@ -37,7 +37,7 @@ export class CanvasEngine {
     this.pathsToErase = new Set();
     this.pathBBoxes = new Map();
 
-    // Selection properties
+    
     this.selectedItems = new Set();
     this.isSelecting = false;
     this.selectionStart = null;
@@ -45,23 +45,23 @@ export class CanvasEngine {
     this.selectionBounds = null;
     this.isDraggingSelection = false;
     this.dragStart = null;
-    this.resizeHandle = null; // Which resize handle is being dragged
+    this.resizeHandle = null; 
 
-    // Rectangle drawing state
+    
     this.isDrawingRectangle = false;
     this.rectangleStart = null;
     this.currentRectangle = null;
 
-    // AI-specific properties
-    this.aiTextElements = new Map(); // Store AI text elements separately for quick access
+    
+    this.aiTextElements = new Map(); 
     this.isAIMode = false;
     this.currentAIStroke = null;
 
-    // Image properties
-    this.imageElements = new Map(); // Store image elements separately for quick access
-    this.loadedImages = new Map(); // Cache for loaded image objects
+    
+    this.imageElements = new Map(); 
+    this.loadedImages = new Map(); 
 
-    // Rough.js instances
+    
     this.roughCanvas = null;
     this.roughSvg = null;
 
@@ -70,7 +70,7 @@ export class CanvasEngine {
     this.initializeRough();
   }
 
-  // FIXED: Initialize canvas with proper scaling
+  
   initializeCanvas() {
     if (!this.canvasRef.current) return;
 
@@ -94,15 +94,15 @@ export class CanvasEngine {
     }
   }
 
-  // ===========================================
-  // FIXED SELECTION METHODS
-  // ===========================================
+  
+  
+  
 
-  // FIXED: Improved hit testing with better tolerance calculation
+  
   hitTest(point, item) {
-    // FIXED: Use zoom-aware tolerance calculation
+    
     const baseSize = Math.max(this.options.width, this.options.height);
-    const baseTolerance = baseSize * 0.008; // 0.8% of canvas size
+    const baseTolerance = baseSize * 0.008; 
 
     const viewBox = this.options.viewBox;
     const zoomLevel = viewBox ? this.options.width / viewBox.width : 1;
@@ -129,14 +129,14 @@ export class CanvasEngine {
     return false;
   }
 
-  // FIXED: More accurate stroke hit testing
+  
   hitTestStroke(point, stroke, tolerance) {
-    // Get or calculate bounding box
+    
     let bbox = this.pathBBoxes.get(stroke.id);
     if (!bbox) {
       bbox = this.calculateBoundingBox(stroke.pathData);
       if (bbox) {
-        // Apply transform if it exists
+        
         if (stroke.transform) {
           bbox.x += stroke.transform.translateX || 0;
           bbox.y += stroke.transform.translateY || 0;
@@ -150,7 +150,7 @@ export class CanvasEngine {
       return false;
     }
 
-    // FIXED: Use stroke width for better tolerance
+    
     const strokeWidth = stroke.strokeWidth || 5;
     const adjustedTolerance = Math.max(tolerance, strokeWidth);
 
@@ -162,7 +162,7 @@ export class CanvasEngine {
       tolerance: adjustedTolerance
     });
 
-    // Expanded bounding box test
+    
     const hit = point.x >= bbox.x - adjustedTolerance &&
       point.x <= bbox.x + bbox.width + adjustedTolerance &&
       point.y >= bbox.y - adjustedTolerance &&
@@ -172,7 +172,7 @@ export class CanvasEngine {
     return hit;
   }
 
-  // FIXED: Better shape hit testing
+  
   hitTestShape(point, shape, tolerance) {
     console.log('Shape hit test:', {
       id: shape.id,
@@ -193,10 +193,10 @@ export class CanvasEngine {
     return false;
   }
 
-  // FIXED: Improved AI text hit testing
+  
   hitTestAIText(point, textElement, bounds) {
     const baseSize = Math.max(this.options.width, this.options.height);
-    const baseTolerance = baseSize * 0.01; // 1% of canvas size for text
+    const baseTolerance = baseSize * 0.01; 
 
     const viewBox = this.options.viewBox;
     const zoomLevel = viewBox ? this.options.width / viewBox.width : 1;
@@ -214,14 +214,14 @@ export class CanvasEngine {
     return hit;
   }
 
-  // FIXED: Find item at point with better debugging
+  
   findItemAtPoint(point) {
     console.log('=== FINDING ITEM AT POINT ===');
     console.log('Point:', point);
     console.log('Total paths:', this.paths.length);
     console.log('ViewBox:', this.options.viewBox);
 
-    // Search from top to bottom (reverse order since later items are on top)
+    
     for (let i = this.paths.length - 1; i >= 0; i--) {
       const item = this.paths[i];
       console.log(`Testing item ${i}:`, {
@@ -240,10 +240,10 @@ export class CanvasEngine {
     return null;
   }
 
-  // FIXED: Better bounding box calculation for strokes
+  
   calculateBoundingBox(pathData) {
     if (typeof pathData === 'string') {
-      // Extract coordinates from SVG path data
+      
       const coords = pathData.match(/(-?\d+(?:\.\d+)?)/g);
       if (!coords || coords.length < 4) return null;
 
@@ -266,8 +266,8 @@ export class CanvasEngine {
       return {
         x: minX,
         y: minY,
-        width: Math.max(1, maxX - minX), // Ensure minimum width
-        height: Math.max(1, maxY - minY)  // Ensure minimum height
+        width: Math.max(1, maxX - minX), 
+        height: Math.max(1, maxY - minY)  
       };
     }
     else if (typeof pathData === 'object') {
@@ -293,9 +293,9 @@ export class CanvasEngine {
     return null;
   }
 
-  // FIXED: Better selection bounds calculation
+  
   getSelectionBounds(selectedItemIds) {
-    // Handle both Set and Array inputs
+    
     let itemIds;
     if (selectedItemIds instanceof Set) {
       itemIds = Array.from(selectedItemIds);
@@ -330,7 +330,7 @@ export class CanvasEngine {
           console.log('getSelectionBounds: Calculating bounds for stroke:', item.id);
           itemBounds = this.calculateBoundingBox(item.pathData);
           if (itemBounds) {
-            // Apply transform if it exists
+            
             if (item.transform) {
               itemBounds.x += item.transform.translateX || 0;
               itemBounds.y += item.transform.translateY || 0;
@@ -386,7 +386,7 @@ export class CanvasEngine {
     return bounds;
   }
 
-  // FIXED: Find items in rectangle with better intersection testing
+  
   findItemsInRect(rect) {
     console.log('Finding items in rect:', rect);
     const itemsInRect = [];
@@ -402,7 +402,7 @@ export class CanvasEngine {
     return itemsInRect;
   }
 
-  // FIXED: Better rectangle intersection testing
+  
   itemIntersectsRect(item, rect) {
     let itemBounds;
 
@@ -440,7 +440,7 @@ export class CanvasEngine {
 
     if (!itemBounds) return false;
 
-    // FIXED: More precise intersection test
+    
     const intersects = !(rect.x > itemBounds.x + itemBounds.width ||
       rect.x + rect.width < itemBounds.x ||
       rect.y > itemBounds.y + itemBounds.height ||
@@ -455,11 +455,11 @@ export class CanvasEngine {
     return intersects;
   }
 
-  // ===========================================
-  // IMAGE ELEMENT METHODS
-  // ===========================================
+  
+  
+  
 
-  // Add image element to the canvas
+  
   async addImageElement(imageData) {
     const {
       url, x, y, width, height, originalWidth, originalHeight, name
@@ -468,7 +468,7 @@ export class CanvasEngine {
     const id = this.generatePathId();
 
     try {
-      // Load and cache the image
+      
       const img = await this.loadImage(url);
       this.loadedImages.set(id, img);
 
@@ -484,7 +484,7 @@ export class CanvasEngine {
         originalHeight: originalHeight || img.naturalHeight,
         name: name || 'image',
         timestamp: Date.now(),
-        // Image-specific transform properties
+        
         transform: {
           translateX: 0,
           translateY: 0,
@@ -494,7 +494,7 @@ export class CanvasEngine {
         }
       };
 
-      // Calculate bounding box for the image element
+      
       const imageBounds = this.calculateImageBounds(imageElement);
       if (imageBounds) {
         this.pathBBoxes.set(imageElement.id, imageBounds);
@@ -516,7 +516,7 @@ export class CanvasEngine {
     }
   }
 
-  // Load image from URL
+  
   loadImage(url) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -527,7 +527,7 @@ export class CanvasEngine {
     });
   }
 
-  // Calculate bounding box for image elements
+  
   calculateImageBounds(imageElement) {
     const { x, y, width, height, transform } = imageElement;
     
@@ -538,7 +538,7 @@ export class CanvasEngine {
       height: height
     };
 
-    // Apply transform if it exists
+    
     if (transform) {
       bounds.x += transform.translateX || 0;
       bounds.y += transform.translateY || 0;
@@ -549,11 +549,11 @@ export class CanvasEngine {
     return bounds;
   }
 
-  // Hit test for images
+  
   hitTestImage(point, image) {
     const bounds = this.calculateImageBounds(image);
     
-    // Add small tolerance for easier clicking
+    
     const tolerance = 2;
     
     console.log('Image hit test:', {
@@ -572,7 +572,7 @@ export class CanvasEngine {
     return hit;
   }
 
-  // Move image element
+  
   moveImageElement(id, deltaX, deltaY) {
     const element = this.paths.find(p => p.id === id && p.type === 'image');
 
@@ -581,32 +581,32 @@ export class CanvasEngine {
       return false;
     }
 
-    // Update position
+    
     element.x += deltaX;
     element.y += deltaY;
     element.lastModified = Date.now();
 
-    // Update transform if it exists
+    
     if (!element.transform) {
       element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     }
     element.transform.translateX += deltaX;
     element.transform.translateY += deltaY;
 
-    // Update bounding box
+    
     const newBounds = this.calculateImageBounds(element);
     if (newBounds) {
       this.pathBBoxes.set(id, newBounds);
     }
 
-    // Update quick access map
+    
     this.imageElements.set(id, element);
 
     console.log('CanvasEngine: Moved image element:', id, { deltaX, deltaY });
     return true;
   }
 
-  // Resize image element
+  
   resizeImageElement(id, newWidth, newHeight, maintainAspectRatio = true) {
     const element = this.paths.find(p => p.id === id && p.type === 'image');
 
@@ -626,32 +626,32 @@ export class CanvasEngine {
       }
     }
 
-    // Update dimensions
-    element.width = Math.max(10, newWidth); // Minimum size
+    
+    element.width = Math.max(10, newWidth); 
     element.height = Math.max(10, newHeight);
     element.lastModified = Date.now();
 
-    // Update transform scale
+    
     if (!element.transform) {
       element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     }
     element.transform.scaleX = element.width / element.originalWidth;
     element.transform.scaleY = element.height / element.originalHeight;
 
-    // Update bounding box
+    
     const newBounds = this.calculateImageBounds(element);
     if (newBounds) {
       this.pathBBoxes.set(id, newBounds);
     }
 
-    // Update quick access map
+    
     this.imageElements.set(id, element);
 
     console.log('CanvasEngine: Resized image element:', id, { width: element.width, height: element.height });
     return true;
   }
 
-  // Remove image element
+  
   removeImageElement(id) {
     const elementIndex = this.paths.findIndex(p => p.id === id && p.type === 'image');
     
@@ -660,10 +660,10 @@ export class CanvasEngine {
       return false;
     }
 
-    // Remove from paths array
+    
     this.paths.splice(elementIndex, 1);
     
-    // Clean up maps
+    
     this.pathBBoxes.delete(id);
     this.imageElements.delete(id);
     this.loadedImages.delete(id);
@@ -672,16 +672,16 @@ export class CanvasEngine {
     return true;
   }
 
-  // Get loaded image object
+  
   getLoadedImage(id) {
     return this.loadedImages.get(id);
   }
 
-  // ===========================================
-  // AI TEXT ELEMENT METHODS
-  // ===========================================
+  
+  
+  
 
-  // Add AI text element to the canvas
+  
   addAITextElement(textData) {
     const {
       text, x, y, fontFamily, fontSize, fontWeight, color, textAlign,
@@ -705,7 +705,7 @@ export class CanvasEngine {
       confidence: confidence || 0.8,
       timestamp: Date.now(),
       metadata: metadata || {},
-      // Text-specific transform properties
+      
       transform: {
         translateX: 0,
         translateY: 0,
@@ -715,7 +715,7 @@ export class CanvasEngine {
       }
     };
 
-    // Calculate bounding box for the text element
+    
     const textBounds = this.calculateTextBounds(aiTextElement);
     if (textBounds) {
       this.pathBBoxes.set(aiTextElement.id, textBounds);
@@ -733,17 +733,17 @@ export class CanvasEngine {
     return aiTextElement;
   }
 
-  // Calculate bounding box for text elements
+  
   calculateTextBounds(textElement) {
-    // Approximate text bounds calculation
+    
     const { text, fontSize, x, y } = textElement;
 
-    // Rough estimation: each character is about 0.6 * fontSize wide
+    
     const charWidth = fontSize * 0.6;
     const width = text.length * charWidth;
-    const height = fontSize * 1.2; // Include line height
+    const height = fontSize * 1.2; 
 
-    // Adjust based on text alignment
+    
     let adjustedX = x;
     switch (textElement.textAlign) {
       case 'center':
@@ -760,13 +760,13 @@ export class CanvasEngine {
 
     return {
       x: adjustedX,
-      y: y - height * 0.8, // Adjust for baseline
+      y: y - height * 0.8, 
       width: width,
       height: height
     };
   }
 
-  // Check if point is within bounds (with tolerance)
+  
   pointInBounds(point, bounds, tolerance = 0) {
     return point.x >= bounds.x - tolerance &&
       point.x <= bounds.x + bounds.width + tolerance &&
@@ -774,7 +774,7 @@ export class CanvasEngine {
       point.y <= bounds.y + bounds.height + tolerance;
   }
 
-  // Move AI text element
+  
   moveAITextElement(id, deltaX, deltaY) {
     const element = this.paths.find(p => p.id === id && p.type === 'aiText');
 
@@ -783,34 +783,34 @@ export class CanvasEngine {
       return false;
     }
 
-    // Update position
+    
     element.x += deltaX;
     element.y += deltaY;
     element.lastModified = Date.now();
 
-    // Update transform if it exists
+    
     if (!element.transform) {
       element.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     }
     element.transform.translateX += deltaX;
     element.transform.translateY += deltaY;
 
-    // Update bounding box
+    
     const newBounds = this.calculateTextBounds(element);
     if (newBounds) {
       this.pathBBoxes.set(id, newBounds);
     }
 
-    // Update quick access map
+    
     this.aiTextElements.set(id, element);
 
     console.log('CanvasEngine: Moved AI text element:', id, { deltaX, deltaY });
     return true;
   }
 
-  // ===========================================
-  // SELECTION STATE METHODS
-  // ===========================================
+  
+  
+  
 
   setSelectedItems(itemIds) {
     this.selectedItems = new Set(itemIds);
@@ -844,7 +844,7 @@ export class CanvasEngine {
     return this.selectedItems.has(itemId);
   }
 
-  // AREA SELECTION METHODS
+  
 
   startAreaSelection(point) {
     console.log('Starting area selection at:', point);
@@ -889,9 +889,9 @@ export class CanvasEngine {
     return Array.from(this.selectedItems);
   }
 
-  // ===========================================
-  // TRANSFORMATION METHODS
-  // ===========================================
+  
+  
+  
 
   moveSelectedItems(deltaX, deltaY) {
     console.log('Moving selected items:', { deltaX, deltaY, count: this.selectedItems.size });
@@ -911,7 +911,7 @@ export class CanvasEngine {
       }
     }
 
-    // Update bounding boxes and selection bounds
+    
     this.updatePathBoundingBoxes();
     this.selectionBounds = this.getSelectionBounds(this.selectedItems);
   }
@@ -944,50 +944,50 @@ export class CanvasEngine {
       }
     }
 
-    // Update bounding boxes and selection bounds
+    
     this.updatePathBoundingBoxes();
     this.selectionBounds = newBounds;
   }
 
   resizeShape(shape, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
-    // Calculate relative position within old bounds
+    
     const relativeX = (shape.x - oldBounds.x) / oldBounds.width;
     const relativeY = (shape.y - oldBounds.y) / oldBounds.height;
     const relativeWidth = shape.width / oldBounds.width;
     const relativeHeight = shape.height / oldBounds.height;
 
-    // Apply to new bounds
+    
     shape.x = newBounds.x + (relativeX * newBounds.width);
     shape.y = newBounds.y + (relativeY * newBounds.height);
     shape.width = relativeWidth * newBounds.width;
     shape.height = relativeHeight * newBounds.height;
 
-    // Update bounding box
+    
     const bbox = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
     this.pathBBoxes.set(shape.id, bbox);
   }
 
   resizeImageItem(image, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
-    // Calculate relative position within old bounds
+    
     const relativeX = (image.x - oldBounds.x) / oldBounds.width;
     const relativeY = (image.y - oldBounds.y) / oldBounds.height;
     const relativeWidth = image.width / oldBounds.width;
     const relativeHeight = image.height / oldBounds.height;
 
-    // Apply to new bounds
+    
     image.x = newBounds.x + (relativeX * newBounds.width);
     image.y = newBounds.y + (relativeY * newBounds.height);
     image.width = relativeWidth * newBounds.width;
     image.height = relativeHeight * newBounds.height;
 
-    // Update transform
+    
     if (!image.transform) {
       image.transform = { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotation: 0 };
     }
     image.transform.scaleX = image.width / image.originalWidth;
     image.transform.scaleY = image.height / image.originalHeight;
 
-    // Update bounding box
+    
     const bbox = this.calculateImageBounds(image);
     if (bbox) {
       this.pathBBoxes.set(image.id, bbox);
@@ -1000,15 +1000,15 @@ export class CanvasEngine {
   }
 
   resizeAITextItem(textItem, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
-    // Calculate relative position within old bounds
+    
     const relativeX = (textItem.x - oldBounds.x) / oldBounds.width;
     const relativeY = (textItem.y - oldBounds.y) / oldBounds.height;
 
-    // Apply to new bounds (position only, don't scale text size)
+    
     textItem.x = newBounds.x + (relativeX * newBounds.width);
     textItem.y = newBounds.y + (relativeY * newBounds.height);
 
-    // Update bounding box
+    
     const bbox = this.calculateTextBounds(textItem);
     if (bbox) {
       this.pathBBoxes.set(textItem.id, bbox);
@@ -1016,15 +1016,15 @@ export class CanvasEngine {
   }
 
   resizeStroke(stroke, oldBounds, newBounds, scaleX, scaleY, offsetX, offsetY) {
-    // For strokes, we need to transform the path data itself
-    // This is more complex and might not be ideal for all use cases
-    // For now, just move the stroke proportionally
+    
+    
+    
     
     if (!stroke.transform) {
       stroke.transform = { translateX: 0, translateY: 0 };
     }
 
-    // Calculate current stroke bounds
+    
     let strokeBounds = this.pathBBoxes.get(stroke.id);
     if (!strokeBounds) {
       strokeBounds = this.calculateBoundingBox(stroke.pathData);
@@ -1034,19 +1034,19 @@ export class CanvasEngine {
     }
 
     if (strokeBounds) {
-      // Calculate relative position within old bounds
+      
       const relativeX = (strokeBounds.x - oldBounds.x) / oldBounds.width;
       const relativeY = (strokeBounds.y - oldBounds.y) / oldBounds.height;
 
-      // Apply to new bounds
+      
       const newStrokeX = newBounds.x + (relativeX * newBounds.width);
       const newStrokeY = newBounds.y + (relativeY * newBounds.height);
 
-      // Update transform
+      
       stroke.transform.translateX += (newStrokeX - strokeBounds.x);
       stroke.transform.translateY += (newStrokeY - strokeBounds.y);
 
-      // Update bounding box
+      
       strokeBounds.x = newStrokeX;
       strokeBounds.y = newStrokeY;
       this.pathBBoxes.set(stroke.id, strokeBounds);
@@ -1054,14 +1054,14 @@ export class CanvasEngine {
   }
 
   moveStroke(stroke, deltaX, deltaY) {
-    // Store the transformation and apply it during rendering
+    
     if (!stroke.transform) {
       stroke.transform = { translateX: 0, translateY: 0 };
     }
     stroke.transform.translateX += deltaX;
     stroke.transform.translateY += deltaY;
 
-    // Update bounding box
+    
     let bbox = this.pathBBoxes.get(stroke.id);
     if (bbox) {
       bbox.x += deltaX;
@@ -1074,7 +1074,7 @@ export class CanvasEngine {
     shape.x += deltaX;
     shape.y += deltaY;
 
-    // Update bounding box
+    
     const bbox = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
     this.pathBBoxes.set(shape.id, bbox);
   }
@@ -1111,10 +1111,10 @@ export class CanvasEngine {
     const itemsToDelete = Array.from(this.selectedItems);
     console.log('Deleting selected items:', itemsToDelete);
 
-    // Remove items from paths array
+    
     this.paths = this.paths.filter(item => !itemsToDelete.includes(item.id));
 
-    // Clean up maps
+    
     for (const itemId of itemsToDelete) {
       this.pathBBoxes.delete(itemId);
       this.aiTextElements.delete(itemId);
@@ -1122,16 +1122,16 @@ export class CanvasEngine {
       this.loadedImages.delete(itemId);
     }
 
-    // Clear selection
+    
     this.selectedItems.clear();
     this.selectionBounds = null;
   }
 
-  // Get resize handle at point
+  
   getResizeHandleAtPoint(point, bounds) {
     if (!bounds) return null;
 
-    const handleSize = 12; // Increased handle size for easier clicking
+    const handleSize = 12; 
     const handles = this.getResizeHandles(bounds);
 
     for (const [name, handle] of Object.entries(handles)) {
@@ -1147,20 +1147,20 @@ export class CanvasEngine {
   getResizeHandles(bounds) {
     const { x, y, width, height } = bounds;
     return {
-      'nw': { x: x, y: y },                    // top-left
-      'n': { x: x + width / 2, y: y },          // top-center
-      'ne': { x: x + width, y: y },            // top-right
-      'e': { x: x + width, y: y + height / 2 }, // middle-right
-      'se': { x: x + width, y: y + height },   // bottom-right
-      's': { x: x + width / 2, y: y + height }, // bottom-center
-      'sw': { x: x, y: y + height },           // bottom-left
-      'w': { x: x, y: y + height / 2 }          // middle-left
+      'nw': { x: x, y: y },                    
+      'n': { x: x + width / 2, y: y },          
+      'ne': { x: x + width, y: y },            
+      'e': { x: x + width, y: y + height / 2 }, 
+      'se': { x: x + width, y: y + height },   
+      's': { x: x + width / 2, y: y + height }, 
+      'sw': { x: x, y: y + height },           
+      'w': { x: x, y: y + height / 2 }          
     };
   }
 
-  // ===========================================
-  // EXISTING METHODS (PEN, ERASER, SHAPES, ETC.)
-  // ===========================================
+  
+  
+  
 
   getStrokeOptions(inputType, strokeWidth) {
     const zoomLevel = this.options.viewBox ?
@@ -1243,7 +1243,7 @@ export class CanvasEngine {
     return [x, y, pressure];
   }
 
-  // Rectangle drawing methods
+  
   startRectangle(startPoint) {
     console.log('Starting rectangle at:', startPoint);
     this.isDrawingRectangle = true;
@@ -1401,7 +1401,7 @@ export class CanvasEngine {
       opacity: this.options.opacity,
       inputPoints,
       timestamp: Date.now(),
-      transform: null // For selection transformations
+      transform: null 
     };
 
     const bbox = this.calculateBoundingBox(pathData);
@@ -1465,7 +1465,7 @@ export class CanvasEngine {
     this.currentPath = [];
     this.pathsToErase.clear();
     this.nextPathId = 0;
-    this.clearSelection(); // Clear selection when clearing paths
+    this.clearSelection(); 
     this.cancelRectangle();
     this.aiTextElements.clear();
     this.imageElements.clear();
@@ -1478,13 +1478,13 @@ export class CanvasEngine {
     const lastPath = this.paths.pop();
     if (lastPath && lastPath.id !== undefined) {
       this.pathBBoxes.delete(lastPath.id);
-      // Remove from selection if it was selected
+      
       this.removeFromSelection(lastPath.id);
-      // Remove from AI text elements if it's an AI text
+      
       if (lastPath.type === 'aiText') {
         this.aiTextElements.delete(lastPath.id);
       }
-      // Remove from image elements if it's an image
+      
       if (lastPath.type === 'image') {
         this.imageElements.delete(lastPath.id);
         this.loadedImages.delete(lastPath.id);
@@ -1493,7 +1493,7 @@ export class CanvasEngine {
     return true;
   }
 
-  // EXPORT/IMPORT WITH AI TEXT SUPPORT
+  
   exportAsJSON() {
     return JSON.stringify({
       type: 'drawing',
@@ -1612,7 +1612,7 @@ export class CanvasEngine {
 
       data.elements.forEach(async (element) => {
         if (element.type === 'image') {
-          // Import image element
+          
           try {
             const imageElement = {
               id: this.generatePathId(),
@@ -1631,7 +1631,7 @@ export class CanvasEngine {
               }
             };
 
-            // Try to load the image if URL is available
+            
             if (element.url) {
               try {
                 const img = await this.loadImage(element.url);
@@ -1654,7 +1654,7 @@ export class CanvasEngine {
           }
         }
         else if (element.type === 'aiText') {
-          // Import AI text element
+          
           const aiTextElement = {
             id: this.generatePathId(),
             type: 'aiText',
@@ -1814,7 +1814,7 @@ export class CanvasEngine {
     });
   }
 
-  // Getters
+  
   getPaths() { return this.paths; }
   getPathsToErase() { return this.pathsToErase; }
   getCurrentPath() { return this.currentPath; }
@@ -1824,7 +1824,7 @@ export class CanvasEngine {
   getSelectionBounds() { return this.selectionBounds; }
   getSelectionRect() { return this.selectionRect; }
 
-  // Setters
+  
   setPathsToErase(pathsToErase) { this.pathsToErase = pathsToErase; }
   setCurrentPath(path) { this.currentPath = path; }
 

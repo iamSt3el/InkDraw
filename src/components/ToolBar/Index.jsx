@@ -1,4 +1,4 @@
-// src/components/ToolBar/Index.jsx - UPDATED with AI Handwriting Tool
+
 import React from 'react';
 import styles from './ToolBar.module.scss';
 import Button from '../atoms/Button/Button';
@@ -6,14 +6,14 @@ import PageNavigator from '../PageNavigator/PageNavigator';
 import {
   Menu, Pen, Eraser, MoveLeft, Trash, Undo, X, Palette, Grid3X3,
   Settings, Square, ArrowLeft, Save,
-  Shapes, MousePointer2, Brain, ImageIcon // ADDED ImageIcon for image tool
+  Shapes, MousePointer2, Brain, ImageIcon 
 } from 'lucide-react';
 import { useDrawingStore } from '../../stores/drawingStore';
 import { useUIStore } from '../../stores/uiStore';
 import { usePageStore } from '../../stores/pageStore';
 
 const ToolBar = ({ 
-  // Navigation props
+  
   notebookInfo = null,
   currentPage = null,
   totalPages = null,
@@ -25,7 +25,7 @@ const ToolBar = ({
   isSaving = false,
   isTransitioning = false
 }) => {
-  // Get drawing store state
+  
   const {
     currentTool,
     setTool,
@@ -34,7 +34,7 @@ const ToolBar = ({
     isRoughMode,
     selectedItems,
     deleteSelection,
-    isAiProcessing // ADDED AI processing state
+    isAiProcessing 
   } = useDrawingStore();
 
   const {
@@ -43,7 +43,7 @@ const ToolBar = ({
     togglePagePanel,
     togglePenPanel,
     toggleShapePanel,
-    toggleAiTextPanel, // ADDED AI text panel toggle
+    toggleAiTextPanel, 
     setMenuOpen,
     handleExportImage,
     handleExportSVG,
@@ -52,7 +52,7 @@ const ToolBar = ({
 
   const { isSaving: storeSaving } = usePageStore();
 
-  // Handle tool selection
+  
   const handlePenClick = () => {
     setTool('pen');
   };
@@ -69,14 +69,14 @@ const ToolBar = ({
     setTool('select');
   };
 
-  // ADDED: AI Handwriting tool handler
+  
   const handleAiHandwritingClick = () => {
     setTool('aiHandwriting');
   };
 
-  // ADDED: Image tool handler
+  
   const handleImageClick = () => {
-    // Create hidden file input
+    
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -91,16 +91,16 @@ const ToolBar = ({
 
   const handleImageUpload = async (file) => {
     try {
-      // Convert file to data URL for persistence
+      
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target.result;
         
-        // Create image to get dimensions
+        
         const img = new Image();
         img.onload = async () => {
           try {
-            // Scale down large images
+            
             let width = img.naturalWidth;
             let height = img.naturalHeight;
             const maxSize = 800;
@@ -116,12 +116,12 @@ const ToolBar = ({
               }
             }
             
-            // Add image to canvas
+            
             const { addImage } = useDrawingStore.getState();
             if (addImage) {
               await addImage({
                 url: dataUrl,
-                x: 100, // Default position
+                x: 100, 
                 y: 100,
                 width: width,
                 height: height,
@@ -174,11 +174,11 @@ const ToolBar = ({
 
   return (
     <>
-      {/* TOP TOOLBAR - FIXED ORDER */}
+      {}
       <div className={styles.tb_cover}>
-        {/* LEFT SECTION: Notebook Info */}
+        {}
         <div className={styles.tb_left}>
-          {/* Back Button */}
+          {}
           {onBackToNotebooks && (
             <button 
               className={styles.backButton}
@@ -190,7 +190,7 @@ const ToolBar = ({
             </button>
           )}
 
-          {/* Notebook Info */}
+          {}
           {notebookInfo && (
             <div className={styles.notebookInfo}>
               <h3 className={styles.notebookTitle}>{notebookInfo.title}</h3>
@@ -203,7 +203,7 @@ const ToolBar = ({
           )}
         </div>
 
-        {/* CENTER SECTION: Drawing Tools */}
+        {}
         <div className={styles.tb_center}>
           <div className={styles.drawing_tools}>
             <Button
@@ -218,14 +218,14 @@ const ToolBar = ({
               onClick={handlePenClick}
               label="Pen Tool (P)"
             />
-            {/* ADDED: AI Handwriting Tool Button */}
+            {}
             <Button
               Icon={Brain}
               isActive={currentTool === 'aiHandwriting'}
               onClick={handleAiHandwritingClick}
               label={`AI Handwriting Tool (A) ${isAiProcessing ? '- Processing...' : ''}`}
             />
-            {/* ADDED: Image Tool Button */}
+            {}
             <Button
               Icon={ImageIcon}
               onClick={handleImageClick}
@@ -246,7 +246,7 @@ const ToolBar = ({
               />
             </div>
             
-            {/* Selection-specific tools */}
+            {}
             {currentTool === 'select' && selectedItems.size > 0 && (
               <div className={styles.selection_tools}>
                 <button
@@ -260,7 +260,7 @@ const ToolBar = ({
               </div>
             )}
 
-            {/* ADDED: AI-specific tools when AI tool is active */}
+            {}
             {currentTool === 'aiHandwriting' && (
               <div className={styles.ai_tools}>
                 {isAiProcessing && (
@@ -285,9 +285,9 @@ const ToolBar = ({
           </div>
         </div>
 
-        {/* RIGHT SECTION: Navigation & Menu */}
+        {}
         <div className={styles.tb_right}>
-          {/* Page Navigator */}
+          {}
           {currentPage && totalPages && (
             <div className={styles.pageNavigatorWrapper}>
               <PageNavigator
@@ -300,7 +300,7 @@ const ToolBar = ({
             </div>
           )}
 
-          {/* Save Status */}
+          {}
           <div className={styles.saveStatus}>
             {isTransitioning && (
               <span className={styles.switching}>
@@ -319,7 +319,7 @@ const ToolBar = ({
             )}
           </div>
 
-          {/* Save Button */}
+          {}
           {onSave && (
             <button 
               className={styles.saveButton}
@@ -332,7 +332,7 @@ const ToolBar = ({
             </button>
           )}
 
-          {/* Menu */}
+          {}
           <div className={styles.tb_menu}>
             <div className={`${styles.quick_menu} ${isMenuOpen ? styles.visible : ''}`}>
               <button
@@ -352,7 +352,7 @@ const ToolBar = ({
                     <Palette size={18} />
                     <span>Pen Settings</span>
                   </button>
-                  {/* ADDED: AI Text Settings Menu Item */}
+                  {}
                   <button
                     className={styles.menu_item}
                     onClick={() => { toggleAiTextPanel(); setMenuOpen(false); }}
@@ -396,8 +396,7 @@ const ToolBar = ({
         </div>
       </div>
 
-
-      {/* ADDED: AI Handwriting instructions */}
+      {}
       {currentTool === 'aiHandwriting' && (
         <div className={styles.ai_instructions}>
           <div className={styles.instructions_panel}>

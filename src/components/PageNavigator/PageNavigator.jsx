@@ -1,4 +1,4 @@
-// src/components/PageNavigator/PageNavigator.jsx
+
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 import styles from './PageNavigator.module.scss';
@@ -37,9 +37,9 @@ const PageNavigator = ({
 
   const generatePageNumbers = () => {
     const pages = [];
-    const delta = 2; // Number of pages to show on each side of current page
+    const delta = 2; 
     
-    // Always show first page
+    
     if (currentPage > delta + 2) {
       pages.push(1);
       if (currentPage > delta + 3) {
@@ -47,12 +47,12 @@ const PageNavigator = ({
       }
     }
     
-    // Show pages around current page
+    
     for (let i = Math.max(1, currentPage - delta); i <= Math.min(totalPages, currentPage + delta); i++) {
       pages.push(i);
     }
     
-    // Always show last page
+    
     if (currentPage < totalPages - delta - 1) {
       if (currentPage < totalPages - delta - 2) {
         pages.push('...');

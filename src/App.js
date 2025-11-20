@@ -1,4 +1,3 @@
-// src/App.js - Updated with simplified routes
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import NoteBookManager from './pages/NoteBookManagerPage';
@@ -37,7 +36,6 @@ function App() {
     initializeApp();
   }, [initializeNotebooks, initializePages]);
 
-  // Toggle debug panel with Ctrl+D
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === 'd') {
@@ -89,20 +87,20 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          {/* Default route - Notebook Manager */}
+          {}
           <Route path="/" element={<NoteBookManager />} />
           
-          {/* Notebook Manager route */}
+          {}
           <Route path="/notebooks" element={<NoteBookManager />} />
           
-          {/* Simplified Notebook Inside route - NO page parameter */}
+          {}
           <Route path="/notebook/:notebookId" element={<NotebookInside />} />
           
-          {/* Fallback route - redirect to home */}
+          {}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         
-        {/* Global Notification Component */}
+        {}
         <Notification />
         )
       </div>

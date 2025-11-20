@@ -1,14 +1,14 @@
-// public/electron-data-handler.js - Updated with data directory management
+
 const { ipcMain, dialog, app } = require('electron');
 const DataManager = require('../DataManager');
 const path = require('path');
 
 class ElectronDataHandler {
   constructor() {
-    // Initialize DataManager with user preference
+    
     this.initializeDataManager();
     
-    // Register IPC handlers
+    
     this.registerHandlers();
   }
 
@@ -18,13 +18,13 @@ class ElectronDataHandler {
       console.log('DataManager initialized with data directory:', this.dataManager.getDataDirectoryInfo().baseDir);
     } catch (error) {
       console.error('Error initializing DataManager:', error);
-      // Fallback to default DataManager
+      
       this.dataManager = new DataManager();
     }
   }
 
   registerHandlers() {
-    // Data directory management handlers
+    
     ipcMain.handle('data-get-directory-info', async (event) => {
       return {
         success: true,
@@ -87,16 +87,16 @@ class ElectronDataHandler {
 
     ipcMain.handle('data-reset-to-default-directory', async (event) => {
       try {
-        // Create new DataManager with default directory
+        
         this.dataManager = new DataManager();
         
-        // Clear the user preference
+        
         const preferencesPath = path.join(app.getPath('userData'), 'preferences.json');
         const fs = require('fs').promises;
         try {
           await fs.unlink(preferencesPath);
         } catch (error) {
-          // Ignore if file doesn't exist
+          
         }
         
         return {
@@ -113,7 +113,7 @@ class ElectronDataHandler {
       }
     });
 
-    // Notebook handlers
+    
     ipcMain.handle('data-save-notebook', async (event, notebook) => {
       return await this.dataManager.saveNotebook(notebook);
     });
@@ -130,7 +130,7 @@ class ElectronDataHandler {
       return await this.dataManager.deleteNotebook(notebookId);
     });
 
-    // Page handlers
+    
     ipcMain.handle('data-save-page', async (event, pageData) => {
       return await this.dataManager.savePage(pageData);
     });
@@ -147,7 +147,7 @@ class ElectronDataHandler {
       return await this.dataManager.deletePage(pageId);
     });
 
-    // Settings handlers
+    
     ipcMain.handle('data-save-app-settings', async (event, settings) => {
       return await this.dataManager.saveAppSettings(settings);
     });
@@ -156,7 +156,7 @@ class ElectronDataHandler {
       return await this.dataManager.loadAppSettings();
     });
 
-    // Utility handlers
+    
     ipcMain.handle('data-create-backup', async (event) => {
       return await this.dataManager.createBackup();
     });
@@ -165,7 +165,7 @@ class ElectronDataHandler {
       return await this.dataManager.getStorageStats();
     });
 
-    // Import/Export handlers
+    
     ipcMain.handle('data-export-all-data', async (event) => {
       try {
         const result = await dialog.showSaveDialog({
@@ -178,7 +178,7 @@ class ElectronDataHandler {
         });
 
         if (!result.canceled && result.filePath) {
-          // Export all data
+          
           const notebooksResult = await this.dataManager.loadAllNotebooks();
           if (!notebooksResult.success) {
             throw new Error('Failed to load notebooks for export');
@@ -191,18 +191,18 @@ class ElectronDataHandler {
             pages: {}
           };
 
-          // Export notebooks and their pages
+          
           for (const notebook of notebooksResult.notebooks) {
             exportData.notebooks.push(notebook);
             
-            // Export pages for this notebook
+            
             const pagesResult = await this.dataManager.loadPagesByNotebook(notebook.id);
             if (pagesResult.success) {
               exportData.pages[notebook.id] = pagesResult.pages;
             }
           }
 
-          // Write to file
+          
           const fs = require('fs').promises;
           await fs.writeFile(result.filePath, JSON.stringify(exportData, null, 2));
 
@@ -241,11 +241,11 @@ class ElectronDataHandler {
           const filePath = result.filePaths[0];
           const fs = require('fs').promises;
           
-          // Read and parse import file
+          
           const fileContent = await fs.readFile(filePath, 'utf8');
           const importData = JSON.parse(fileContent);
 
-          // Validate import data structure
+          
           if (!importData.notebooks || !Array.isArray(importData.notebooks)) {
             throw new Error('Invalid import file format');
           }
@@ -253,7 +253,7 @@ class ElectronDataHandler {
           let importedNotebooks = 0;
           let importedPages = 0;
 
-          // Import notebooks
+          
           for (const notebook of importData.notebooks) {
             try {
               await this.dataManager.saveNotebook(notebook);
@@ -263,7 +263,7 @@ class ElectronDataHandler {
             }
           }
 
-          // Import pages
+          
           if (importData.pages) {
             for (const [notebookId, pages] of Object.entries(importData.pages)) {
               if (Array.isArray(pages)) {

@@ -1,4 +1,4 @@
-// src/components/ShapePanel/ShapePanel.jsx - Simplified
+
 import React from 'react';
 import styles from './ShapePanel.module.scss';
 import { useDrawingStore } from '../../stores/drawingStore';
@@ -23,7 +23,7 @@ const ShapePanel = () => {
 
   const { isShapePanelVisible, toggleShapePanel } = useUIStore();
 
-  // Early return if panel is not visible
+  
   if (!isShapePanelVisible) return null;
 
   const handleColorChange = (e) => {
@@ -64,7 +64,7 @@ const ShapePanel = () => {
           </button>
         </div>
 
-        {/* Shape Tool Selection */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Shape Type</div>
           <div className={styles.shape_tools}>
@@ -79,7 +79,7 @@ const ShapePanel = () => {
           </div>
         </div>
 
-        {/* Shape Color */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Shape Color</div>
           <div className={styles.color_control}>
@@ -95,7 +95,7 @@ const ShapePanel = () => {
           </div>
         </div>
 
-        {/* Border Size */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>
             Border Size
@@ -118,7 +118,7 @@ const ShapePanel = () => {
           </div>
         </div>
 
-        {/* Fill Options */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Fill</div>
           <div className={styles.fill_controls}>
@@ -149,7 +149,7 @@ const ShapePanel = () => {
           </div>
         </div>
 
-        {/* Round Corners */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Corner Style</div>
           <label className={styles.checkbox_label}>
@@ -163,7 +163,7 @@ const ShapePanel = () => {
           </label>
         </div>
 
-        {/* Info Section */}
+        {}
         <div className={styles.info_section}>
           <div className={styles.info_text}>
             <strong>Hand-drawn Style:</strong> All rectangles use a sketchy, hand-drawn appearance for a natural look.

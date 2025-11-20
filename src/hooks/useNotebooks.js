@@ -1,4 +1,4 @@
-// src/hooks/useNotebooks.js - Hook for data directory operations
+
 import { useState, useEffect } from 'react';
 import electronService from '../services/ElectronService';
 
@@ -7,7 +7,7 @@ export const useNotebooks = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load data directory info on mount
+  
   useEffect(() => {
     loadDataDirectoryInfo();
   }, []);
@@ -25,7 +25,7 @@ export const useNotebooks = () => {
           throw new Error(result.error || 'Failed to load directory info');
         }
       } else {
-        // Web version - set dummy data
+        
         setDataDirectoryInfo({
           baseDir: 'Local Storage (Web Version)',
           notebooksDir: 'localStorage',
@@ -56,7 +56,7 @@ export const useNotebooks = () => {
       const result = await electronService.selectDirectory();
       
       if (result.success) {
-        // Reload directory info after successful change
+        
         await loadDataDirectoryInfo();
         return {
           success: true,
@@ -92,7 +92,7 @@ export const useNotebooks = () => {
       const result = await electronService.resetToDefaultDirectory();
       
       if (result.success) {
-        // Reload directory info after successful reset
+        
         await loadDataDirectoryInfo();
         return {
           success: true,
@@ -209,12 +209,12 @@ export const useNotebooks = () => {
   };
 
   return {
-    // State
+    
     dataDirectoryInfo,
     isLoading,
     error,
     
-    // Methods
+    
     loadDataDirectoryInfo,
     selectDataDirectory,
     resetToDefaultDirectory,

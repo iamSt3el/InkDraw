@@ -1,9 +1,9 @@
-// src/components/DataDirectorySettings/DataDirectorySettings.jsx - Fixed import
+
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './DataDirectorySettings.module.scss';
 import { FolderOpen, Home, Download, Upload, Info, AlertCircle, X } from 'lucide-react';
-import { useNotebooks } from '../../hooks/useNotebooks'; // Fixed import
+import { useNotebooks } from '../../hooks/useNotebooks'; 
 
 const DataDirectorySettings = ({ onClose }) => {
   const {
@@ -23,14 +23,14 @@ const DataDirectorySettings = ({ onClose }) => {
   const [showImportConfirm, setShowImportConfirm] = useState(false);
 
   useEffect(() => {
-    // Check if functions are available before calling them
+    
     if (loadDataDirectoryInfo) {
       loadDataDirectoryInfo();
     }
     loadStorageStats();
   }, [loadDataDirectoryInfo]);
 
-  // Close on Escape key
+  
   useEffect(() => {
     const handleEscapeKey = (event) => {
       if (event.key === 'Escape') {
@@ -42,14 +42,14 @@ const DataDirectorySettings = ({ onClose }) => {
     return () => document.removeEventListener('keydown', handleEscapeKey);
   }, [onClose]);
 
-  // Handle overlay click
+  
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
   };
 
-  // Handle close button click
+  
   const handleCloseClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -178,7 +178,7 @@ const DataDirectorySettings = ({ onClose }) => {
         </div>
 
         <div className={styles.modalBody}>
-          {/* Show notification for web version */}
+          {}
           {!selectDataDirectory && (
             <div className={styles.webVersionNotice}>
               <AlertCircle size={20} />
@@ -186,7 +186,7 @@ const DataDirectorySettings = ({ onClose }) => {
             </div>
           )}
 
-          {/* Current Directory Info */}
+          {}
           <div className={styles.section}>
             <h3>
               <FolderOpen className={styles.sectionIcon} />
@@ -221,7 +221,7 @@ const DataDirectorySettings = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Storage Statistics */}
+          {}
           {storageStats && (
             <div className={styles.section}>
               <h3>
@@ -245,7 +245,7 @@ const DataDirectorySettings = ({ onClose }) => {
             </div>
           )}
 
-          {/* Import/Export Section */}
+          {}
           <div className={styles.section}>
             <h3>
               <Download className={styles.sectionIcon} />
@@ -276,7 +276,7 @@ const DataDirectorySettings = ({ onClose }) => {
             </p>
           </div>
 
-          {/* Message Display */}
+          {}
           {message.text && (
             <div className={`${styles.message} ${styles[message.type]}`}>
               {message.type === 'error' && <AlertCircle size={16} />}
@@ -284,7 +284,7 @@ const DataDirectorySettings = ({ onClose }) => {
             </div>
           )}
 
-          {/* Information Section */}
+          {}
           <div className={styles.infoSection}>
             <h4>How Data Directory Works</h4>
             <ul className={styles.infoList}>
@@ -306,7 +306,7 @@ const DataDirectorySettings = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Confirmation Dialogs */}
+        {}
         {showResetConfirm && (
           <div className={styles.confirmOverlay} onClick={(e) => e.stopPropagation()}>
             <div className={styles.confirmDialog}>

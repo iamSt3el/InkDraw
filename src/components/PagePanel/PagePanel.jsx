@@ -15,13 +15,13 @@ const PageSettingPanel = () => {
   
   const { isPagePanelVisible, togglePagePanel } = useUIStore();
   
-  // Use props as initial state and update when props change
+  
   const [currentPattern, setCurrentPattern] = useState(pageSettings.pattern);
   const [currentPatternSize, setCurrentPatternSize] = useState(pageSettings.patternSize);
   const [currentPatternColor, setCurrentPatternColor] = useState(pageSettings.patternColor);
   const [currentPatternOpacity, setCurrentPatternOpacity] = useState(pageSettings.patternOpacity);
 
-  // Update state when store values change
+  
   useEffect(() => {
     setCurrentPattern(pageSettings.pattern);
   }, [pageSettings.pattern]);
@@ -38,7 +38,7 @@ const PageSettingPanel = () => {
     setCurrentPatternOpacity(pageSettings.patternOpacity);
   }, [pageSettings.patternOpacity]);
 
-  // Don't show panel if not visible in UI state
+  
   if (!isPagePanelVisible) return null;
 
   const patterns = [
@@ -75,14 +75,14 @@ const PageSettingPanel = () => {
   ];
 
   const patternColors = [
-    '#e5e7eb', // Light gray
-    '#d1d5db', // Gray
-    '#9ca3af', // Dark gray
-    '#ddd6fe', // Light purple
-    '#c7d2fe', // Light blue
-    '#d1fae5', // Light green
-    '#fef3c7', // Light yellow
-    '#fed7d7', // Light red
+    '#e5e7eb', 
+    '#d1d5db', 
+    '#9ca3af', 
+    '#ddd6fe', 
+    '#c7d2fe', 
+    '#d1fae5', 
+    '#fef3c7', 
+    '#fed7d7', 
   ];
 
   const handlePatternChange = (newPattern) => {
@@ -120,7 +120,7 @@ const PageSettingPanel = () => {
           </button>
         </div>
 
-        {/* Pattern Selection */}
+        {}
         <div className={styles.section}>
           <div className={styles.section_title}>Pattern Type</div>
           <div className={styles.pattern_grid}>
@@ -138,7 +138,7 @@ const PageSettingPanel = () => {
           </div>
         </div>
 
-        {/* Pattern Size */}
+        {}
         {currentPattern !== 'blank' && (
           <div className={styles.section}>
             <div className={styles.section_title}>
@@ -169,7 +169,7 @@ const PageSettingPanel = () => {
           </div>
         )}
 
-        {/* Pattern Color */}
+        {}
         {currentPattern !== 'blank' && (
           <div className={styles.section}>
             <div className={styles.section_title}>Pattern Color</div>
@@ -191,7 +191,7 @@ const PageSettingPanel = () => {
           </div>
         )}
 
-        {/* Pattern Opacity */}
+        {}
         {currentPattern !== 'blank' && (
           <div className={styles.section}>
             <div className={styles.section_title}>

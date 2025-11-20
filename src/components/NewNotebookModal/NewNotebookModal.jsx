@@ -1,4 +1,4 @@
-// src/components/NewNotebookModal/NewNotebookModal.jsx
+
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import styles from './NewNotebookModal.module.scss';
@@ -7,15 +7,15 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    color: '#8b5cf6', // Default color
-    totalPages: 100 // Default page count
+    color: '#8b5cf6', 
+    totalPages: 100 
   });
   
   const [formErrors, setFormErrors] = useState({
     title: ''
   });
   
-  // Available colors for notebook cover
+  
   const colorOptions = [
     { id: 'purple', value: '#8b5cf6' },
     { id: 'red', value: '#ef4444' },
@@ -27,7 +27,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
     { id: 'amber', value: '#f97316' }
   ];
   
-  // Handle input changes
+  
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -35,7 +35,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
       [name]: value
     });
     
-    // Clear error when field is modified
+    
     if (formErrors[name]) {
       setFormErrors({
         ...formErrors,
@@ -44,7 +44,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
     }
   };
   
-  // Handle color selection
+  
   const handleColorSelect = (color) => {
     setFormData({
       ...formData,
@@ -52,7 +52,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
     });
   };
   
-  // Validate form before submission
+  
   const validateForm = () => {
     const errors = {};
     
@@ -64,7 +64,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
     return Object.keys(errors).length === 0;
   };
   
-  // Handle form submission
+  
   const handleSubmit = (e) => {
     e.preventDefault();
     
@@ -80,7 +80,7 @@ const NewNotebookModal = ({ onClose, onSubmit }) => {
     }
   };
   
-  // Prevent propagation of click events from modal content to overlay
+  
   const handleModalContentClick = (e) => {
     e.stopPropagation();
   };
